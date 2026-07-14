@@ -94,6 +94,7 @@ import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
@@ -114,6 +115,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -364,6 +366,8 @@ class UnifiedActivity :
 
     var libraryPlaytimeRefreshSignal by mutableIntStateOf(0)
     private var hasCompletedInitialResume = false
+
+    private var retroBadgeByAppId by mutableStateOf<Map<Int, String>>(emptyMap())
 
     // Activity-level so task progress survives game-detail dialog teardown.
     private var taskProgressInfo by mutableStateOf<DownloadInfo?>(null)
@@ -3466,6 +3470,7 @@ class UnifiedActivity :
                             localLibraryRefreshKey++
                         }
                         val allShortcuts = cm.loadShortcuts()
+                        val badges = HashMap<Int, String>()
                         val apps =
                             allShortcuts
                                 .mapNotNull { shortcut ->
@@ -3477,13 +3482,20 @@ class UnifiedActivity :
                                         shortcut
                                             .getExtra("custom_name", shortcut.name)
                                             .ifBlank { shortcut.name }
-                                    
+
                                     val uuid = shortcut.getExtra("uuid")
                                     val customId = if (uuid.isNotEmpty()) {
                                         -(uuid.hashCode().and(0x7FFFFFFF) + 1)
                                     } else {
                                         -(displayName.hashCode().and(0x7FFFFFFF) + 1)
                                     }
+
+                                    com.winlator.cmod.feature.retro.RetroSystems
+                                        .fromId(
+                                            shortcut.getExtra(
+                                                com.winlator.cmod.feature.retro.RetroShortcuts.KEY_SYSTEM,
+                                            ),
+                                        )?.let { badges[customId] = it.badgeLabel }
 
                                     SteamApp(
                                         id = customId,
@@ -3497,13 +3509,14 @@ class UnifiedActivity :
                                     )
                                 }
 
-                        allShortcuts to apps
+                        Triple(allShortcuts, apps, badges)
                     }
                 }.getOrNull()
 
             if (shortcutScanResult != null) {
                 cachedShortcuts = shortcutScanResult.first
                 customApps = shortcutScanResult.second
+                retroBadgeByAppId = shortcutScanResult.third
             }
 
             shortcutsLoaded = true
@@ -7199,6 +7212,9 @@ class UnifiedActivity :
                                 .clip(RoundedCornerShape(8.dp)),
                     ) {
                         ArtContent(Modifier.fillMaxSize())
+                        retroBadgeByAppId[app.id]?.let { badge ->
+                            RetroConsoleRibbon(badge, Modifier.align(Alignment.CenterStart))
+                        }
                     }
 
                     Spacer(Modifier.width(14.dp))
@@ -7246,6 +7262,9 @@ class UnifiedActivity :
                             .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
                 ) {
                     ArtContent(Modifier.fillMaxSize())
+                    retroBadgeByAppId[app.id]?.let { badge ->
+                        RetroConsoleRibbon(badge, Modifier.align(Alignment.CenterStart))
+                    }
                 }
 
                 Text(
@@ -12719,6 +12738,52 @@ class UnifiedActivity :
         return controllerState
     }
 }
+
+@Composable
+fun RetroConsoleRibbon(
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier =
+            modifier
+                .fillMaxHeight()
+                .width(14.dp)
+                .background(Color(0xD9090C10)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            color = Color(0xFFE6EDF3),
+            fontSize = 8.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.2.sp,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.verticalRibbonText(),
+        )
+    }
+}
+
+private fun Modifier.verticalRibbonText(): Modifier =
+    this
+        .layout { measurable, constraints ->
+            val placeable =
+                measurable.measure(
+                    constraints.copy(
+                        minWidth = 0,
+                        minHeight = 0,
+                        maxWidth = constraints.maxHeight,
+                        maxHeight = constraints.maxWidth,
+                    ),
+                )
+            layout(placeable.height, placeable.width) {
+                placeable.place(
+                    x = -(placeable.width - placeable.height) / 2,
+                    y = -(placeable.height - placeable.width) / 2,
+                )
+            }
+        }.rotate(-90f)
 
 @Composable
 fun ControllerBadge(

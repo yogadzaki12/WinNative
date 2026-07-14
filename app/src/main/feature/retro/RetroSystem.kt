@@ -10,6 +10,7 @@ data class RetroSystem(
     val extensions: Set<String>,
     val needsBios: Boolean = false,
     val biosFiles: List<String> = emptyList(),
+    val badgeLabel: String = shortName,
 )
 
 object RetroSystems {
@@ -60,6 +61,7 @@ object RetroSystems {
             shortName = "Genesis",
             coreFileName = "libgenesis_plus_gx_libretro_android.so",
             extensions = setOf("gen", "md", "smd", "bin"),
+            badgeLabel = "SEGA",
         )
     val MASTER_SYSTEM =
         RetroSystem(
@@ -68,6 +70,7 @@ object RetroSystems {
             shortName = "Master System",
             coreFileName = "libgenesis_plus_gx_libretro_android.so",
             extensions = setOf("sms"),
+            badgeLabel = "SMS",
         )
     val GAME_GEAR =
         RetroSystem(
@@ -76,6 +79,7 @@ object RetroSystems {
             shortName = "Game Gear",
             coreFileName = "libgenesis_plus_gx_libretro_android.so",
             extensions = setOf("gg"),
+            badgeLabel = "GG",
         )
     val N64 =
         RetroSystem(
