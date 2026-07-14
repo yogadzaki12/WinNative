@@ -12744,12 +12744,19 @@ fun RetroConsoleRibbon(
     label: String,
     modifier: Modifier = Modifier,
 ) {
+    val badgeColor = when (label) {
+        "SNES" -> Color(0xCC800080)
+        "PS1" -> Color(0xCC003399)
+        "SEGA", "SMS", "GG" -> Color(0xCC000000)
+        else -> Color(0xD9090C10)
+    }
+
     Box(
         modifier =
             modifier
                 .fillMaxHeight()
                 .width(14.dp)
-                .background(Color(0xD9090C10)),
+                .background(badgeColor),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -12766,24 +12773,18 @@ fun RetroConsoleRibbon(
 }
 
 private fun Modifier.verticalRibbonText(): Modifier =
-    this
-        .layout { measurable, constraints ->
-            val placeable =
-                measurable.measure(
-                    constraints.copy(
-                        minWidth = 0,
-                        minHeight = 0,
-                        maxWidth = constraints.maxHeight,
-                        maxHeight = constraints.maxWidth,
-                    ),
-                )
-            layout(placeable.height, placeable.width) {
-                placeable.place(
-                    x = -(placeable.width - placeable.height) / 2,
-                    y = -(placeable.height - placeable.width) / 2,
-                )
+    this.layout { measurable, _ ->
+        val placeable = measurable.measure(androidx.compose.ui.unit.Constraints())
+
+        layout(placeable.height, placeable.width) {
+            placeable.placeWithLayer(
+                x = -(placeable.width - placeable.height) / 2,
+                y = -(placeable.height - placeable.width) / 2,
+            ) {
+                rotationZ = -90f
             }
-        }.rotate(-90f)
+        }
+    }
 
 @Composable
 fun ControllerBadge(
