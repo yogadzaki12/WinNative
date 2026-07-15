@@ -15,7 +15,7 @@
  *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <GLES2/gl2.h>
+#include <GLES3/gl3.h>
 #include <EGL/egl.h>
 #include <cstdlib>
 #include <string>
@@ -137,11 +137,28 @@ void Video::updateProgram() {
     renderer->setShaders(shaders);
 }
 
+void Video::resetGLState() {
+    if (openglESVersion >= 3) {
+        glBindVertexArray(0);
+    }
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_STENCIL_TEST);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_BLEND);
+    glDisable(GL_DEPTH_TEST);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glDepthMask(GL_TRUE);
+    glActiveTexture(GL_TEXTURE0);
+}
+
 void Video::renderFrame() {
     if (skipDuplicateFrames && !isDirty) return;
     isDirty = false;
 
-    glDisable(GL_DEPTH_TEST);
+    resetGLState();
+
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glClearColor(0.0F, 0.0F, 0.0F, 1.0F);
@@ -292,6 +309,7 @@ void Video::updateShaderType(ShaderManager::Config shaderConfig) {
 void Video::initializeRenderer(RenderingOptions renderingOptions) {
     auto shaders = ShaderManager::getShader(requestedShaderConfig);
 
+    openglESVersion = renderingOptions.openglESVersion;
     if (renderingOptions.hardwareAccelerated) {
         renderer = new FramebufferRenderer(
             renderingOptions.width,

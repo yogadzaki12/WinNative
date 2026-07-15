@@ -349,6 +349,29 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                         if (sramFile.isFile) saveRAMState = runCatching { sramFile.readBytes() }.getOrNull()
                     }
                 val view = GLRetroView(this, data)
+                if (android.os.Build.VERSION.SDK_INT >= 30) {
+                    view.holder.addCallback(
+                        object : android.view.SurfaceHolder.Callback {
+                            override fun surfaceCreated(holder: android.view.SurfaceHolder) {
+                                runCatching {
+                                    holder.surface.setFrameRate(
+                                        60f,
+                                        android.view.Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE,
+                                    )
+                                }
+                            }
+
+                            override fun surfaceChanged(
+                                holder: android.view.SurfaceHolder,
+                                format: Int,
+                                width: Int,
+                                height: Int,
+                            ) {}
+
+                            override fun surfaceDestroyed(holder: android.view.SurfaceHolder) {}
+                        },
+                    )
+                }
                 retroView = view
                 root.addView(
                     view,

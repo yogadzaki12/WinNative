@@ -44,6 +44,25 @@ void FramebufferRenderer::onNewFrame(const void *data, unsigned width, unsigned 
         initializeBuffers();
         isDirty = false;
     }
+
+    GLboolean scissorWasEnabled = glIsEnabled(GL_SCISSOR_TEST);
+    if (scissorWasEnabled) glDisable(GL_SCISSOR_TEST);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer->framebuffer);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, presentBuffer->framebuffer);
+    glBlitFramebuffer(
+        0,
+        0,
+        this->width,
+        this->height,
+        0,
+        0,
+        this->width,
+        this->height,
+        GL_COLOR_BUFFER_BIT,
+        GL_NEAREST
+    );
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    if (scissorWasEnabled) glEnable(GL_SCISSOR_TEST);
 }
 
 void FramebufferRenderer::initializeBuffers() {
@@ -71,10 +90,33 @@ void FramebufferRenderer::initializeBuffers() {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
+
+    bool needsPresentBuffer =
+        presentBuffer->framebuffer == 0 ||
+        presentBuffer->width != width ||
+        presentBuffer->height != height;
+
+    if (needsPresentBuffer) {
+        ES3Utils::deleteFramebuffer(std::move(presentBuffer));
+        presentBuffer = ES3Utils::createFramebuffer(
+            width,
+            height,
+            shaders.linearTexture,
+            false,
+            false,
+            false
+        );
+    } else {
+        GLint filter = shaders.linearTexture ? GL_LINEAR : GL_NEAREST;
+        glBindTexture(GL_TEXTURE_2D, presentBuffer->texture);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
 }
 
 uintptr_t FramebufferRenderer::getTexture() {
-    return framebuffer->texture;
+    return presentBuffer->texture;
 }
 
 uintptr_t FramebufferRenderer::getFramebuffer() {
@@ -87,6 +129,7 @@ void FramebufferRenderer::setPixelFormat(int pixelFormat) {
 
 void FramebufferRenderer::updateRenderedResolution(unsigned int width, unsigned int height) {
     if (this->width != width || this->height != height) {
+        LOGI("FramebufferRenderer resolution change: %dx%d -> %dx%d", this->width, this->height, width, height);
         this->width = width;
         this->height = height;
         isDirty = true;

@@ -74,18 +74,25 @@ object RetroCoreOptions {
     private val N64_OPTIONS =
         listOf(
             RetroCoreOption(
-                key = "mupen64plus-43screensize",
+                key = "parallel-n64-screensize",
                 label = "Resolution",
                 values = listOf("320x240", "640x480", "960x720", "1280x960", "1440x1080"),
                 valueLabels = listOf("320x240 (Native)", "640x480", "960x720", "1280x960", "1440x1080"),
-                defaultValue = "320x240",
+                defaultValue = "640x480",
             ),
             RetroCoreOption(
-                key = "mupen64plus-EnableCopyDepthToRDRAM",
-                label = "Depth Copy to RDRAM",
-                values = listOf("Off", "Software", "FromMem"),
-                valueLabels = listOf("Off", "Software", "From Memory"),
-                defaultValue = "Off",
+                key = "parallel-n64-gfxplugin",
+                label = "Video Plugin",
+                values = listOf("glide64", "gln64", "rice", "auto"),
+                valueLabels = listOf("Glide64", "GLN64", "Rice", "Auto"),
+                defaultValue = "glide64",
+            ),
+            RetroCoreOption(
+                key = "parallel-n64-gfxplugin-accuracy",
+                label = "Plugin Accuracy",
+                values = listOf("high", "veryhigh", "medium", "low"),
+                valueLabels = listOf("High", "Very High", "Medium", "Low"),
+                defaultValue = "high",
             ),
         )
 
@@ -111,8 +118,9 @@ object RetroCoreOptions {
         when (system?.id) {
             RetroSystems.N64.id ->
                 mapOf(
-                    "mupen64plus-EnableFBEmulation" to "True",
-                    "mupen64plus-EnableCopyDepthToRDRAM" to "Off",
+                    "parallel-n64-gfxplugin" to "glide64",
+                    "parallel-n64-screensize" to "640x480",
+                    "parallel-n64-gfxplugin-accuracy" to "high",
                 )
             else -> emptyMap()
         }

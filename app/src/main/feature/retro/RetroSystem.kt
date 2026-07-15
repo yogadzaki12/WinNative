@@ -86,7 +86,7 @@ object RetroSystems {
             id = "n64",
             displayName = "Nintendo 64",
             shortName = "N64",
-            coreFileName = "libmupen64plus_next_gles3_libretro_android.so",
+            coreFileName = "libparallel_n64_libretro_android.so",
             extensions = setOf("n64", "z64", "v64"),
         )
     val PSX =
