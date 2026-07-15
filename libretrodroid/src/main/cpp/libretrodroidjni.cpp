@@ -525,12 +525,12 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_pause(
     }
 }
 
-JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_step(
+JNIEXPORT jboolean JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_step(
     JNIEnv* env,
     jclass obj,
     jobject glRetroView
 ) {
-    LibretroDroid::getInstance().step();
+    bool ranNewFrame = LibretroDroid::getInstance().step();
 
     if (LibretroDroid::getInstance().requiresVideoRefresh()) {
         LibretroDroid::getInstance().clearRequiresVideoRefresh();
@@ -546,6 +546,8 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_step(
             env->CallVoidMethod(glRetroView, sendRumbleStrengthMethodID, port, weak, strong);
         });
     }
+
+    return ranNewFrame;
 }
 
 JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setRumbleEnabled(

@@ -318,9 +318,11 @@ class GLRetroView(
     inner class Renderer : GLSurfaceView.Renderer {
         override fun onDrawFrame(gl: GL10) = catchExceptions {
             if (isEmulationReady) {
-                LibretroDroid.step(this@GLRetroView)
-                lifecycle?.coroutineScope?.launch {
-                    retroGLEventsSubject.emit(GLRetroEvents.FrameRendered)
+                val newFrame = LibretroDroid.step(this@GLRetroView)
+                if (newFrame) {
+                    lifecycle?.coroutineScope?.launch {
+                        retroGLEventsSubject.emit(GLRetroEvents.FrameRendered)
+                    }
                 }
             }
         }
@@ -413,7 +415,10 @@ class GLRetroView(
             is ShaderConfig.CRT -> GLRetroShader(LibretroDroid.SHADER_CRT)
             is ShaderConfig.LCD -> GLRetroShader(LibretroDroid.SHADER_LCD)
             is ShaderConfig.Sharp -> GLRetroShader(LibretroDroid.SHADER_SHARP)
-            is ShaderConfig.SGSR -> GLRetroShader(LibretroDroid.SHADER_UPSCALE_SGSR)
+            is ShaderConfig.SGSR -> GLRetroShader(
+                LibretroDroid.SHADER_UPSCALE_SGSR,
+                mapOf(LibretroDroid.SHADER_UPSCALE_SGSR_PARAM_PREPASSES to config.prePasses.toString())
+            )
             is ShaderConfig.CUT -> GLRetroShader(
                 LibretroDroid.SHADER_UPSCALE_CUT,
                 buildParams(

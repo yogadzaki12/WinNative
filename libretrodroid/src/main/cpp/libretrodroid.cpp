@@ -443,7 +443,7 @@ void LibretroDroid::pause() {
     input = nullptr;
 }
 
-void LibretroDroid::step() {
+bool LibretroDroid::step() {
     std::lock_guard<std::mutex> lock(coreLock);
 
     LOGD("Stepping into retro_run()");
@@ -455,6 +455,8 @@ void LibretroDroid::step() {
         // If the application runs too slow it's better to just skip those frames.
         frames = std::min(requestedFrames, 2u);
     }
+
+    bool ranNewFrame = frames * frameSpeed > 0;
 
     for (size_t i = 0; i < frames * frameSpeed; i++)
         core->retro_run();
@@ -488,6 +490,8 @@ void LibretroDroid::step() {
 
         video->updateRotation(Environment::getInstance().getScreenRotation());
     }
+
+    return ranNewFrame;
 }
 
 float LibretroDroid::getAspectRatio() {

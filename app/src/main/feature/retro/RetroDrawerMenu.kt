@@ -55,6 +55,8 @@ import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -116,7 +118,7 @@ private val DrawerWidth = 300.dp
 private val DrawerStartPadding = 6.dp
 private val DrawerVerticalPadding = 6.dp
 
-enum class RetroPane { DISPLAY, SYSTEM, SOUND, CONTROLS }
+enum class RetroPane { DISPLAY, SYSTEM, SOUND, CONTROLS, HUD }
 
 data class RetroTabSpec(
     val pane: RetroPane?,
@@ -150,6 +152,16 @@ sealed class RetroMenuEntry {
         val label: String,
         val selected: Boolean,
         val onSelect: () -> Unit,
+    ) : RetroMenuEntry()
+
+    class Slider(
+        val label: String,
+        val valueText: String,
+        val value: Float,
+        val min: Float,
+        val max: Float,
+        val step: Float,
+        val onChange: (Float) -> Unit,
     ) : RetroMenuEntry()
 }
 
@@ -215,6 +227,10 @@ class RetroMenuController {
             is RetroMenuEntry.Toggle -> entry.onChange(!entry.checked)
             is RetroMenuEntry.Choice -> entry.onCycle(if (direction < 0) -1 else 1)
             is RetroMenuEntry.Radio -> if (direction == 0) entry.onSelect()
+            is RetroMenuEntry.Slider ->
+                if (direction != 0) {
+                    entry.onChange((entry.value + direction * entry.step).coerceIn(entry.min, entry.max))
+                }
             else -> {}
         }
     }
@@ -748,6 +764,13 @@ private fun RetroPaneList(
                                         entry.onClick()
                                     },
                                 )
+                            is RetroMenuEntry.Slider ->
+                                RetroSliderRow(
+                                    entry = entry,
+                                    highlighted = highlighted,
+                                    paneScale = paneScale,
+                                    onClick = { controller.contentIndex = index },
+                                )
                         }
                     }
                 }
@@ -896,6 +919,55 @@ private fun RetroRadioRow(
 }
 
 @Composable
+private fun RetroSliderRow(
+    entry: RetroMenuEntry.Slider,
+    highlighted: Boolean,
+    paneScale: Float,
+    onClick: () -> Unit,
+) {
+    RetroRowShell(highlighted = highlighted, activeBorder = false, paneScale = paneScale, onClick = onClick) {
+        Column(modifier = Modifier.weight(1f)) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = entry.label,
+                    color = DrawerTextPrimary,
+                    fontSize = (14f * paneScale).sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = entry.valueText,
+                    color = DrawerActiveAccent,
+                    fontSize = (12f * paneScale).sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            val stepCount = (((entry.max - entry.min) / entry.step).toInt() - 1).coerceAtLeast(0)
+            Slider(
+                value = entry.value,
+                onValueChange = { raw ->
+                    val snapped =
+                        (kotlin.math.round((raw - entry.min) / entry.step) * entry.step + entry.min)
+                            .coerceIn(entry.min, entry.max)
+                    if (snapped != entry.value) entry.onChange(snapped)
+                },
+                valueRange = entry.min..entry.max,
+                steps = stepCount,
+                colors =
+                    SliderDefaults.colors(
+                        thumbColor = DrawerAccent,
+                        activeTrackColor = DrawerAccent,
+                        inactiveTrackColor = WinNativeOutline.copy(alpha = 0.5f),
+                        activeTickColor = Color.Transparent,
+                        inactiveTickColor = Color.Transparent,
+                    ),
+                modifier = Modifier.fillMaxWidth().height((26f * paneScale).dp),
+            )
+        }
+    }
+}
+
+@Composable
 private fun RetroBottomActions(
     controller: RetroMenuController,
     paneScale: Float,
@@ -1022,6 +1094,7 @@ object RetroDrawerTabs {
         }
         tabs += RetroTabSpec(RetroPane.SOUND, Icons.AutoMirrored.Outlined.VolumeUp, "Sound")
         tabs += RetroTabSpec(RetroPane.CONTROLS, Icons.Outlined.SportsEsports, "Controls")
+        tabs += RetroTabSpec(RetroPane.HUD, Icons.Outlined.Speed, "HUD")
         return tabs
     }
 }

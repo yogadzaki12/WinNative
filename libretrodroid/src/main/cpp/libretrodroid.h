@@ -92,7 +92,7 @@ public:
         const std::string& language
     );
     void resume();
-    void step();
+    bool step();
     void pause();
     void destroy();
 
