@@ -30,6 +30,18 @@ object RetroCoreManager {
         return File(statesDir(context), "$safe.$suffix")
     }
 
+    fun ensureGlideN64Ini(context: Context) {
+        val target = File(File(systemDir(context), "Mupen64plus").also { it.mkdirs() }, "GLideN64.custom.ini")
+        runCatching {
+            context.assets.open("retro/GLideN64.custom.ini").use { input ->
+                val bytes = input.readBytes()
+                if (!target.isFile || target.length() != bytes.size.toLong()) {
+                    target.writeBytes(bytes)
+                }
+            }
+        }
+    }
+
     fun missingBios(
         context: Context,
         system: RetroSystem,

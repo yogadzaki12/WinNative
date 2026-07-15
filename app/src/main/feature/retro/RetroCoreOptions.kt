@@ -111,7 +111,6 @@ object RetroCoreOptions {
         when (system?.id) {
             RetroSystems.N64.id ->
                 mapOf(
-                    "mupen64plus-GLideN64IniBehaviour" to "early",
                     "mupen64plus-EnableFBEmulation" to "True",
                     "mupen64plus-EnableCopyDepthToRDRAM" to "Off",
                 )

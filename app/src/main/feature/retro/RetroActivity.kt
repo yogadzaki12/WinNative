@@ -232,6 +232,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             ).show()
         }
 
+        if (resolvedSystem.id == RetroSystems.N64.id) RetroCoreManager.ensureGlideN64Ini(this)
         val savesDir = RetroCoreManager.savesDir(this)
         val sramFile = File(savesDir, sramName())
         currentShaderKey = intent.getStringExtra(EXTRA_SHADER)?.lowercase() ?: "default"
@@ -261,7 +262,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 variables = coreVars.map { Variable(it.key, it.value) }.toTypedArray()
                 rumbleEventsEnabled = true
                 preferLowLatencyAudio = true
-                skipDuplicateFrames = true
+                skipDuplicateFrames = false
                 viewportAlignment =
                     if (resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
                         ViewportAlignment.TOP
