@@ -252,38 +252,8 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             if (!coreVars.containsKey(key)) coreVars[key] = value
         }
 
-        val data =
-            GLRetroViewData(this).apply {
-                coreFilePath = coreFile.absolutePath
-                gameFilePath = romFile.absolutePath
-                systemDirectory = RetroCoreManager.systemDir(this@RetroActivity).absolutePath
-                savesDirectory = savesDir.absolutePath
-                shader = effectiveShader()
-                variables = coreVars.map { Variable(it.key, it.value) }.toTypedArray()
-                rumbleEventsEnabled = true
-                preferLowLatencyAudio = true
-                skipDuplicateFrames = false
-                viewportAlignment =
-                    if (resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
-                        ViewportAlignment.TOP
-                    } else {
-                        ViewportAlignment.CENTER
-                    }
-                if (sramFile.isFile) saveRAMState = runCatching { sramFile.readBytes() }.getOrNull()
-            }
-
-        retroView = GLRetroView(this, data)
-        lifecycle.addObserver(retroView)
-
         val root = FrameLayout(this)
         rootLayout = root
-        root.addView(
-            retroView,
-            FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT,
-            ),
-        )
 
         val inputView = RetroInputView(this, this, resolvedSystem)
         inputView.hapticStrength =
@@ -322,10 +292,10 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         )
 
         setContentView(root)
-        retroReady = true
         inputManager = getSystemService(InputManager::class.java)
         inputManager?.registerInputDeviceListener(inputDeviceListener, null)
         refreshControllerPresence()
+        retroReady = false
         if (hudVisible) {
             root.post {
                 if (!isFinishing && !isDestroyed && hudVisible) showHud()
@@ -345,8 +315,56 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         )
         loadHudSettings()
         recordLaunchStats()
-        observeErrors()
-        observeEvents()
+
+        val sixtyRequested = requestSixtyHzDisplayMode()
+        var waitAttempts = 0
+        lateinit var startWhenReady: Runnable
+        startWhenReady =
+            Runnable {
+                if (isFinishing || isDestroyed) return@Runnable
+                val rate =
+                    runCatching { windowManager.defaultDisplay.refreshRate }.getOrDefault(60f)
+                if (sixtyRequested && abs(rate - 60f) > 2f && waitAttempts < 12) {
+                    waitAttempts++
+                    root.postDelayed(startWhenReady, 100)
+                    return@Runnable
+                }
+                val data =
+                    GLRetroViewData(this).apply {
+                        coreFilePath = coreFile.absolutePath
+                        gameFilePath = romFile.absolutePath
+                        systemDirectory = RetroCoreManager.systemDir(this@RetroActivity).absolutePath
+                        savesDirectory = savesDir.absolutePath
+                        shader = effectiveShader()
+                        variables = coreVars.map { Variable(it.key, it.value) }.toTypedArray()
+                        rumbleEventsEnabled = true
+                        preferLowLatencyAudio = true
+                        skipDuplicateFrames = false
+                        viewportAlignment =
+                            if (resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
+                                ViewportAlignment.TOP
+                            } else {
+                                ViewportAlignment.CENTER
+                            }
+                        if (sramFile.isFile) saveRAMState = runCatching { sramFile.readBytes() }.getOrNull()
+                    }
+                val view = GLRetroView(this, data)
+                retroView = view
+                root.addView(
+                    view,
+                    0,
+                    FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                    ),
+                )
+                lifecycle.addObserver(view)
+                retroReady = true
+                refreshControllerPresence()
+                observeErrors()
+                observeEvents()
+            }
+        root.post(startWhenReady)
     }
 
     override fun onDestroy() {
@@ -601,8 +619,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                     )
                     val upscaleIndex = UPSCALE_KEYS.indexOf(currentUpscaleKey).coerceAtLeast(0)
                     add(
-                        RetroMenuEntry.Choice("SGSR Upscale", UPSCALE_LABELS[upscaleIndex]) { direction ->
-                            val next = (upscaleIndex + direction + UPSCALE_KEYS.size) % UPSCALE_KEYS.size
+                        RetroMenuEntry.Choice("SGSR Upscale", UPSCALE_LABELS, upscaleIndex) { next ->
                             currentUpscaleKey = UPSCALE_KEYS[next]
                             persistExtra(RetroShortcuts.KEY_UPSCALE, currentUpscaleKey)
                             if (sgsrEnabled) retroView.shader = effectiveShader()
@@ -614,8 +631,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 RetroCoreOptions.forSystem(system).map { option ->
                     val current = coreVars[option.key] ?: option.defaultValue
                     val index = option.values.indexOf(current).coerceAtLeast(0)
-                    RetroMenuEntry.Choice(option.label, option.valueLabels[index]) { direction ->
-                        val next = (index + direction + option.values.size) % option.values.size
+                    RetroMenuEntry.Choice(option.label, option.valueLabels, index) { next ->
                         val newValue = option.values[next]
                         coreVars[option.key] = newValue
                         retroView.updateVariables(Variable(option.key, newValue))
@@ -824,9 +840,25 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             RetroMenuEntry.Action("Exit", RetroDrawerIcons.Exit, danger = true) { finish() },
         )
 
+    private fun requestSixtyHzDisplayMode(): Boolean {
+        val display = runCatching { windowManager.defaultDisplay }.getOrNull() ?: return false
+        val current = runCatching { display.mode }.getOrNull() ?: return false
+        val rate = display.refreshRate
+        val multiple = Math.round(rate / 60f)
+        if (multiple >= 1 && kotlin.math.abs(rate - multiple * 60f) < 2f) return false
+        val sixtyModes = display.supportedModes.filter { abs(it.refreshRate - 60f) < 1f }
+        val target =
+            sixtyModes.firstOrNull {
+                it.physicalWidth == current.physicalWidth && it.physicalHeight == current.physicalHeight
+            } ?: sixtyModes.firstOrNull() ?: return false
+        val attributes = window.attributes
+        attributes.preferredDisplayModeId = target.modeId
+        window.attributes = attributes
+        return true
+    }
+
     private fun openMenu() {
         if (!retroReady) {
-            finish()
             return
         }
         overlay?.releaseAll()

@@ -55,6 +55,8 @@ import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -145,8 +147,9 @@ sealed class RetroMenuEntry {
 
     class Choice(
         val label: String,
-        val valueLabel: String,
-        val onCycle: (Int) -> Unit,
+        val values: List<String>,
+        val selectedIndex: Int,
+        val onSelected: (Int) -> Unit,
     ) : RetroMenuEntry()
 
     class Radio(
@@ -234,7 +237,13 @@ class RetroMenuController {
         when (val entry = entries.getOrNull(contentIndex)) {
             is RetroMenuEntry.Action -> if (direction == 0) entry.onClick()
             is RetroMenuEntry.Toggle -> entry.onChange(!entry.checked)
-            is RetroMenuEntry.Choice -> entry.onCycle(if (direction < 0) -1 else 1)
+            is RetroMenuEntry.Choice -> {
+                val size = entry.values.size
+                if (size > 0) {
+                    val step = if (direction < 0) -1 else 1
+                    entry.onSelected((entry.selectedIndex + step + size) % size)
+                }
+            }
             is RetroMenuEntry.Radio -> if (direction == 0) entry.onSelect()
             is RetroMenuEntry.Slider ->
                 if (direction != 0) {
@@ -753,10 +762,7 @@ private fun RetroPaneList(
                                     entry = entry,
                                     highlighted = highlighted,
                                     paneScale = paneScale,
-                                    onClick = {
-                                        controller.contentIndex = index
-                                        entry.onCycle(1)
-                                    },
+                                    onFocus = { controller.contentIndex = index },
                                 )
                             is RetroMenuEntry.Radio ->
                                 RetroRadioRow(
@@ -893,29 +899,62 @@ private fun RetroChoiceRow(
     entry: RetroMenuEntry.Choice,
     highlighted: Boolean,
     paneScale: Float,
-    onClick: () -> Unit,
+    onFocus: () -> Unit,
 ) {
-    RetroRowShell(highlighted = highlighted, activeBorder = false, paneScale = paneScale, onClick = onClick) {
-        Column(modifier = Modifier.weight(1f)) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        RetroRowShell(
+            highlighted = highlighted,
+            activeBorder = false,
+            paneScale = paneScale,
+            onClick = {
+                onFocus()
+                expanded = true
+            },
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = entry.label,
+                    color = DrawerTextPrimary,
+                    fontSize = (14f * paneScale).sp,
+                    fontWeight = FontWeight.Medium,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = entry.values.getOrNull(entry.selectedIndex) ?: "",
+                    color = DrawerActiveAccent,
+                    fontSize = (12f * paneScale).sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
             Text(
-                text = entry.label,
-                color = DrawerTextPrimary,
-                fontSize = (14f * paneScale).sp,
-                fontWeight = FontWeight.Medium,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = entry.valueLabel,
-                color = DrawerActiveAccent,
-                fontSize = (12f * paneScale).sp,
-                fontWeight = FontWeight.SemiBold,
+                text = "▾",
+                color = DrawerTextSecondary,
+                fontSize = (16f * paneScale).sp,
             )
         }
-        Text(
-            text = "‹ ›",
-            color = DrawerTextSecondary,
-            fontSize = (16f * paneScale).sp,
-        )
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            containerColor = WinNativeSurface,
+        ) {
+            entry.values.forEachIndexed { index, value ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = value,
+                            color = if (index == entry.selectedIndex) DrawerActiveAccent else DrawerTextPrimary,
+                            fontSize = (13f * paneScale).sp,
+                            fontWeight = if (index == entry.selectedIndex) FontWeight.SemiBold else FontWeight.Medium,
+                        )
+                    },
+                    onClick = {
+                        expanded = false
+                        entry.onSelected(index)
+                    },
+                )
+            }
+        }
     }
 }
 
