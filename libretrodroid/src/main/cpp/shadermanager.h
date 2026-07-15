@@ -90,7 +90,7 @@ private:
     static const std::string cut3UpscalePass2Fragment;
 
     static const std::string sgsrUpscaleVertex;
-    static const std::string sgsrUpscaleFragment;
+    static const std::string sgsrUpscaleFragmentBody;
 
 private:
     static std::string buildDefines(

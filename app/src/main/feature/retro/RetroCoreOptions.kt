@@ -76,8 +76,8 @@ object RetroCoreOptions {
             RetroCoreOption(
                 key = "mupen64plus-43screensize",
                 label = "Resolution",
-                values = listOf("320x240", "640x480", "960x720"),
-                valueLabels = listOf("320x240 (Native)", "640x480", "960x720"),
+                values = listOf("320x240", "640x480", "960x720", "1280x960", "1440x1080"),
+                valueLabels = listOf("320x240 (Native)", "640x480", "960x720", "1280x960", "1440x1080"),
                 defaultValue = "320x240",
             ),
         )

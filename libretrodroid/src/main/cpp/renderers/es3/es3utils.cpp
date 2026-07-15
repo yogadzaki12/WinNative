@@ -17,6 +17,9 @@
 
 #include "es3utils.h"
 
+#include <algorithm>
+#include <cmath>
+
 #include "../../log.h"
 
 namespace libretrodroid {
@@ -103,8 +106,13 @@ std::unique_ptr<ES3Utils::Framebuffers> ES3Utils::buildShaderPasses(
 
     for (int i = 0; i < passes.size() - 1; ++i) {
         auto pass = passes[i];
-        unsigned int passWidth = std::lround(width * pass.scale);
-        unsigned int passHeight = std::lround(height * pass.scale);
+        float scale = pass.scale;
+        float maxSide = std::max(width, height) * scale;
+        if (maxSide > 4096.0F) {
+            scale *= 4096.0F / maxSide;
+        }
+        unsigned int passWidth = std::lround(width * scale);
+        unsigned int passHeight = std::lround(height * scale);
 
         std::unique_ptr<ES3Utils::Framebuffer> data = ES3Utils::createFramebuffer(
             passWidth,

@@ -14,6 +14,7 @@ object RetroShortcuts {
     const val KEY_ROM = "rom_path"
     const val KEY_CORE = "retro_core"
     const val KEY_SHADER = "retro_shader"
+    const val KEY_UPSCALE = "retro_upscale"
     const val KEY_TOUCH_CONTROLS = "retro_touch_controls"
     const val KEY_AUDIO = "retro_audio"
     const val KEY_HUD = "retro_hud"
@@ -91,6 +92,7 @@ object RetroShortcuts {
             putExtra(RetroActivity.EXTRA_SHORTCUT_PATH, shortcut.file.absolutePath)
             putExtra(RetroActivity.EXTRA_CONTAINER_ID, shortcut.container.id)
             putExtra(RetroActivity.EXTRA_SHADER, shortcut.getExtra(KEY_SHADER, "default"))
+            putExtra(RetroActivity.EXTRA_UPSCALE, shortcut.getExtra(KEY_UPSCALE, "native"))
             putExtra(RetroActivity.EXTRA_TOUCH_CONTROLS, shortcut.getExtra(KEY_TOUCH_CONTROLS, "1") != "0")
             putExtra(RetroActivity.EXTRA_AUDIO, shortcut.getExtra(KEY_AUDIO, "1") != "0")
             putExtra(RetroActivity.EXTRA_HUD, shortcut.getExtra(KEY_HUD, "0") == "1")

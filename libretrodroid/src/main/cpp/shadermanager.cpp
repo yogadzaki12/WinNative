@@ -17,6 +17,9 @@
 
 #include "shadermanager.h"
 
+#include <algorithm>
+#include <cstdlib>
+
 namespace libretrodroid {
 
 const std::string ShaderManager::defaultShaderVertex =
@@ -1550,14 +1553,7 @@ const std::string ShaderManager::sgsrUpscaleVertex =
     "  gl_Position = vPosition;\n"
     "}\n";
 
-const std::string ShaderManager::sgsrUpscaleFragment =
-    "#version 310 es\n"
-    "precision mediump float;\n"
-    "precision highp int;\n"
-    "\n"
-    "uniform mediump sampler2D texture;\n"
-    "uniform highp vec2 textureSize;\n"
-    "\n"
+const std::string ShaderManager::sgsrUpscaleFragmentBody =
     "in highp vec4 in_TEXCOORD0;\n"
     "layout(location = 0) out vec4 out_Target0;\n"
     "\n"
@@ -1578,25 +1574,26 @@ const std::string ShaderManager::sgsrUpscaleFragment =
     "}\n"
     "\n"
     "void main() {\n"
-    "  highp vec4 viewportInfo = vec4(1.0 / textureSize.x, 1.0 / textureSize.y, textureSize.x, textureSize.y);\n"
+    "  highp vec2 inputSize = SGSR_SIZE;\n"
+    "  highp vec4 viewportInfo = vec4(1.0 / inputSize.x, 1.0 / inputSize.y, inputSize.x, inputSize.y);\n"
     "\n"
     "  vec4 color;\n"
-    "  color.xyz = textureLod(texture, in_TEXCOORD0.xy, 0.0).xyz;\n"
+    "  color.xyz = textureLod(SGSR_INPUT, in_TEXCOORD0.xy, 0.0).xyz;\n"
     "\n"
     "  highp vec2 imgCoord = ((in_TEXCOORD0.xy * viewportInfo.zw) + vec2(-0.5, 0.5));\n"
     "  highp vec2 imgCoordPixel = floor(imgCoord);\n"
     "  highp vec2 coord = (imgCoordPixel * viewportInfo.xy);\n"
     "  vec2 pl = (imgCoord + (-imgCoordPixel));\n"
-    "  vec4 left = textureGather(texture, coord, 1);\n"
+    "  vec4 left = textureGather(SGSR_INPUT, coord, 1);\n"
     "\n"
     "  float edgeVote = abs(left.z - left.y) + abs(color.y - left.y) + abs(color.y - left.z);\n"
     "  if (edgeVote > EdgeThreshold) {\n"
     "    coord.x += viewportInfo.x;\n"
     "\n"
-    "    vec4 right = textureGather(texture, coord + vec2(viewportInfo.x, 0.0), 1);\n"
+    "    vec4 right = textureGather(SGSR_INPUT, coord + vec2(viewportInfo.x, 0.0), 1);\n"
     "    vec4 upDown;\n"
-    "    upDown.xy = textureGather(texture, coord + vec2(0.0, -viewportInfo.y), 1).wz;\n"
-    "    upDown.zw = textureGather(texture, coord + vec2(0.0, viewportInfo.y), 1).yx;\n"
+    "    upDown.xy = textureGather(SGSR_INPUT, coord + vec2(0.0, -viewportInfo.y), 1).wz;\n"
+    "    upDown.zw = textureGather(SGSR_INPUT, coord + vec2(0.0, viewportInfo.y), 1).yx;\n"
     "\n"
     "    float mean = (left.y + left.z + right.x + right.w) * 0.25;\n"
     "    left = left - vec4(mean);\n"
@@ -1657,7 +1654,32 @@ ShaderManager::Chain ShaderManager::getShader(const ShaderManager::Config& confi
     }
 
     case Type::SHADER_UPSCALE_SGSR: {
-        return { { { sgsrUpscaleVertex, sgsrUpscaleFragment, true, 1.0 } }, true };
+        int prePasses = 1;
+        auto it = config.params.find("sgsr_prepasses");
+        if (it != config.params.end()) {
+            prePasses = std::max(0, std::min(3, std::atoi(it->second.c_str())));
+        }
+        std::string header =
+            "#version 310 es\n"
+            "precision mediump float;\n"
+            "precision highp int;\n"
+            "uniform mediump sampler2D texture;\n"
+            "uniform mediump sampler2D previousPass;\n"
+            "uniform highp vec2 textureSize;\n";
+        std::vector<Pass> passes;
+        for (int i = 0; i <= prePasses; ++i) {
+            std::string defines;
+            if (i == 0) {
+                defines = "#define SGSR_INPUT texture\n#define SGSR_SIZE textureSize\n";
+            } else {
+                float inputScale = float(1 << i);
+                defines = "#define SGSR_INPUT previousPass\n#define SGSR_SIZE (textureSize * " +
+                    std::to_string(inputScale) + ")\n";
+            }
+            float outputScale = i == prePasses ? 1.0f : float(1 << (i + 1));
+            passes.push_back({ sgsrUpscaleVertex, header + defines + sgsrUpscaleFragmentBody, true, outputScale });
+        }
+        return { passes, true };
     }
 
     case Type::SHADER_UPSCALE_CUT: {

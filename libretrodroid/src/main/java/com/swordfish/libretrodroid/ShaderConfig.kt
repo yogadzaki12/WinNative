@@ -23,7 +23,9 @@ sealed interface ShaderConfig {
     object CRT : ShaderConfig
     object LCD : ShaderConfig
     object Sharp : ShaderConfig
-    object SGSR : ShaderConfig
+    data class SGSR(
+        val prePasses: Int = 1,
+    ) : ShaderConfig
 
     data class CUT(
         val useDynamicBlend: Boolean = true,
