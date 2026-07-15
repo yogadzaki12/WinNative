@@ -142,15 +142,21 @@ class RetroInputView(
         oldh: Int,
     ) {
         super.onSizeChanged(w, h, oldw, oldh)
+        relayout()
+    }
+
+    fun relayout() {
+        val width = width.toFloat()
+        val height = height.toFloat()
+        if (width <= 0f || height <= 0f) return
         buttons.clear()
         cButtons.clear()
-        val width = w.toFloat()
-        val height = h.toFloat()
         if (height > width) {
             layoutPortrait(width, height)
         } else {
             layoutLandscape(width, height)
         }
+        invalidate()
     }
 
     private fun layoutLandscape(
@@ -343,51 +349,100 @@ class RetroInputView(
         addC(1f, 0f, "▶", cCx + cSpread, cCy)
     }
 
+    private val portraitGameAspect: Float
+        get() =
+            when (system?.id) {
+                RetroSystems.GAMEBOY.id, RetroSystems.GAMEBOY_COLOR.id -> 0.9f
+                RetroSystems.GBA.id -> 2f / 3f
+                else -> 0.75f
+            }
+
+    private fun portraitZoneTop(
+        width: Float,
+        height: Float,
+    ): Float = max(width * portraitGameAspect + snap * 8f, height * 0.42f)
+
     private fun layoutPortrait(
         width: Float,
         height: Float,
     ) {
+        if (config.hasStick) {
+            layoutPortraitN64(width, height)
+            return
+        }
         snap = width / 100f
         strokeWidth = max(2f, snap * 0.4f)
         stickRadius = 0f
-        val zoneTop = height * 0.5f
+        val zoneTop = portraitZoneTop(width, height)
         val zoneH = height - zoneTop
         val margin = snap * 5f
+        val trigW = snap * 24f
+        val trigH = snap * 8f
+        val trigGap = snap * 1.5f
 
+        var sideCursor = zoneTop + snap * 2f
+        if (config.hasTriggers) {
+            val lt = GlassButton(KeyEvent.KEYCODE_BUTTON_L2, config.leftTriggerLabel, GlassShape.TRIGGER_LT, textScale = 1.3f)
+            lt.bounds.set(margin, sideCursor, margin + trigW, sideCursor + trigH)
+            buttons += lt
+            if (config.showRightTrigger) {
+                val rt =
+                    GlassButton(
+                        KeyEvent.KEYCODE_BUTTON_R2,
+                        config.rightTriggerLabel,
+                        GlassShape.TRIGGER_RT,
+                        textScale = 1.3f,
+                    )
+                rt.bounds.set(width - margin - trigW, sideCursor, width - margin, sideCursor + trigH)
+                buttons += rt
+            }
+            sideCursor += trigH + trigGap
+        }
         if (config.hasShoulders) {
-            val trigW = snap * 24f
-            val trigH = snap * 8f
             val lb = GlassButton(KeyEvent.KEYCODE_BUTTON_L1, "L", GlassShape.TRIGGER_LB, textScale = 1.3f)
-            lb.bounds.set(margin, zoneTop + snap * 2f, margin + trigW, zoneTop + snap * 2f + trigH)
+            lb.bounds.set(margin, sideCursor, margin + trigW, sideCursor + trigH)
             buttons += lb
             val rb = GlassButton(KeyEvent.KEYCODE_BUTTON_R1, "R", GlassShape.TRIGGER_RB, textScale = 1.3f)
-            rb.bounds.set(width - margin - trigW, zoneTop + snap * 2f, width - margin, zoneTop + snap * 2f + trigH)
+            rb.bounds.set(width - margin - trigW, sideCursor, width - margin, sideCursor + trigH)
             buttons += rb
+            sideCursor += trigH + trigGap
         }
 
-        val rowCy = zoneTop + zoneH * 0.45f
+        val rowCy = max(zoneTop + zoneH * 0.45f, sideCursor + snap * 18f)
         dpadRadius = snap * 15f
         dpadCx = margin + dpadRadius
         dpadCy = rowCy
 
-        val faceRadius = snap * 8.5f
         fun addFace(
             keyCode: Int,
             label: String,
             cx: Float,
             cy: Float,
+            radius: Float,
         ) {
             val button = GlassButton(keyCode, label, GlassShape.CIRCLE)
-            button.bounds.set(cx - faceRadius, cy - faceRadius, cx + faceRadius, cy + faceRadius)
+            button.bounds.set(cx - radius, cy - radius, cx + radius, cy + radius)
             buttons += button
         }
-        addFace(KeyEvent.KEYCODE_BUTTON_A, "A", width - margin - faceRadius, rowCy - faceRadius * 0.9f)
-        addFace(
-            KeyEvent.KEYCODE_BUTTON_B,
-            "B",
-            width - margin - faceRadius * 3f - snap * 2f,
-            rowCy + faceRadius * 0.9f,
-        )
+        if (config.hasXY) {
+            val faceRadius = snap * 6.5f
+            val spread = snap * 12f
+            val clusterCx = width - margin - faceRadius - spread
+            addFace(KeyEvent.KEYCODE_BUTTON_X, "X", clusterCx, rowCy - spread, faceRadius)
+            addFace(KeyEvent.KEYCODE_BUTTON_B, "B", clusterCx, rowCy + spread, faceRadius)
+            addFace(KeyEvent.KEYCODE_BUTTON_Y, "Y", clusterCx - spread, rowCy, faceRadius)
+            addFace(KeyEvent.KEYCODE_BUTTON_A, "A", clusterCx + spread, rowCy, faceRadius)
+        } else {
+            val faceRadius = snap * 8.5f
+            addFace(KeyEvent.KEYCODE_BUTTON_A, "A", width - margin - faceRadius, rowCy - faceRadius * 0.9f, faceRadius)
+            addFace(
+                KeyEvent.KEYCODE_BUTTON_B,
+                "B",
+                width - margin - faceRadius * 3f - snap * 2f,
+                rowCy + faceRadius * 0.9f,
+                faceRadius,
+            )
+        }
 
         val pillW = snap * 13f
         val pillH = snap * 5.5f
@@ -407,6 +462,95 @@ class RetroInputView(
             width * 0.5f + menuW * 0.5f,
             zoneTop + snap * 1.5f + pillH,
         )
+    }
+
+    private fun layoutPortraitN64(
+        width: Float,
+        height: Float,
+    ) {
+        snap = width / 100f
+        strokeWidth = max(2f, snap * 0.4f)
+        val zoneTop = portraitZoneTop(width, height)
+        val margin = snap * 5f
+        val trigW = snap * 24f
+        val trigH = snap * 8f
+        val trigGap = snap * 1.5f
+
+        val lb = GlassButton(KeyEvent.KEYCODE_BUTTON_L1, "L", GlassShape.TRIGGER_LB, textScale = 1.3f)
+        lb.bounds.set(margin, zoneTop + snap * 2f, margin + trigW, zoneTop + snap * 2f + trigH)
+        buttons += lb
+        val z = GlassButton(KeyEvent.KEYCODE_BUTTON_L2, config.leftTriggerLabel, GlassShape.TRIGGER_RT, textScale = 1.3f)
+        z.bounds.set(width - margin - trigW, zoneTop + snap * 2f, width - margin, zoneTop + snap * 2f + trigH)
+        buttons += z
+        val rb = GlassButton(KeyEvent.KEYCODE_BUTTON_R1, "R", GlassShape.TRIGGER_RB, textScale = 1.3f)
+        rb.bounds.set(
+            width - margin - trigW,
+            zoneTop + snap * 2f + trigH + trigGap,
+            width - margin,
+            zoneTop + snap * 2f + trigH * 2 + trigGap,
+        )
+        buttons += rb
+
+        val pillW = snap * 13f
+        val pillH = snap * 5.5f
+        val pillGap = snap * 2f
+        val pillY = height - margin - pillH
+        val select = GlassButton(KeyEvent.KEYCODE_BUTTON_SELECT, "SELECT", GlassShape.PILL, textScale = 0.75f)
+        select.bounds.set(width * 0.5f - pillGap * 0.5f - pillW, pillY, width * 0.5f - pillGap * 0.5f, pillY + pillH)
+        buttons += select
+        val start = GlassButton(KeyEvent.KEYCODE_BUTTON_START, "START", GlassShape.PILL, textScale = 0.75f)
+        start.bounds.set(width * 0.5f + pillGap * 0.5f, pillY, width * 0.5f + pillGap * 0.5f + pillW, pillY + pillH)
+        buttons += start
+
+        val menuW = snap * 13f
+        menuButton.bounds.set(
+            width * 0.5f - menuW * 0.5f,
+            zoneTop + snap * 1.5f,
+            width * 0.5f + menuW * 0.5f,
+            zoneTop + snap * 1.5f + pillH,
+        )
+
+        stickRadius = snap * 12f
+        stickCx = margin + stickRadius
+        stickCy = pillY - snap * 2f - stickRadius
+        dpadRadius = snap * 10f
+        dpadCx = stickCx
+        dpadCy = stickCy - stickRadius - snap * 2f - dpadRadius
+
+        val faceRadius = snap * 7.5f
+        val clusterCx = width - margin - faceRadius - snap * 9f
+        val aCy = stickCy
+        val aCx = clusterCx + faceRadius * 0.9f
+        val bCx = clusterCx - faceRadius * 0.9f
+        val bCy = aCy - faceRadius * 1.8f
+        val bButton = GlassButton(KeyEvent.KEYCODE_BUTTON_Y, "B", GlassShape.CIRCLE)
+        bButton.bounds.set(bCx - faceRadius, bCy - faceRadius, bCx + faceRadius, bCy + faceRadius)
+        buttons += bButton
+        val aButton = GlassButton(KeyEvent.KEYCODE_BUTTON_B, "A", GlassShape.CIRCLE)
+        aButton.bounds.set(aCx - faceRadius, aCy - faceRadius, aCx + faceRadius, aCy + faceRadius)
+        buttons += aButton
+
+        val cRadius = snap * 4.5f
+        val cSpread = snap * 6.5f
+        val cCx = clusterCx + snap * 1f
+        val shouldersBottom = zoneTop + snap * 2f + trigH * 2 + trigGap
+        val facesTop = bCy - faceRadius
+        val cCy = (shouldersBottom + facesTop) * 0.5f
+        fun addC(
+            dx: Float,
+            dy: Float,
+            glyph: String,
+            x: Float,
+            y: Float,
+        ) {
+            val c = CButton(dx, dy, glyph)
+            c.bounds.set(x - cRadius, y - cRadius, x + cRadius, y + cRadius)
+            cButtons += c
+        }
+        addC(0f, -1f, "▲", cCx, cCy - cSpread)
+        addC(0f, 1f, "▼", cCx, cCy + cSpread)
+        addC(-1f, 0f, "◀", cCx - cSpread, cCy)
+        addC(1f, 0f, "▶", cCx + cSpread, cCy)
     }
 
     override fun onDraw(canvas: Canvas) {

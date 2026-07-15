@@ -50,8 +50,15 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         const val EXTRA_HUD = "retro_hud"
         const val EXTRA_VARIABLES = "retro_variables"
 
+        const val EXTRA_UPSCALE = "retro_upscale"
+
         private val SHADER_KEYS = listOf("default", "sgsr", "crt", "lcd", "sharp")
         private val SHADER_LABELS = listOf("Default", "SGSR", "CRT", "LCD", "Sharp")
+        private val UPSCALE_KEYS = listOf("2x", "4x", "native")
+        private val UPSCALE_LABELS = listOf("2x", "4x", "Native")
+        private val HUD_ELEMENT_LABELS =
+            listOf("FPS", "Console", "GPU", "CPU", "RAM", "Battery", "Temp", "Graph", "CPU Temp")
+        private val HUD_ELEMENT_ORDER = listOf(1, 2, 3, 8, 4, 5, 6, 0, 7)
     }
 
     private lateinit var retroView: GLRetroView
@@ -74,20 +81,18 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
     private var controllerConnected = false
     private var inputManager: InputManager? = null
     private var hudVisible = false
+    private var currentUpscaleKey = "native"
+    private var hudAlpha = 1f
+    private var hudBgDecoupled = false
+    private var hudBgAlpha = 1f
+    private var hudScale = 1f
+    private var hudElements = booleanArrayOf(true, true, true, true, true, true, true, true, false)
+    private var hudFrametimeNumeric = false
+    private var hudDualBattery = false
     private var frameRating: FrameRating? = null
     private var rootLayout: FrameLayout? = null
     private var menuComposeView: ComposeView? = null
     private var surfaceReady = false
-
-    private val portraitCapable: Boolean
-        get() =
-            system?.id in
-                setOf(
-                    RetroSystems.GAMEBOY.id,
-                    RetroSystems.GAMEBOY_COLOR.id,
-                    RetroSystems.GBA.id,
-                    RetroSystems.GAME_GEAR.id,
-                )
 
     private val isPortrait: Boolean
         get() = resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
@@ -110,7 +115,11 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        rootLayout?.post { applyDisplayGeometry() }
+        overlay?.releaseAll()
+        rootLayout?.post {
+            overlay?.relayout()
+            applyDisplayGeometry()
+        }
     }
 
     private val inputDeviceListener =
@@ -179,9 +188,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             return
         }
 
-        if (portraitCapable) {
-            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
-        }
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_USER
 
         val coreFile = RetroCoreManager.coreFile(this, resolvedSystem)
         if (!coreFile.isFile) {
@@ -202,6 +209,8 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         val sramFile = File(savesDir, sramName())
         currentShaderKey = intent.getStringExtra(EXTRA_SHADER)?.lowercase() ?: "default"
         if (currentShaderKey !in SHADER_KEYS) currentShaderKey = "default"
+        currentUpscaleKey = intent.getStringExtra(EXTRA_UPSCALE)?.lowercase() ?: "native"
+        if (currentUpscaleKey !in UPSCALE_KEYS) currentUpscaleKey = "native"
         audioEnabledSetting = intent.getBooleanExtra(EXTRA_AUDIO, true)
         touchControlsSetting = intent.getBooleanExtra(EXTRA_TOUCH_CONTROLS, true)
         @Suppress("UNCHECKED_CAST", "DEPRECATION")
@@ -282,6 +291,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 if (!isFinishing && !isDestroyed && hudVisible) showHud()
             }
         }
+        loadHudSettings()
         recordLaunchStats()
         observeErrors()
         observeEvents()
@@ -302,6 +312,9 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             frameRating = rating
             val menuIndex = menuComposeView?.let { root.indexOfChild(it) } ?: -1
             if (menuIndex >= 0) root.addView(rating, menuIndex) else root.addView(rating)
+            rating.addOnLayoutChangeListener { _, _, top, _, bottom, _, oldTop, _, oldBottom ->
+                if (bottom - top != oldBottom - oldTop) rootLayout?.post { applyDisplayGeometry() }
+            }
             applyRetroHudSettings(rating)
         }
         rating.visibility = View.VISIBLE
@@ -310,6 +323,19 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
     }
 
     private fun applyRetroHudSettings(rating: FrameRating) {
+        rating.setHudAlpha(hudAlpha)
+        rating.setBackgroundAlphaDecoupled(hudBgDecoupled)
+        rating.setHudBackgroundAlpha(hudBgAlpha)
+        rating.setHudScale(hudScale)
+        rating.setFrametimeNumericMode(hudFrametimeNumeric)
+        rating.setDualSeriesBattery(hudDualBattery)
+        hudElements.forEachIndexed { index, enabled -> rating.toggleElement(index, enabled) }
+    }
+
+    private fun loadHudSettings() {
+        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
+        hudFrametimeNumeric = prefs.getBoolean(FrameRating.PREF_HUD_FRAMETIME_NUMERIC, false)
+        hudDualBattery = prefs.getBoolean(FrameRating.PREF_HUD_DUAL_SERIES_BATTERY, false)
         lifecycleScope.launch(Dispatchers.IO) {
             val json =
                 runCatching {
@@ -346,12 +372,41 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                         obj.optBoolean("showCpuTemp", false),
                     )
                 runOnUiThread {
-                    rating.setHudAlpha(transparency)
-                    rating.setBackgroundAlphaDecoupled(decoupled)
-                    rating.setHudBackgroundAlpha(backgroundTransparency)
-                    rating.setHudScale(scale)
-                    elements.forEachIndexed { index, enabled -> rating.toggleElement(index, enabled) }
+                    hudAlpha = transparency
+                    hudBgDecoupled = decoupled
+                    hudBgAlpha = backgroundTransparency
+                    hudScale = scale
+                    hudElements = elements
+                    frameRating?.let { applyRetroHudSettings(it) }
+                    menu.rebuild()
                 }
+            }
+        }
+    }
+
+    private fun saveHudSettings() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            runCatching {
+                val containerId = intent.getIntExtra(EXTRA_CONTAINER_ID, 0)
+                if (containerId <= 0) return@runCatching
+                val container =
+                    ContainerManager(this@RetroActivity).getContainerById(containerId) ?: return@runCatching
+                val obj = org.json.JSONObject()
+                obj.put("transparency", hudAlpha.toDouble())
+                obj.put("backgroundAlphaDecoupled", hudBgDecoupled)
+                obj.put("backgroundTransparency", hudBgAlpha.toDouble())
+                obj.put("scale", hudScale.toDouble())
+                obj.put("showFPS", hudElements[0])
+                obj.put("showRenderer", hudElements[1])
+                obj.put("showGPU", hudElements[2])
+                obj.put("showCPU", hudElements[3])
+                obj.put("showRAM", hudElements[4])
+                obj.put("showBattery", hudElements[5])
+                obj.put("showTemp", hudElements[6])
+                obj.put("showGraph", hudElements[7])
+                obj.put("showCpuTemp", hudElements[8])
+                container.putExtra("hudSettings", obj.toString())
+                container.saveData()
             }
         }
     }
@@ -424,9 +479,16 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         return "$safe.srm"
     }
 
+    private fun sgsrPrePasses(): Int =
+        when (currentUpscaleKey) {
+            "4x" -> 2
+            "native" -> 3
+            else -> 1
+        }
+
     private fun shaderFromKey(value: String?): ShaderConfig =
         when (value?.lowercase()) {
-            "sgsr" -> ShaderConfig.SGSR
+            "sgsr" -> ShaderConfig.SGSR(sgsrPrePasses())
             "crt" -> ShaderConfig.CRT
             "lcd" -> ShaderConfig.LCD
             "sharp" -> ShaderConfig.Sharp
@@ -460,16 +522,30 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         when (pane) {
             null -> buildMainEntries()
             RetroPane.DISPLAY ->
-                SHADER_KEYS.mapIndexed { index, key ->
-                    RetroMenuEntry.Radio(
-                        label = SHADER_LABELS[index],
-                        selected = currentShaderKey == key,
-                    ) {
-                        currentShaderKey = key
-                        retroView.shader = shaderFromKey(key)
-                        persistExtra(RetroShortcuts.KEY_SHADER, key)
-                        menu.rebuild()
+                buildList {
+                    SHADER_KEYS.forEachIndexed { index, key ->
+                        add(
+                            RetroMenuEntry.Radio(
+                                label = SHADER_LABELS[index],
+                                selected = currentShaderKey == key,
+                            ) {
+                                currentShaderKey = key
+                                retroView.shader = shaderFromKey(key)
+                                persistExtra(RetroShortcuts.KEY_SHADER, key)
+                                menu.rebuild()
+                            },
+                        )
                     }
+                    val upscaleIndex = UPSCALE_KEYS.indexOf(currentUpscaleKey).coerceAtLeast(0)
+                    add(
+                        RetroMenuEntry.Choice("SGSR Upscale", UPSCALE_LABELS[upscaleIndex]) { direction ->
+                            val next = (upscaleIndex + direction + UPSCALE_KEYS.size) % UPSCALE_KEYS.size
+                            currentUpscaleKey = UPSCALE_KEYS[next]
+                            persistExtra(RetroShortcuts.KEY_UPSCALE, currentUpscaleKey)
+                            if (currentShaderKey == "sgsr") retroView.shader = shaderFromKey("sgsr")
+                            menu.rebuild()
+                        },
+                    )
                 }
             RetroPane.SYSTEM ->
                 RetroCoreOptions.forSystem(system).map { option ->
@@ -502,7 +578,110 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                         menu.rebuild()
                     },
                 )
+            RetroPane.HUD -> buildHudEntries()
         }
+
+    private fun setHudVisible(value: Boolean) {
+        hudVisible = value
+        if (value) {
+            showHud()
+        } else {
+            frameRating?.visibility = View.GONE
+            applyDisplayGeometry()
+        }
+        persistExtra(RetroShortcuts.KEY_HUD, if (value) "1" else "0")
+        menu.rebuild()
+    }
+
+    private fun buildHudEntries(): List<RetroMenuEntry> {
+        val entries = mutableListOf<RetroMenuEntry>()
+        entries +=
+            RetroMenuEntry.Toggle("Performance HUD", checked = hudVisible) { value ->
+                setHudVisible(value)
+            }
+        if (!hudVisible) return entries
+        entries +=
+            RetroMenuEntry.Slider(
+                label = "Alpha",
+                valueText = "${(hudAlpha * 100).toInt()}%",
+                value = hudAlpha,
+                min = 0.1f,
+                max = 1f,
+                step = 0.05f,
+            ) { value ->
+                hudAlpha = value
+                frameRating?.setHudAlpha(value)
+                if (!hudBgDecoupled) {
+                    hudBgAlpha = (value * FrameRating.BACKDROP_BASE_ALPHA).coerceIn(0.1f, 1f)
+                    frameRating?.setHudBackgroundAlpha(hudBgAlpha)
+                }
+                saveHudSettings()
+                menu.rebuild()
+            }
+        entries +=
+            RetroMenuEntry.Toggle("Background Alpha", checked = hudBgDecoupled) { value ->
+                hudBgDecoupled = value
+                frameRating?.setBackgroundAlphaDecoupled(value)
+                if (!value) {
+                    hudBgAlpha = (hudAlpha * FrameRating.BACKDROP_BASE_ALPHA).coerceIn(0.1f, 1f)
+                    frameRating?.setHudBackgroundAlpha(hudBgAlpha)
+                }
+                saveHudSettings()
+                menu.rebuild()
+            }
+        if (hudBgDecoupled) {
+            entries +=
+                RetroMenuEntry.Slider(
+                    label = "Background",
+                    valueText = "${(hudBgAlpha * 100).toInt()}%",
+                    value = hudBgAlpha,
+                    min = 0.1f,
+                    max = 1f,
+                    step = 0.05f,
+                ) { value ->
+                    hudBgAlpha = value
+                    frameRating?.setHudBackgroundAlpha(value)
+                    saveHudSettings()
+                    menu.rebuild()
+                }
+        }
+        entries +=
+            RetroMenuEntry.Slider(
+                label = "Scale",
+                valueText = "${(hudScale * 100).toInt()}%",
+                value = hudScale,
+                min = 0.3f,
+                max = 2f,
+                step = 0.05f,
+            ) { value ->
+                hudScale = value
+                frameRating?.setHudScale(value)
+                saveHudSettings()
+                menu.rebuild()
+            }
+        entries +=
+            RetroMenuEntry.Toggle("Numeric Frametime", checked = hudFrametimeNumeric) { value ->
+                hudFrametimeNumeric = value
+                frameRating?.setFrametimeNumericMode(value)
+                menu.rebuild()
+            }
+        entries +=
+            RetroMenuEntry.Toggle("Dual-series Battery", checked = hudDualBattery) { value ->
+                hudDualBattery = value
+                frameRating?.setDualSeriesBattery(value)
+                menu.rebuild()
+            }
+        HUD_ELEMENT_ORDER.forEach { index ->
+            entries +=
+                RetroMenuEntry.Toggle(HUD_ELEMENT_LABELS[index], checked = hudElements[index]) { value ->
+                    hudElements[index] = value
+                    frameRating?.toggleElement(index, value)
+                    saveHudSettings()
+                    menu.rebuild()
+                }
+        }
+        return entries
+    }
 
     private fun buildMainEntries(): List<RetroMenuEntry> {
         val entries = mutableListOf<RetroMenuEntry>()
@@ -529,15 +708,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             }
         entries +=
             RetroMenuEntry.Action("HUD", RetroDrawerIcons.Hud, active = hudVisible) {
-                hudVisible = !hudVisible
-                if (hudVisible) {
-                    showHud()
-                } else {
-                    frameRating?.visibility = View.GONE
-                    applyDisplayGeometry()
-                }
-                persistExtra(RetroShortcuts.KEY_HUD, if (hudVisible) "1" else "0")
-                menu.rebuild()
+                setHudVisible(!hudVisible)
             }
         if (diskCount > 1) {
             entries +=
