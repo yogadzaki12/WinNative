@@ -51,9 +51,10 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         const val EXTRA_VARIABLES = "retro_variables"
 
         const val EXTRA_UPSCALE = "retro_upscale"
+        const val EXTRA_SGSR = "retro_sgsr"
 
-        private val SHADER_KEYS = listOf("default", "sgsr", "crt", "lcd", "sharp")
-        private val SHADER_LABELS = listOf("Default", "SGSR", "CRT", "LCD", "Sharp")
+        private val SHADER_KEYS = listOf("default", "crt", "lcd", "sharp")
+        private val SHADER_LABELS = listOf("Default", "CRT", "LCD", "Sharp")
         private val UPSCALE_KEYS = listOf("2x", "4x", "native")
         private val UPSCALE_LABELS = listOf("2x", "4x", "Native")
         private val HUD_ELEMENT_LABELS =
@@ -70,6 +71,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
     private var audioEnabledSetting = true
     private var touchControlsSetting = true
     private var currentShaderKey = "default"
+    private var sgsrEnabled = false
     private var coreVars = HashMap<String, String>()
     private var diskCount = 0
     private var currentDisk = 0
@@ -208,6 +210,11 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         val savesDir = RetroCoreManager.savesDir(this)
         val sramFile = File(savesDir, sramName())
         currentShaderKey = intent.getStringExtra(EXTRA_SHADER)?.lowercase() ?: "default"
+        sgsrEnabled = intent.getBooleanExtra(EXTRA_SGSR, false)
+        if (currentShaderKey == "sgsr") {
+            currentShaderKey = "default"
+            sgsrEnabled = true
+        }
         if (currentShaderKey !in SHADER_KEYS) currentShaderKey = "default"
         currentUpscaleKey = intent.getStringExtra(EXTRA_UPSCALE)?.lowercase() ?: "native"
         if (currentUpscaleKey !in UPSCALE_KEYS) currentUpscaleKey = "native"
@@ -222,7 +229,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 gameFilePath = romFile.absolutePath
                 systemDirectory = RetroCoreManager.systemDir(this@RetroActivity).absolutePath
                 savesDirectory = savesDir.absolutePath
-                shader = shaderFromKey(currentShaderKey)
+                shader = effectiveShader()
                 variables = coreVars.map { Variable(it.key, it.value) }.toTypedArray()
                 rumbleEventsEnabled = true
                 preferLowLatencyAudio = true
@@ -291,6 +298,18 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 if (!isFinishing && !isDestroyed && hudVisible) showHud()
             }
         }
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : androidx.activity.OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    if (menu.visible) {
+                        menu.handleKey(KeyEvent.KEYCODE_BACK, KeyEvent.ACTION_UP)
+                    } else {
+                        openMenu()
+                    }
+                }
+            },
+        )
         loadHudSettings()
         recordLaunchStats()
         observeErrors()
@@ -486,13 +505,16 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             else -> 1
         }
 
-    private fun shaderFromKey(value: String?): ShaderConfig =
-        when (value?.lowercase()) {
-            "sgsr" -> ShaderConfig.SGSR(sgsrPrePasses())
-            "crt" -> ShaderConfig.CRT
-            "lcd" -> ShaderConfig.LCD
-            "sharp" -> ShaderConfig.Sharp
-            else -> ShaderConfig.Default
+    private fun effectiveShader(): ShaderConfig =
+        if (sgsrEnabled) {
+            ShaderConfig.SGSR(sgsrPrePasses(), currentShaderKey)
+        } else {
+            when (currentShaderKey) {
+                "crt" -> ShaderConfig.CRT
+                "lcd" -> ShaderConfig.LCD
+                "sharp" -> ShaderConfig.Sharp
+                else -> ShaderConfig.Default
+            }
         }
 
     private fun persistExtra(
@@ -530,19 +552,27 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                                 selected = currentShaderKey == key,
                             ) {
                                 currentShaderKey = key
-                                retroView.shader = shaderFromKey(key)
+                                retroView.shader = effectiveShader()
                                 persistExtra(RetroShortcuts.KEY_SHADER, key)
                                 menu.rebuild()
                             },
                         )
                     }
+                    add(
+                        RetroMenuEntry.Toggle("SGSR", checked = sgsrEnabled) { value ->
+                            sgsrEnabled = value
+                            retroView.shader = effectiveShader()
+                            persistExtra(RetroShortcuts.KEY_SGSR, if (value) "1" else "0")
+                            menu.rebuild()
+                        },
+                    )
                     val upscaleIndex = UPSCALE_KEYS.indexOf(currentUpscaleKey).coerceAtLeast(0)
                     add(
                         RetroMenuEntry.Choice("SGSR Upscale", UPSCALE_LABELS[upscaleIndex]) { direction ->
                             val next = (upscaleIndex + direction + UPSCALE_KEYS.size) % UPSCALE_KEYS.size
                             currentUpscaleKey = UPSCALE_KEYS[next]
                             persistExtra(RetroShortcuts.KEY_UPSCALE, currentUpscaleKey)
-                            if (currentShaderKey == "sgsr") retroView.shader = shaderFromKey("sgsr")
+                            if (sgsrEnabled) retroView.shader = effectiveShader()
                             menu.rebuild()
                         },
                     )
@@ -671,15 +701,19 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 frameRating?.setDualSeriesBattery(value)
                 menu.rebuild()
             }
-        HUD_ELEMENT_ORDER.forEach { index ->
-            entries +=
-                RetroMenuEntry.Toggle(HUD_ELEMENT_LABELS[index], checked = hudElements[index]) { value ->
-                    hudElements[index] = value
-                    frameRating?.toggleElement(index, value)
-                    saveHudSettings()
-                    menu.rebuild()
-                }
-        }
+        entries +=
+            RetroMenuEntry.Chips(
+                label = "HUD ELEMENTS",
+                items = HUD_ELEMENT_ORDER.map { HUD_ELEMENT_LABELS[it] },
+                states = HUD_ELEMENT_ORDER.map { hudElements[it] },
+            ) { position ->
+                val index = HUD_ELEMENT_ORDER[position]
+                val value = !hudElements[index]
+                hudElements[index] = value
+                frameRating?.toggleElement(index, value)
+                saveHudSettings()
+                menu.rebuild()
+            }
         return entries
     }
 
@@ -786,7 +820,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val keyCode = event.keyCode
-        if (menu.visible && (isGamepadSource(event) || keyCode == KeyEvent.KEYCODE_BACK)) {
+        if (menu.visible && isGamepadSource(event)) {
             menu.handleKey(keyCode, event.action)
             return true
         }
@@ -799,10 +833,6 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 retroView.sendKeyEvent(event.action, mapPhysicalKey(keyCode), 0)
                 return true
             }
-        }
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
-            if (event.action == KeyEvent.ACTION_UP) openMenu()
-            return true
         }
         return super.dispatchKeyEvent(event)
     }

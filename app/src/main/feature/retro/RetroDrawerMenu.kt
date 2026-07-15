@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -163,6 +164,13 @@ sealed class RetroMenuEntry {
         val step: Float,
         val onChange: (Float) -> Unit,
     ) : RetroMenuEntry()
+
+    class Chips(
+        val label: String,
+        val items: List<String>,
+        val states: List<Boolean>,
+        val onToggle: (Int) -> Unit,
+    ) : RetroMenuEntry()
 }
 
 class RetroMenuController {
@@ -173,6 +181,7 @@ class RetroMenuController {
     var region by mutableIntStateOf(1)
     var railIndex by mutableIntStateOf(0)
     var contentIndex by mutableIntStateOf(0)
+    var chipIndex by mutableIntStateOf(0)
     var bottomIndex by mutableIntStateOf(0)
     var controllerActive by mutableStateOf(false)
     var tabs by mutableStateOf<List<RetroTabSpec>>(emptyList())
@@ -230,6 +239,12 @@ class RetroMenuController {
             is RetroMenuEntry.Slider ->
                 if (direction != 0) {
                     entry.onChange((entry.value + direction * entry.step).coerceIn(entry.min, entry.max))
+                }
+            is RetroMenuEntry.Chips ->
+                if (direction == 0) {
+                    entry.onToggle(chipIndex.coerceIn(0, entry.items.size - 1))
+                } else {
+                    chipIndex = (chipIndex + direction + entry.items.size) % entry.items.size
                 }
             else -> {}
         }
@@ -771,6 +786,18 @@ private fun RetroPaneList(
                                     paneScale = paneScale,
                                     onClick = { controller.contentIndex = index },
                                 )
+                            is RetroMenuEntry.Chips ->
+                                RetroChipsGroup(
+                                    entry = entry,
+                                    highlighted = highlighted,
+                                    chipFocus = if (highlighted) controller.chipIndex else -1,
+                                    paneScale = paneScale,
+                                    onChipClick = { chip ->
+                                        controller.contentIndex = index
+                                        controller.chipIndex = chip
+                                        entry.onToggle(chip)
+                                    },
+                                )
                         }
                     }
                 }
@@ -915,6 +942,103 @@ private fun RetroRadioRow(
                 fontWeight = FontWeight.SemiBold,
             )
         }
+    }
+}
+
+@Composable
+private fun RetroChipsGroup(
+    entry: RetroMenuEntry.Chips,
+    highlighted: Boolean,
+    chipFocus: Int,
+    paneScale: Float,
+    onChipClick: (Int) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy((8f * paneScale).dp)) {
+        Text(
+            text = entry.label,
+            color = DrawerTextSecondary,
+            fontSize = (11f * paneScale).sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.8.sp,
+        )
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy((8f * paneScale).dp),
+            verticalArrangement = Arrangement.spacedBy((8f * paneScale).dp),
+        ) {
+            entry.items.forEachIndexed { index, item ->
+                RetroHudChip(
+                    label = item,
+                    checked = entry.states.getOrElse(index) { false },
+                    focused = highlighted && chipFocus == index,
+                    paneScale = paneScale,
+                    onClick = { onChipClick(index) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RetroHudChip(
+    label: String,
+    checked: Boolean,
+    focused: Boolean,
+    paneScale: Float,
+    onClick: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed = interactionSource.collectIsPressedAsState().value
+    val bgColor by animateColorAsState(
+        targetValue =
+            when {
+                focused -> DrawerFocusFill
+                pressed -> PaneInnerPressed
+                else -> PaneInnerResting
+            },
+        animationSpec = tween(140),
+        label = "retroChipBg",
+    )
+    val borderColor by animateColorAsState(
+        targetValue = if (checked) DrawerAccent else RestingCardBorder,
+        animationSpec = tween(140),
+        label = "retroChipBorder",
+    )
+    val cornerRadius = (12f * paneScale).dp
+    val shape = RoundedCornerShape(cornerRadius)
+    Row(
+        modifier =
+            Modifier
+                .clip(shape)
+                .background(bgColor)
+                .border(1.dp, borderColor, shape)
+                .then(
+                    if (focused) {
+                        Modifier.chasingBorder(cornerRadius = cornerRadius, borderWidth = 1.5.dp, animationDurationMs = 8200)
+                    } else {
+                        Modifier
+                    },
+                )
+                .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+                .padding(horizontal = (10f * paneScale).dp, vertical = (9f * paneScale).dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .size((10f * paneScale).dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(if (checked) DrawerAccent else Color(0x14FFFFFF)),
+        )
+        Spacer(Modifier.width((8f * paneScale).dp))
+        Text(
+            text = label,
+            color = DrawerTextPrimary,
+            fontSize = (13f * paneScale).sp,
+            fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -1089,12 +1213,12 @@ object RetroDrawerTabs {
         val tabs = mutableListOf<RetroTabSpec>()
         tabs += RetroTabSpec(null, Icons.Outlined.Apps, "Menu")
         tabs += RetroTabSpec(RetroPane.DISPLAY, Icons.Outlined.Monitor, "Display")
+        tabs += RetroTabSpec(RetroPane.HUD, Icons.Outlined.Speed, "HUD")
         if (hasCoreOptions) {
             tabs += RetroTabSpec(RetroPane.SYSTEM, Icons.Outlined.Tune, system?.shortName ?: "System")
         }
         tabs += RetroTabSpec(RetroPane.SOUND, Icons.AutoMirrored.Outlined.VolumeUp, "Sound")
         tabs += RetroTabSpec(RetroPane.CONTROLS, Icons.Outlined.SportsEsports, "Controls")
-        tabs += RetroTabSpec(RetroPane.HUD, Icons.Outlined.Speed, "HUD")
         return tabs
     }
 }
