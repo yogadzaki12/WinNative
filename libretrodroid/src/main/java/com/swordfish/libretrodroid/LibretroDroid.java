@@ -40,6 +40,7 @@ public class LibretroDroid {
     public static final int SHADER_UPSCALE_SGSR = 7;
 
     public static final String SHADER_UPSCALE_SGSR_PARAM_PREPASSES = "sgsr_prepasses";
+    public static final String SHADER_UPSCALE_SGSR_PARAM_BASE = "sgsr_base";
     public static final String SHADER_UPSCALE_CUT_PARAM_USE_DYNAMIC_BLEND = "USE_DYNAMIC_BLEND";
     public static final String SHADER_UPSCALE_CUT_PARAM_BLEND_MIN_CONTRAST_EDGE = "BLEND_MIN_CONTRAST_EDGE";
     public static final String SHADER_UPSCALE_CUT_PARAM_BLEND_MAX_CONTRAST_EDGE = "BLEND_MAX_CONTRAST_EDGE";

@@ -25,6 +25,7 @@ sealed interface ShaderConfig {
     object Sharp : ShaderConfig
     data class SGSR(
         val prePasses: Int = 1,
+        val base: String = "default",
     ) : ShaderConfig
 
     data class CUT(

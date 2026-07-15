@@ -92,8 +92,8 @@ private val FieldCorner = 8.dp
 private val ItemGap = 10.dp
 private val TightGap = 4.dp
 
-private val SHADER_KEYS = listOf("default", "sgsr", "crt", "lcd", "sharp")
-private val SHADER_LABELS = listOf("Default", "SGSR", "CRT", "LCD", "Sharp")
+private val SHADER_KEYS = listOf("default", "crt", "lcd", "sharp")
+private val SHADER_LABELS = listOf("Default", "CRT", "LCD", "Sharp")
 private val UPSCALE_KEYS = listOf("2x", "4x", "native")
 private val UPSCALE_LABELS = listOf("2x", "4x", "Native")
 
@@ -109,6 +109,10 @@ class RetroSettingsState(
         shortcut.getExtra(RetroShortcuts.KEY_SHADER, "default").lowercase().let {
             if (it in SHADER_KEYS) it else "default"
         },
+    )
+    var sgsr by mutableStateOf(
+        shortcut.getExtra(RetroShortcuts.KEY_SGSR, "0") == "1" ||
+            shortcut.getExtra(RetroShortcuts.KEY_SHADER, "default").lowercase() == "sgsr",
     )
     var upscale by mutableStateOf(
         shortcut.getExtra(RetroShortcuts.KEY_UPSCALE, "native").lowercase().let {
@@ -142,6 +146,7 @@ class RetroSettingsState(
 
     fun save() {
         shortcut.putExtra(RetroShortcuts.KEY_SHADER, shader)
+        shortcut.putExtra(RetroShortcuts.KEY_SGSR, if (sgsr) "1" else "0")
         shortcut.putExtra(RetroShortcuts.KEY_UPSCALE, upscale)
         shortcut.putExtra(RetroShortcuts.KEY_TOUCH_CONTROLS, if (touchControls) "1" else "0")
         shortcut.putExtra(RetroShortcuts.KEY_AUDIO, if (audio) "1" else "0")
@@ -828,6 +833,11 @@ private fun RetroGraphicsSection(state: RetroSettingsState) {
             entries = SHADER_LABELS,
             selectedIndex = SHADER_KEYS.indexOf(state.shader).coerceAtLeast(0),
             onSelected = { state.shader = SHADER_KEYS[it] },
+        )
+        RetroSettingSwitch(
+            label = "SGSR",
+            checked = state.sgsr,
+            onCheckedChange = { state.sgsr = it },
         )
         RetroSettingDropdown(
             label = "SGSR Upscale",

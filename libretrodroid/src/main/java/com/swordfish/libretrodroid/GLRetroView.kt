@@ -417,7 +417,10 @@ class GLRetroView(
             is ShaderConfig.Sharp -> GLRetroShader(LibretroDroid.SHADER_SHARP)
             is ShaderConfig.SGSR -> GLRetroShader(
                 LibretroDroid.SHADER_UPSCALE_SGSR,
-                mapOf(LibretroDroid.SHADER_UPSCALE_SGSR_PARAM_PREPASSES to config.prePasses.toString())
+                mapOf(
+                    LibretroDroid.SHADER_UPSCALE_SGSR_PARAM_PREPASSES to config.prePasses.toString(),
+                    LibretroDroid.SHADER_UPSCALE_SGSR_PARAM_BASE to config.base,
+                )
             )
             is ShaderConfig.CUT -> GLRetroShader(
                 LibretroDroid.SHADER_UPSCALE_CUT,

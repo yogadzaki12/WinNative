@@ -1659,6 +1659,19 @@ ShaderManager::Chain ShaderManager::getShader(const ShaderManager::Config& confi
         if (it != config.params.end()) {
             prePasses = std::max(0, std::min(3, std::atoi(it->second.c_str())));
         }
+        std::string base = "default";
+        auto baseIt = config.params.find("sgsr_base");
+        if (baseIt != config.params.end()) {
+            base = baseIt->second;
+        }
+        const std::string* baseFragment = nullptr;
+        if (base == "crt") {
+            baseFragment = &crtShaderFragment;
+        } else if (base == "lcd") {
+            baseFragment = &lcdShaderFragment;
+        } else if (base == "sharp") {
+            baseFragment = &defaultSharpFragment;
+        }
         std::string header =
             "#version 310 es\n"
             "precision mediump float;\n"
@@ -1668,6 +1681,11 @@ ShaderManager::Chain ShaderManager::getShader(const ShaderManager::Config& confi
             "uniform highp vec2 textureSize;\n";
         std::vector<Pass> passes;
         for (int i = 0; i <= prePasses; ++i) {
+            float outputScale = i == prePasses ? 1.0f : float(1 << (i + 1));
+            if (i == 0 && baseFragment != nullptr && prePasses > 0) {
+                passes.push_back({ defaultShaderVertex, *baseFragment, true, outputScale });
+                continue;
+            }
             std::string defines;
             if (i == 0) {
                 defines = "#define SGSR_INPUT texture\n#define SGSR_SIZE textureSize\n";
@@ -1676,7 +1694,6 @@ ShaderManager::Chain ShaderManager::getShader(const ShaderManager::Config& confi
                 defines = "#define SGSR_INPUT previousPass\n#define SGSR_SIZE (textureSize * " +
                     std::to_string(inputScale) + ")\n";
             }
-            float outputScale = i == prePasses ? 1.0f : float(1 << (i + 1));
             passes.push_back({ sgsrUpscaleVertex, header + defines + sgsrUpscaleFragmentBody, true, outputScale });
         }
         return { passes, true };
