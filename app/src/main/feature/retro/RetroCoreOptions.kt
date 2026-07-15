@@ -80,6 +80,13 @@ object RetroCoreOptions {
                 valueLabels = listOf("320x240 (Native)", "640x480", "960x720", "1280x960", "1440x1080"),
                 defaultValue = "320x240",
             ),
+            RetroCoreOption(
+                key = "mupen64plus-EnableCopyDepthToRDRAM",
+                label = "Depth Copy to RDRAM",
+                values = listOf("Off", "Software", "FromMem"),
+                valueLabels = listOf("Off", "Software", "From Memory"),
+                defaultValue = "Off",
+            ),
         )
 
     private val PSX_OPTIONS =
@@ -99,6 +106,17 @@ object RetroCoreOptions {
                 defaultValue = "enabled",
             ),
         )
+
+    fun defaultVariables(system: RetroSystem?): Map<String, String> =
+        when (system?.id) {
+            RetroSystems.N64.id ->
+                mapOf(
+                    "mupen64plus-GLideN64IniBehaviour" to "early",
+                    "mupen64plus-EnableFBEmulation" to "True",
+                    "mupen64plus-EnableCopyDepthToRDRAM" to "Off",
+                )
+            else -> emptyMap()
+        }
 
     fun forSystem(system: RetroSystem?): List<RetroCoreOption> =
         when (system?.id) {

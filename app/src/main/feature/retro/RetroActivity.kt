@@ -247,6 +247,9 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         touchControlsSetting = intent.getBooleanExtra(EXTRA_TOUCH_CONTROLS, true)
         @Suppress("UNCHECKED_CAST", "DEPRECATION")
         coreVars = (intent.getSerializableExtra(EXTRA_VARIABLES) as? HashMap<String, String>) ?: HashMap()
+        RetroCoreOptions.defaultVariables(resolvedSystem).forEach { (key, value) ->
+            if (!coreVars.containsKey(key)) coreVars[key] = value
+        }
 
         val data =
             GLRetroViewData(this).apply {
