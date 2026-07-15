@@ -73,6 +73,7 @@ class RetroInputView(
         val leftTriggerLabel: String = "L2",
         val rightTriggerLabel: String = "R2",
         val showRightTrigger: Boolean = true,
+        val flatFaces: Boolean = false,
         val faceTop: String = "X",
         val faceBottom: String = "B",
         val faceLeft: String = "Y",
@@ -81,6 +82,14 @@ class RetroInputView(
 
     private val config =
         when (system?.id) {
+            RetroSystems.NES.id ->
+                OverlayConfig(
+                    hasXY = false,
+                    hasShoulders = false,
+                    hasTriggers = false,
+                    hasStick = false,
+                    flatFaces = true,
+                )
             RetroSystems.SNES.id -> OverlayConfig(hasXY = true, hasShoulders = true, hasTriggers = false, hasStick = false)
             RetroSystems.GBA.id -> OverlayConfig(hasXY = false, hasShoulders = true, hasTriggers = false, hasStick = false)
             RetroSystems.GENESIS.id -> OverlayConfig(hasXY = true, hasShoulders = true, hasTriggers = false, hasStick = false)
@@ -343,7 +352,7 @@ class RetroInputView(
         snap = width / 100f
         val margin = snap * 2.5f
         val bottomGap = snap * 9f
-        val faceRadius = snap * 3f
+        var faceRadius = snap * 3f
         strokeWidth = max(2f, snap * 0.18f)
 
         val trigW = snap * 10.4f
@@ -381,10 +390,17 @@ class RetroInputView(
             leftCursor += trigH + trigGap
         }
 
-        val spread = snap * 5.5f
+        var spread = snap * 5.5f
         var clusterCx = width - margin - faceRadius - spread
         val rightBarWidth = gameArea?.let { width - it.right } ?: 0f
-        if (rightBarWidth >= (faceRadius + spread) * 2f + snap * 2f) {
+        if (rightBarWidth > snap * 8f) {
+            val clusterHalf = if (config.hasXY) faceRadius + spread else faceRadius * 2.45f
+            val avail = rightBarWidth * 0.5f - snap
+            if (clusterHalf > avail) {
+                val fit = (avail / clusterHalf).coerceAtLeast(0.62f)
+                faceRadius *= fit
+                spread *= fit
+            }
             clusterCx = width - rightBarWidth * 0.5f
         }
         val clusterCy = height - bottomGap - faceRadius - spread
@@ -405,6 +421,9 @@ class RetroInputView(
             addFace(KeyEvent.KEYCODE_BUTTON_B, config.faceBottom, clusterCx, clusterCy + spread)
             addFace(KeyEvent.KEYCODE_BUTTON_Y, config.faceLeft, clusterCx - spread, clusterCy)
             addFace(KeyEvent.KEYCODE_BUTTON_A, config.faceRight, clusterCx + spread, clusterCy)
+        } else if (config.flatFaces) {
+            addFace(KeyEvent.KEYCODE_BUTTON_B, "B", clusterCx - faceRadius * 1.35f, clusterCy + spread * 0.5f)
+            addFace(KeyEvent.KEYCODE_BUTTON_A, "A", clusterCx + faceRadius * 1.35f, clusterCy + spread * 0.5f)
         } else {
             addFace(KeyEvent.KEYCODE_BUTTON_B, "B", clusterCx - faceRadius * 1.1f, clusterCy + spread * 0.5f + faceRadius * 0.5f)
             addFace(KeyEvent.KEYCODE_BUTTON_A, "A", clusterCx + faceRadius * 1.1f, clusterCy + spread * 0.5f - faceRadius * 1.1f)
@@ -413,6 +432,32 @@ class RetroInputView(
         val pillW = snap * 6f
         val pillH = snap * 3f
         val pillGap = snap * 1.2f
+        stickRadius = 0f
+        dpadRadius = snap * 7.5f
+        dpadCx = margin + dpadRadius
+        val leftBarWidth = gameArea?.left ?: 0f
+        if (leftBarWidth > snap * 8f) {
+            val avail = leftBarWidth - snap * 2f
+            if (dpadRadius * 2f > avail) dpadRadius = (avail * 0.5f).coerceAtLeast(snap * 5f)
+            dpadCx = leftBarWidth * 0.5f
+        }
+        dpadCy = height - bottomGap - dpadRadius
+
+        if (config.hasTriggers && config.hasXY) {
+            val rowY = height - snap * 2.5f - pillH
+            var pillX = (width - pillW * 3f - pillGap * 2f) * 0.5f
+            menuButton.bounds.set(pillX, rowY, pillX + pillW, rowY + pillH)
+            pillX += pillW + pillGap
+            val select = GlassButton(KeyEvent.KEYCODE_BUTTON_SELECT, "SELECT", GlassShape.PILL, textScale = 0.75f)
+            select.bounds.set(pillX, rowY, pillX + pillW, rowY + pillH)
+            buttons += select
+            pillX += pillW + pillGap
+            val start = GlassButton(KeyEvent.KEYCODE_BUTTON_START, "START", GlassShape.PILL, textScale = 0.75f)
+            start.bounds.set(pillX, rowY, pillX + pillW, rowY + pillH)
+            buttons += start
+            return
+        }
+
         val pillY = clusterTop - pillH - snap * 3.5f
         val start = GlassButton(KeyEvent.KEYCODE_BUTTON_START, "START", GlassShape.PILL, textScale = 0.75f)
         start.bounds.set(width - margin - pillW, pillY, width - margin, pillY + pillH)
@@ -427,15 +472,11 @@ class RetroInputView(
         buttons += select
 
         val menuW = snap * 6f
-        stickRadius = 0f
-        dpadRadius = snap * 7.5f
-        dpadCx = margin + dpadRadius
-        val leftBarWidth = gameArea?.left ?: 0f
-        if (leftBarWidth >= dpadRadius * 2f + snap * 2f) {
-            dpadCx = leftBarWidth * 0.5f
-        }
-        dpadCy = height - bottomGap - dpadRadius
-        val menuY = max(pillY, leftCursor)
+        val menuY =
+            min(
+                max(pillY, leftCursor),
+                dpadCy - dpadRadius - pillH - snap * 3f,
+            )
         menuButton.bounds.set(dpadCx - menuW * 0.5f, menuY, dpadCx + menuW * 0.5f, menuY + pillH)
     }
 
@@ -621,6 +662,16 @@ class RetroInputView(
             addFace(KeyEvent.KEYCODE_BUTTON_B, config.faceBottom, clusterCx, rowCy + spread, faceRadius)
             addFace(KeyEvent.KEYCODE_BUTTON_Y, config.faceLeft, clusterCx - spread, rowCy, faceRadius)
             addFace(KeyEvent.KEYCODE_BUTTON_A, config.faceRight, clusterCx + spread, rowCy, faceRadius)
+        } else if (config.flatFaces) {
+            val faceRadius = snap * 8.5f
+            addFace(KeyEvent.KEYCODE_BUTTON_A, "A", width - margin - faceRadius, rowCy, faceRadius)
+            addFace(
+                KeyEvent.KEYCODE_BUTTON_B,
+                "B",
+                width - margin - faceRadius * 3.7f,
+                rowCy,
+                faceRadius,
+            )
         } else {
             val faceRadius = snap * 8.5f
             addFace(KeyEvent.KEYCODE_BUTTON_A, "A", width - margin - faceRadius, rowCy - faceRadius * 0.9f, faceRadius)
@@ -748,6 +799,7 @@ class RetroInputView(
         paint.strokeCap = Paint.Cap.ROUND
         drawShellBackground(canvas)
         drawClusterPlate(canvas)
+        drawFacePlate(canvas)
         drawDpad(canvas)
         if (config.hasStick) drawStick(canvas)
         buttons.forEach { drawThemedButton(canvas, it, pressedButtons.contains(it.keyCode)) }
@@ -766,6 +818,26 @@ class RetroInputView(
         if (area.bottom < h) canvas.drawRect(0f, area.bottom, w, h, paint)
         if (area.left > 0f) canvas.drawRect(0f, area.top, area.left, area.bottom, paint)
         if (area.right < w) canvas.drawRect(area.right, area.top, w, area.bottom, paint)
+    }
+
+    private fun drawFacePlate(canvas: Canvas) {
+        if (theme.backplate == 0) return
+        val faces = buttons.filter { it.shape == GlassShape.CIRCLE }
+        if (faces.isEmpty()) return
+        val pad = faces.first().bounds.width() * 0.28f
+        val left = faces.minOf { it.bounds.left } - pad
+        val top = faces.minOf { it.bounds.top } - pad
+        val right = faces.maxOf { it.bounds.right } + pad
+        val bottom = faces.maxOf { it.bounds.bottom } + pad
+        val corner = (bottom - top) * 0.24f
+        paint.shader = null
+        paint.style = Paint.Style.FILL
+        paint.color = theme.backplate
+        canvas.drawRoundRect(left, top, right, bottom, corner, corner, paint)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = strokeWidth
+        paint.color = darken(theme.backplate, 0.16f)
+        canvas.drawRoundRect(left, top, right, bottom, corner, corner, paint)
     }
 
     private fun drawClusterPlate(canvas: Canvas) {
@@ -884,19 +956,6 @@ class RetroInputView(
         val depth = radius * 0.12f
         val dy = if (pressed) depth * 0.7f else 0f
         val bodyCy = cy + dy
-
-        if (theme.backplate != 0) {
-            val pr = radius * 1.3f
-            val corner = radius * 0.3f
-            paint.shader = null
-            paint.style = Paint.Style.FILL
-            paint.color = theme.backplate
-            canvas.drawRoundRect(cx - pr, cy - pr, cx + pr, cy + pr, corner, corner, paint)
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = strokeWidth
-            paint.color = darken(theme.backplate, 0.16f)
-            canvas.drawRoundRect(cx - pr, cy - pr, cx + pr, cy + pr, corner, corner, paint)
-        }
 
         paint.style = Paint.Style.FILL
         paint.shader =
