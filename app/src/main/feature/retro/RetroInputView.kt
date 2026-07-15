@@ -838,15 +838,6 @@ class RetroInputView(
                     }
                 }
 
-                val dxToPad = x - dpadCx
-                val dyToPad = y - dpadCy
-                if (hypot(dxToPad, dyToPad) <= dpadRadius * 1.4f) {
-                    val dz = dpadRadius * 0.24f
-                    if (dxToPad > dz) newDpadX = 1f else if (dxToPad < -dz) newDpadX = -1f
-                    if (dyToPad > dz) newDpadY = 1f else if (dyToPad < -dz) newDpadY = -1f
-                    continue
-                }
-
                 if (hitButton(menuButton, x, y)) {
                     menuTouched = true
                     continue
@@ -864,11 +855,22 @@ class RetroInputView(
                 }
                 if (cHit) continue
 
+                var buttonHit = false
                 for (button in buttons) {
                     if (hitButton(button, x, y)) {
                         newPressed.add(button.keyCode)
+                        buttonHit = true
                         break
                     }
+                }
+                if (buttonHit) continue
+
+                val dxToPad = x - dpadCx
+                val dyToPad = y - dpadCy
+                if (hypot(dxToPad, dyToPad) <= dpadRadius * 1.4f) {
+                    val dz = dpadRadius * 0.24f
+                    if (dxToPad > dz) newDpadX = 1f else if (dxToPad < -dz) newDpadX = -1f
+                    if (dyToPad > dz) newDpadY = 1f else if (dyToPad < -dz) newDpadY = -1f
                 }
             }
         }
