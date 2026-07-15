@@ -99,10 +99,19 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
     private val isPortrait: Boolean
         get() = resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
 
+    private val gameAspect: Float
+        get() =
+            when (system?.id) {
+                RetroSystems.GAMEBOY.id, RetroSystems.GAMEBOY_COLOR.id -> 10f / 9f
+                RetroSystems.GBA.id -> 3f / 2f
+                else -> 4f / 3f
+            }
+
     private fun applyDisplayGeometry() {
         if (!surfaceReady || !retroReady) return
         retroView.viewportAlignment = if (isPortrait) ViewportAlignment.TOP else ViewportAlignment.CENTER
         val rating = frameRating
+        val rootWidth = rootLayout?.width ?: 0
         val rootHeight = rootLayout?.height ?: 0
         val push =
             if (isPortrait && hudVisible && rating != null &&
@@ -113,6 +122,22 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 0f
             }
         retroView.viewport = RectF(0f, push, 1f, 1f)
+        if (rootWidth > 0 && rootHeight > 0) {
+            val area =
+                if (isPortrait) {
+                    val top = push * rootHeight
+                    val gameHeight = rootWidth / gameAspect
+                    RectF(0f, top, rootWidth.toFloat(), (top + gameHeight).coerceAtMost(rootHeight.toFloat()))
+                } else {
+                    val availHeight = rootHeight * (1f - push)
+                    val gameWidth = (availHeight * gameAspect).coerceAtMost(rootWidth.toFloat())
+                    val left = (rootWidth - gameWidth) * 0.5f
+                    val gameHeight = gameWidth / gameAspect
+                    val top = push * rootHeight + (availHeight - gameHeight) * 0.5f
+                    RectF(left, top, left + gameWidth, top + gameHeight)
+                }
+            overlay?.setGameArea(area)
+        }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -257,6 +282,10 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         )
 
         val inputView = RetroInputView(this, this, resolvedSystem)
+        inputView.hapticStrength =
+            androidx.preference.PreferenceManager
+                .getDefaultSharedPreferences(this)
+                .getFloat("retro_haptic_strength", 0.4f)
         overlay = inputView
         root.addView(
             inputView,
@@ -605,6 +634,23 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                         touchControlsSetting = value
                         updateOverlayVisibility()
                         persistExtra(RetroShortcuts.KEY_TOUCH_CONTROLS, if (value) "1" else "0")
+                        menu.rebuild()
+                    },
+                    RetroMenuEntry.Slider(
+                        label = "Haptic Feedback",
+                        valueText =
+                            overlay?.hapticStrength?.let { "${(it * 100).toInt()}%" } ?: "0%",
+                        value = overlay?.hapticStrength ?: 0f,
+                        min = 0f,
+                        max = 1f,
+                        step = 0.05f,
+                    ) { value ->
+                        overlay?.hapticStrength = value
+                        androidx.preference.PreferenceManager
+                            .getDefaultSharedPreferences(this)
+                            .edit()
+                            .putFloat("retro_haptic_strength", value)
+                            .apply()
                         menu.rebuild()
                     },
                 )
