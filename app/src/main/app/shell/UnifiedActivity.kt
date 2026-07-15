@@ -12746,19 +12746,12 @@ fun RetroConsoleRibbon(
     label: String,
     modifier: Modifier = Modifier,
 ) {
-    val badgeColor = when (label) {
-        "SNES" -> Color(0xCC800080)
-        "PS1" -> Color(0xCC003399)
-        "SEGA", "SMS", "GG" -> Color(0xCC000000)
-        else -> Color(0xD9090C10)
-    }
-
     Box(
         modifier =
             modifier
                 .fillMaxHeight()
                 .width(14.dp)
-                .background(badgeColor),
+                .background(Color(0xD9090C10)),
         contentAlignment = Alignment.Center,
     ) {
         Text(
