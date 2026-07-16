@@ -4,8 +4,10 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,8 +24,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -44,7 +48,7 @@ private val UPSCALE_LABELS = listOf("2x", "4x", "Native")
 @Composable
 fun RetroDefaultsScreen() {
     val context = LocalContext.current
-    var consoleIndex by remember { mutableIntStateOf(0) }
+    var expandedConsole by remember { mutableStateOf<String?>(null) }
     var refresh by remember { mutableIntStateOf(0) }
 
     val biosPicker =
@@ -61,8 +65,6 @@ fun RetroDefaultsScreen() {
             }
         }
 
-    val system = RetroSystems.ALL[consoleIndex]
-    val sys = system.id
     @Suppress("UNUSED_EXPRESSION") refresh
 
     Column(
@@ -141,66 +143,84 @@ fun RetroDefaultsScreen() {
             }
         }
 
-        RetroSettingGroup {
-            RetroGroupTitle("CONSOLE")
-            RetroSettingDropdown(
-                label = "Console",
-                entries = RetroSystems.ALL.map { it.displayName },
-                selectedIndex = consoleIndex,
-                onSelected = { consoleIndex = it },
-            )
-        }
+        Text(
+            "CONSOLE DEFAULTS",
+            color = PageSub,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        Text(
+            "Tap a console to set its default settings.",
+            color = PageSub,
+            style = MaterialTheme.typography.labelMedium,
+        )
 
-        RetroSettingGroup {
-            RetroGroupTitle("${system.shortName.uppercase()} GRAPHICS")
-            RetroSettingDropdown(
-                label = "Shader",
-                entries = SHADER_LABELS,
-                selectedIndex = SHADER_KEYS.indexOf(RetroDefaults.shader(context, sys)).coerceAtLeast(0),
-                onSelected = { RetroDefaults.setShader(context, sys, SHADER_KEYS[it]); refresh++ },
-            )
-            RetroSettingSwitch(
-                "SGSR upscaling",
-                RetroDefaults.sgsr(context, sys),
-            ) { RetroDefaults.setSgsr(context, sys, it); refresh++ }
-            RetroSettingDropdown(
-                label = "Upscale resolution",
-                entries = UPSCALE_LABELS,
-                selectedIndex = UPSCALE_KEYS.indexOf(RetroDefaults.upscale(context, sys)).coerceAtLeast(0),
-                onSelected = { RetroDefaults.setUpscale(context, sys, UPSCALE_KEYS[it]); refresh++ },
-            )
-            val coreOptions = RetroCoreOptions.forSystem(system)
-            coreOptions.forEach { option ->
-                val current = RetroDefaults.coreOption(context, sys, option.key, option.defaultValue)
-                RetroSettingDropdown(
-                    label = option.label,
-                    entries = option.valueLabels,
-                    selectedIndex = option.values.indexOf(current).coerceAtLeast(0),
-                    onSelected = { RetroDefaults.setCoreOption(context, sys, option.key, option.values[it]); refresh++ },
-                )
+        RetroSystems.ALL.forEach { console ->
+            val sys = console.id
+            val expanded = expandedConsole == sys
+            RetroSettingGroup {
+                Row(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { expandedConsole = if (expanded) null else sys }
+                            .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        console.displayName,
+                        color = PageText,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Text(
+                        if (expanded) "▲" else "▼",
+                        color = PageSub,
+                    )
+                }
+                if (expanded) {
+                    RetroSettingDropdown(
+                        label = "Shader",
+                        entries = SHADER_LABELS,
+                        selectedIndex = SHADER_KEYS.indexOf(RetroDefaults.shader(context, sys)).coerceAtLeast(0),
+                        onSelected = { RetroDefaults.setShader(context, sys, SHADER_KEYS[it]); refresh++ },
+                    )
+                    RetroSettingSwitch(
+                        "SGSR upscaling",
+                        RetroDefaults.sgsr(context, sys),
+                    ) { RetroDefaults.setSgsr(context, sys, it); refresh++ }
+                    RetroSettingDropdown(
+                        label = "Upscale resolution",
+                        entries = UPSCALE_LABELS,
+                        selectedIndex = UPSCALE_KEYS.indexOf(RetroDefaults.upscale(context, sys)).coerceAtLeast(0),
+                        onSelected = { RetroDefaults.setUpscale(context, sys, UPSCALE_KEYS[it]); refresh++ },
+                    )
+                    RetroCoreOptions.forSystem(console).forEach { option ->
+                        val current = RetroDefaults.coreOption(context, sys, option.key, option.defaultValue)
+                        RetroSettingDropdown(
+                            label = option.label,
+                            entries = option.valueLabels,
+                            selectedIndex = option.values.indexOf(current).coerceAtLeast(0),
+                            onSelected = { RetroDefaults.setCoreOption(context, sys, option.key, option.values[it]); refresh++ },
+                        )
+                    }
+                    RetroSettingSwitch(
+                        "On-screen touch controls",
+                        RetroDefaults.touchControls(context, sys),
+                    ) { RetroDefaults.setTouchControls(context, sys, it); refresh++ }
+                    RetroSettingSwitch(
+                        "Sound",
+                        RetroDefaults.audio(context, sys),
+                    ) { RetroDefaults.setAudio(context, sys, it); refresh++ }
+                    RetroSettingSwitch(
+                        "Performance HUD",
+                        RetroDefaults.hud(context, sys),
+                    ) { RetroDefaults.setHud(context, sys, it); refresh++ }
+                }
             }
         }
-
-        RetroSettingGroup {
-            RetroGroupTitle("${system.shortName.uppercase()} INPUT & AUDIO")
-            RetroSettingSwitch(
-                "On-screen touch controls",
-                RetroDefaults.touchControls(context, sys),
-            ) { RetroDefaults.setTouchControls(context, sys, it); refresh++ }
-            RetroSettingSwitch(
-                "Sound",
-                RetroDefaults.audio(context, sys),
-            ) { RetroDefaults.setAudio(context, sys, it); refresh++ }
-            RetroSettingSwitch(
-                "Performance HUD",
-                RetroDefaults.hud(context, sys),
-            ) { RetroDefaults.setHud(context, sys, it); refresh++ }
-        }
-
-        Text(
-            "Tip: import your PlayStation BIOS above before launching PS1 games.",
-            color = PageSub,
-            style = MaterialTheme.typography.labelSmall,
-        )
     }
 }

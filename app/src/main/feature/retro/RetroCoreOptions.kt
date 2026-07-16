@@ -99,18 +99,18 @@ object RetroCoreOptions {
     private val PSX_OPTIONS =
         listOf(
             RetroCoreOption(
-                key = "pcsx_rearmed_neon_enhancement_enable",
-                label = "Enhanced Resolution",
-                values = listOf("disabled", "enabled"),
-                valueLabels = listOf("Off", "On (2x)"),
-                defaultValue = "disabled",
+                key = "beetle_psx_dither_mode",
+                label = "Dithering",
+                values = listOf("1x(native)", "internal resolution", "disabled"),
+                valueLabels = listOf("Native", "Internal", "Off"),
+                defaultValue = "1x(native)",
             ),
             RetroCoreOption(
-                key = "pcsx_rearmed_dithering",
-                label = "Dithering",
-                values = listOf("enabled", "disabled"),
-                valueLabels = listOf("On", "Off"),
-                defaultValue = "enabled",
+                key = "beetle_psx_widescreen_hack",
+                label = "Widescreen Hack",
+                values = listOf("disabled", "enabled"),
+                valueLabels = listOf("Off", "On (16:9)"),
+                defaultValue = "disabled",
             ),
         )
 
@@ -121,6 +121,10 @@ object RetroCoreOptions {
                     "parallel-n64-gfxplugin" to "glide64",
                     "parallel-n64-screensize" to "640x480",
                     "parallel-n64-gfxplugin-accuracy" to "high",
+                )
+            RetroSystems.PSX.id ->
+                mapOf(
+                    "beetle_psx_skip_bios" to "enabled",
                 )
             else -> emptyMap()
         }

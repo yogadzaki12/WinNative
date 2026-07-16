@@ -93,12 +93,19 @@ class RetroAchievementsActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+        val controller = androidx.core.view.WindowInsetsControllerCompat(window, window.decorView)
+        controller.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+        controller.systemBarsBehavior =
+            androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         val systemId = intent.getStringExtra(EXTRA_SYSTEM_ID)
         val gameName = intent.getStringExtra(EXTRA_GAME_NAME) ?: "Retro Game"
         val romPath = intent.getStringExtra(EXTRA_ROM_PATH) ?: ""
         val inSession = intent.getBooleanExtra(EXTRA_IN_SESSION, false)
         setContent {
-            RetroAchievementsScreen(systemId, gameName, romPath, inSession) { finish() }
+            com.winlator.cmod.shared.theme.WinNativeTheme {
+                RetroAchievementsScreen(systemId, gameName, romPath, inSession) { finish() }
+            }
         }
     }
 }
@@ -325,6 +332,7 @@ private fun LoginPane(onLogin: (String, String, (Boolean, String?) -> Unit) -> U
                 }
             },
             enabled = !busy,
+            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.White),
             modifier = Modifier.fillMaxWidth(),
         ) {
             if (busy) {
@@ -408,7 +416,17 @@ private fun SettingsRow(label: String, checked: Boolean, onChange: (Boolean) -> 
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(label, color = TextPrimary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-            Switch(checked = checked, onCheckedChange = onChange)
+            Switch(
+                checked = checked,
+                onCheckedChange = onChange,
+                colors =
+                    androidx.compose.material3.SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = Accent,
+                        uncheckedTrackColor = SurfaceDark,
+                        uncheckedBorderColor = CardBorder,
+                    ),
+            )
         }
     }
 }

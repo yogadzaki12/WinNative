@@ -94,7 +94,7 @@ object RetroSystems {
             id = "psx",
             displayName = "Sony PlayStation",
             shortName = "PS1",
-            coreFileName = "libswanstation_libretro_android.so",
+            coreFileName = "libmednafen_psx_libretro_android.so",
             extensions = setOf("cue", "chd", "pbp", "m3u", "iso"),
             needsBios = true,
             biosFiles = listOf("scph5501.bin", "scph5500.bin", "scph5502.bin", "scph1001.bin", "scph7001.bin"),
