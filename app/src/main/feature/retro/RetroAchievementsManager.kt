@@ -54,8 +54,9 @@ object RetroAchievementsManager {
     private const val KEY_HARDCORE = "hardcore"
 
     private const val CLIENT_VERSION = "1.0.0"
+    private const val RCHEEVOS_VERSION = "12.3.0"
 
-    @Volatile private var userAgent = "WinNative/$CLIENT_VERSION"
+    @Volatile private var userAgent = "WinNative/$CLIENT_VERSION rcheevos/$RCHEEVOS_VERSION"
 
     private fun coreTag(systemId: String?): String {
         val core = RetroSystems.fromId(systemId)?.coreFileName ?: return "unknown"
@@ -63,7 +64,7 @@ object RetroAchievementsManager {
     }
 
     private fun buildUserAgent(systemId: String?): String =
-        "WinNative/$CLIENT_VERSION (Android ${android.os.Build.VERSION.RELEASE}) ${coreTag(systemId)}"
+        "WinNative/$CLIENT_VERSION (Android ${android.os.Build.VERSION.RELEASE}) ${coreTag(systemId)} rcheevos/$RCHEEVOS_VERSION"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mainHandler = Handler(Looper.getMainLooper())
