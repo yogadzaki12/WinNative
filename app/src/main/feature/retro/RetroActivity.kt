@@ -24,6 +24,8 @@ import com.swordfish.libretrodroid.LibretroDroid
 import com.swordfish.libretrodroid.ShaderConfig
 import com.swordfish.libretrodroid.Variable
 import com.swordfish.libretrodroid.ViewportAlignment
+import com.winlator.cmod.feature.sync.google.GameSaveBackupManager
+import com.winlator.cmod.feature.sync.google.GoogleAuthMode
 import com.winlator.cmod.runtime.container.ContainerManager
 import com.winlator.cmod.runtime.container.Shortcut
 import com.winlator.cmod.runtime.display.ui.FrameRating
@@ -34,6 +36,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import java.io.File
 import kotlin.math.abs
 
@@ -96,6 +99,11 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
     private var menuComposeView: ComposeView? = null
     private var surfaceReady = false
     private var customColors = RetroCustomColors()
+    private var savesLoadMode = false
+    private var cloudSyncEnabled = false
+    private var cloudBackupLaunched = false
+    private var conflictChecked = false
+    private var retroCloudId = ""
 
     private val isPortrait: Boolean
         get() = resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
@@ -246,7 +254,9 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
 
         if (resolvedSystem.id == RetroSystems.N64.id) RetroCoreManager.ensureGlideN64Ini(this)
         val savesDir = RetroCoreManager.savesDir(this)
-        val sramFile = File(savesDir, sramName())
+        RetroSaveStates.migrateLegacy(this, gameName)
+        RetroSaveStates.recordIdentity(this, gameName, resolvedSystem.id)
+        val sramFile = RetroSaveStates.sramFile(this, gameName)
         currentShaderKey = intent.getStringExtra(EXTRA_SHADER)?.lowercase() ?: "default"
         sgsrEnabled = intent.getBooleanExtra(EXTRA_SGSR, false)
         if (currentShaderKey == "sgsr") {
@@ -294,7 +304,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
 
         menu.entriesProvider = { pane -> buildEntriesFor(pane) }
         menu.bottomProvider = { buildBottomEntries() }
-        menu.tabs = RetroDrawerTabs.build(resolvedSystem, RetroCoreOptions.forSystem(resolvedSystem).isNotEmpty())
+        menu.tabs = RetroDrawerTabs.build()
         hudVisible = intent.getBooleanExtra(EXTRA_HUD, false)
         val menuView =
             ComposeView(this).apply {
@@ -411,8 +421,156 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 refreshControllerPresence()
                 observeErrors()
                 observeEvents()
+                scheduleCloudConflictCheck()
             }
-        root.post(startWhenReady)
+        retroCloudId = RetroSaveStates.cloudGameId(resolvedSystem.id, gameName)
+        lifecycleScope.launch(Dispatchers.IO) {
+            cloudSyncEnabled =
+                runCatching { loadShortcut()?.getExtra("cloud_sync_enabled", "1") != "0" }.getOrDefault(true)
+            if (cloudSyncEnabled && !RetroSaveStates.hasAnySave(this@RetroActivity, gameName)) {
+                runCatching {
+                    withTimeout(12_000L) {
+                        val entries =
+                            GameSaveBackupManager.listGoogleHistory(
+                                this@RetroActivity,
+                                GameSaveBackupManager.GameSource.CUSTOM,
+                                retroCloudId,
+                                GoogleAuthMode.RESUME,
+                            )
+                        val latest = entries.maxByOrNull { it.timestampMs }
+                        if (latest != null) {
+                            val result =
+                                GameSaveBackupManager.restoreFromGoogle(
+                                    this@RetroActivity,
+                                    latest,
+                                    GameSaveBackupManager.GameSource.CUSTOM,
+                                    retroCloudId,
+                                    GoogleAuthMode.RESUME,
+                                    customSaveDir = RetroSaveStates.gameDir(this@RetroActivity, gameName),
+                                )
+                            if (result.success) {
+                                setCloudMark(latest.timestampMs)
+                                runOnUiThread {
+                                    Toast
+                                        .makeText(this@RetroActivity, "Cloud save restored", Toast.LENGTH_SHORT)
+                                        .show()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            runOnUiThread {
+                if (!isFinishing && !isDestroyed) root.post(startWhenReady)
+            }
+        }
+    }
+
+    private fun scheduleCloudConflictCheck() {
+        if (!cloudSyncEnabled || conflictChecked) return
+        conflictChecked = true
+        lifecycleScope.launch(Dispatchers.IO) {
+            runCatching {
+                val localTs = RetroSaveStates.latestLocalTimestamp(this@RetroActivity, gameName)
+                if (localTs <= 0L) return@runCatching
+                val entries =
+                    GameSaveBackupManager.listGoogleHistory(
+                        this@RetroActivity,
+                        GameSaveBackupManager.GameSource.CUSTOM,
+                        retroCloudId,
+                        GoogleAuthMode.RESUME,
+                    )
+                val mark = cloudMark()
+                val newer =
+                    entries
+                        .filter { it.timestampMs > localTs + 120_000L && it.timestampMs > mark }
+                        .sortedByDescending { it.timestampMs }
+                if (newer.isEmpty()) return@runCatching
+                val top = newer.take(5)
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    pauseEmulation()
+                    menu.conflictPrompt =
+                        RetroConflictPrompt(
+                            message =
+                                "A newer cloud save exists for $gameName. " +
+                                    "Do you wish to sync, and which cloud save would you prefer to keep?",
+                            options =
+                                top.map { entry ->
+                                    (entry.label ?: "Cloud save") + " — " +
+                                        RetroSaveStates.relativeTime(entry.timestampMs)
+                                },
+                            onKeepLocal = {
+                                setCloudMark(top.first().timestampMs)
+                                menu.conflictPrompt = null
+                                resumeEmulation()
+                            },
+                            onPick = { index ->
+                                menu.conflictPrompt = null
+                                restoreCloudEntry(top[index])
+                            },
+                        )
+                }
+            }
+        }
+    }
+
+    private fun restoreCloudEntry(entry: GameSaveBackupManager.BackupHistoryEntry) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val result =
+                runCatching {
+                    GameSaveBackupManager.restoreFromGoogle(
+                        this@RetroActivity,
+                        entry,
+                        GameSaveBackupManager.GameSource.CUSTOM,
+                        retroCloudId,
+                        GoogleAuthMode.INTERACTIVE,
+                        customSaveDir = RetroSaveStates.gameDir(this@RetroActivity, gameName),
+                    )
+                }.getOrNull()
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (result?.success == true) {
+                    setCloudMark(entry.timestampMs)
+                    runCatching {
+                        val sram = RetroSaveStates.sramFile(this@RetroActivity, gameName)
+                        if (sram.isFile) retroView.unserializeSRAM(sram.readBytes())
+                    }
+                    Toast.makeText(this@RetroActivity, "Cloud save restored", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast
+                        .makeText(this@RetroActivity, result?.message ?: "Restore failed", Toast.LENGTH_SHORT)
+                        .show()
+                }
+                resumeEmulation()
+                menu.rebuild()
+            }
+        }
+    }
+
+    private fun cloudMark(): Long =
+        androidx.preference.PreferenceManager
+            .getDefaultSharedPreferences(this)
+            .getLong("retro_cloud_mark_$retroCloudId", 0L)
+
+    private fun setCloudMark(value: Long) {
+        androidx.preference.PreferenceManager
+            .getDefaultSharedPreferences(this)
+            .edit()
+            .putLong("retro_cloud_mark_$retroCloudId", value)
+            .apply()
+    }
+
+    private fun launchExitCloudBackup() {
+        if (!cloudSyncEnabled || cloudBackupLaunched) return
+        if (!RetroSaveStates.hasAnySave(this, gameName)) return
+        cloudBackupLaunched = true
+        androidx.preference.PreferenceManager
+            .getDefaultSharedPreferences(this)
+            .edit()
+            .putString("retro_pending_backup_id", retroCloudId)
+            .putString("retro_pending_backup_name", gameName)
+            .apply()
     }
 
     override fun onDestroy() {
@@ -592,11 +750,6 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             }.launchIn(lifecycleScope)
     }
 
-    private fun sramName(): String {
-        val safe = gameName.replace(Regex("[^A-Za-z0-9._-]"), "_")
-        return "$safe.srm"
-    }
-
     private fun sgsrPrePasses(): Int =
         when (currentUpscaleKey) {
             "4x" -> 2
@@ -616,23 +769,27 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             }
         }
 
+    private fun loadShortcut(): Shortcut? {
+        persistShortcut?.let { return it }
+        val containerId = intent.getIntExtra(EXTRA_CONTAINER_ID, 0)
+        val path = intent.getStringExtra(EXTRA_SHORTCUT_PATH)
+        if (containerId <= 0 || path.isNullOrBlank()) return null
+        val file = File(path)
+        if (!file.isFile) return null
+        return runCatching {
+            ContainerManager(this)
+                .getContainerById(containerId)
+                ?.let { Shortcut(it, file) }
+        }.getOrNull()?.also { persistShortcut = it }
+    }
+
     private fun persistExtra(
         key: String,
         value: String,
     ) {
         lifecycleScope.launch(Dispatchers.IO) {
             runCatching {
-                val shortcut =
-                    persistShortcut ?: run {
-                        val containerId = intent.getIntExtra(EXTRA_CONTAINER_ID, 0)
-                        val path = intent.getStringExtra(EXTRA_SHORTCUT_PATH)
-                        if (containerId <= 0 || path.isNullOrBlank()) return@run null
-                        val file = File(path)
-                        if (!file.isFile) return@run null
-                        ContainerManager(this@RetroActivity)
-                            .getContainerById(containerId)
-                            ?.let { Shortcut(it, file) }
-                    }?.also { persistShortcut = it }
+                val shortcut = loadShortcut()
                 shortcut?.putExtra(key, value)
                 shortcut?.saveData()
             }
@@ -667,24 +824,25 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                     )
                     val upscaleIndex = UPSCALE_KEYS.indexOf(currentUpscaleKey).coerceAtLeast(0)
                     add(
-                        RetroMenuEntry.Choice("SGSR Upscale", UPSCALE_LABELS, upscaleIndex) { next ->
+                        RetroMenuEntry.Choice("SGSR Upscale", UPSCALE_LABELS, upscaleIndex, visible = sgsrEnabled) { next ->
                             currentUpscaleKey = UPSCALE_KEYS[next]
                             persistExtra(RetroShortcuts.KEY_UPSCALE, currentUpscaleKey)
                             if (sgsrEnabled) retroView.shader = effectiveShader()
                             menu.rebuild()
                         },
                     )
-                }
-            RetroPane.SYSTEM ->
-                RetroCoreOptions.forSystem(system).map { option ->
-                    val current = coreVars[option.key] ?: option.defaultValue
-                    val index = option.values.indexOf(current).coerceAtLeast(0)
-                    RetroMenuEntry.Choice(option.label, option.valueLabels, index) { next ->
-                        val newValue = option.values[next]
-                        coreVars[option.key] = newValue
-                        retroView.updateVariables(Variable(option.key, newValue))
-                        persistExtra(RetroShortcuts.VAR_PREFIX + option.key, newValue)
-                        menu.rebuild()
+                    RetroCoreOptions.forSystem(system).forEach { option ->
+                        val current = coreVars[option.key] ?: option.defaultValue
+                        val index = option.values.indexOf(current).coerceAtLeast(0)
+                        add(
+                            RetroMenuEntry.Choice(option.label, option.valueLabels, index) { next ->
+                                val newValue = option.values[next]
+                                coreVars[option.key] = newValue
+                                retroView.updateVariables(Variable(option.key, newValue))
+                                persistExtra(RetroShortcuts.VAR_PREFIX + option.key, newValue)
+                                menu.rebuild()
+                            },
+                        )
                     }
                 }
             RetroPane.SOUND ->
@@ -698,6 +856,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 )
             RetroPane.CONTROLS -> buildControlsEntries()
             RetroPane.HUD -> buildHudEntries()
+            RetroPane.SAVES -> buildSaveSlotEntries()
         }
 
     private fun persistColors() {
@@ -895,13 +1054,13 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         val entries = mutableListOf<RetroMenuEntry>()
         entries +=
             RetroMenuEntry.Action("Save State", RetroDrawerIcons.Save) {
-                menu.close()
-                saveState()
+                savesLoadMode = false
+                menu.showPane(RetroPane.SAVES)
             }
         entries +=
-            RetroMenuEntry.Action("Load State", RetroDrawerIcons.Load) {
-                menu.close()
-                loadState()
+            RetroMenuEntry.Action("Load Save State", RetroDrawerIcons.Load) {
+                savesLoadMode = true
+                menu.showPane(RetroPane.SAVES)
             }
         entries +=
             RetroMenuEntry.Action("Reset", RetroDrawerIcons.Reset) {
@@ -1108,34 +1267,65 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         runOnUiThread { openMenu() }
     }
 
-    private fun saveState() {
+    private fun saveState(slot: Int) {
         runCatching {
             val bytes = retroView.serializeState()
-            RetroCoreManager.stateFile(this, gameName, 0).writeBytes(bytes)
+            check(RetroSaveStates.writeSlot(this, gameName, slot, bytes))
         }.onSuccess {
-            Toast.makeText(this, "State saved", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Saved to slot $slot", Toast.LENGTH_SHORT).show()
         }.onFailure {
             Toast.makeText(this, "Could not save state", Toast.LENGTH_SHORT).show()
         }
     }
 
-    private fun loadState() {
-        val file = RetroCoreManager.stateFile(this, gameName, 0)
-        if (!file.isFile) {
-            Toast.makeText(this, "No saved state", Toast.LENGTH_SHORT).show()
+    private fun loadState(slot: Int) {
+        val bytes = RetroSaveStates.readSlot(this, gameName, slot)
+        if (bytes == null) {
+            Toast.makeText(this, "Slot $slot is empty", Toast.LENGTH_SHORT).show()
             return
         }
-        runCatching { retroView.unserializeState(file.readBytes()) }
-            .onSuccess { Toast.makeText(this, "State loaded", Toast.LENGTH_SHORT).show() }
+        runCatching { check(retroView.unserializeState(bytes)) }
+            .onSuccess { Toast.makeText(this, "Loaded slot $slot", Toast.LENGTH_SHORT).show() }
             .onFailure { Toast.makeText(this, "Could not load state", Toast.LENGTH_SHORT).show() }
     }
+
+    private fun buildSaveSlotEntries(): List<RetroMenuEntry> =
+        RetroSaveStates.listSlots(this, gameName).map { info ->
+            RetroMenuEntry.SaveSlot(
+                slot = info.slot,
+                title = info.customName ?: "Slot ${info.slot}",
+                subtitle = RetroSaveStates.relativeTime(info.timestampMs),
+                filled = info.exists,
+                onClick = {
+                    if (savesLoadMode) {
+                        if (info.exists) {
+                            menu.close()
+                            loadState(info.slot)
+                        }
+                    } else {
+                        saveState(info.slot)
+                        menu.rebuild()
+                    }
+                },
+                onRename = {
+                    menu.renamePrompt =
+                        RetroRenamePrompt(
+                            title = "Rename Slot ${info.slot}",
+                            initial = info.customName ?: "",
+                        ) { newName ->
+                            RetroSaveStates.renameSlot(this, gameName, info.slot, newName)
+                            menu.rebuild()
+                        }
+                },
+            )
+        }
 
     private fun persistSram() {
         if (!retroReady) return
         runCatching {
             val sram = retroView.serializeSRAM()
             if (sram.isNotEmpty()) {
-                File(RetroCoreManager.savesDir(this), sramName()).writeBytes(sram)
+                RetroSaveStates.sramFile(this, gameName).writeBytes(sram)
             }
         }
     }
@@ -1143,6 +1333,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
     override fun onPause() {
         persistSram()
         accumulatePlaytime()
+        if (isFinishing) launchExitCloudBackup()
         super.onPause()
     }
 

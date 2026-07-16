@@ -90,6 +90,7 @@ public:
 
 private:
     void updateProgram();
+    ShaderManager::Config effectiveShaderConfig();
 
     float getScreenDensity();
     float getTextureWidth();

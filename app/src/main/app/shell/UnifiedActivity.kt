@@ -920,6 +920,36 @@ class UnifiedActivity :
         }
 
         UpdateChecker.startBackgroundLoop(this)
+        processPendingRetroCloudBackup()
+    }
+
+    private fun processPendingRetroCloudBackup() {
+        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
+        val pendingId = prefs.getString("retro_pending_backup_id", null) ?: return
+        val pendingName = prefs.getString("retro_pending_backup_name", null) ?: return
+        prefs.edit().remove("retro_pending_backup_id").remove("retro_pending_backup_name").apply()
+        lifecycleScope.launch(Dispatchers.IO) {
+            val result =
+                runCatching {
+                    GameSaveBackupManager.backupSaveToGoogle(
+                        this@UnifiedActivity,
+                        GameSaveBackupManager.GameSource.CUSTOM,
+                        pendingId,
+                        pendingName,
+                        GameSaveBackupManager.BackupOrigin.AUTO,
+                        com.winlator.cmod.feature.sync.google.GoogleAuthMode.RESUME,
+                        customSaveDir =
+                            com.winlator.cmod.feature.retro.RetroSaveStates
+                                .gameDir(this@UnifiedActivity, pendingName),
+                    )
+                }.getOrNull()
+            if (result?.success == true) {
+                prefs
+                    .edit()
+                    .putLong("retro_cloud_mark_$pendingId", System.currentTimeMillis())
+                    .apply()
+            }
+        }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -6836,14 +6866,31 @@ class UnifiedActivity :
                                                 }
                                             }
                                         }
+                                    val isRetroGame =
+                                        detailShortcut?.let {
+                                            com.winlator.cmod.feature.retro.RetroShortcuts.isRetroShortcut(it)
+                                        } == true
                                     val detailGameId =
                                         when {
+                                            isRetroGame ->
+                                                com.winlator.cmod.feature.retro.RetroSaveStates.cloudGameId(
+                                                    com.winlator.cmod.feature.retro.RetroShortcuts
+                                                        .systemForShortcut(detailShortcut!!)
+                                                        ?.id,
+                                                    app.name,
+                                                )
                                             isGog -> gogGame!!.id
                                             isEpic -> epicId.toString()
                                             isCustom ->
                                                 detailShortcut?.let { GameSaveBackupManager.customGameId(it) }
                                                     ?: app.name
                                             else -> app.id.toString()
+                                        }
+                                    val retroSaveDir =
+                                        if (isRetroGame) {
+                                            com.winlator.cmod.feature.retro.RetroSaveStates.gameDir(this@UnifiedActivity, app.name)
+                                        } else {
+                                            null
                                         }
                                     var cloudSyncEnabled by remember(detailShortcut?.file?.absolutePath) {
                                         mutableStateOf(isShortcutCloudSyncEnabled(detailShortcut))
@@ -6873,6 +6920,7 @@ class UnifiedActivity :
                                         gameId = detailGameId,
                                         gameName = app.name,
                                         shortcut = detailShortcut,
+                                        retroSaveDir = retroSaveDir,
                                         onCloudSyncToggle = { enabled ->
                                             cloudSyncEnabled = enabled
                                             setShortcutCloudSyncEnabled(detailShortcut, enabled)

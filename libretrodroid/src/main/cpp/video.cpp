@@ -99,14 +99,57 @@ GLuint createProgram(const char* pVertexSource, const char* pFragmentSource) {
     return program;
 }
 
+ShaderManager::Config Video::effectiveShaderConfig() {
+    ShaderManager::Config config = requestedShaderConfig;
+    if (config.type != ShaderManager::Type::SHADER_UPSCALE_SGSR) {
+        return config;
+    }
+    float contentWidth = getTextureWidth();
+    float contentHeight = getTextureHeight();
+    float screenWidth = videoLayout.getScreenWidth();
+    float screenHeight = videoLayout.getScreenHeight();
+    if (contentWidth <= 0.0F || contentHeight <= 0.0F || screenWidth <= 0.0F || screenHeight <= 0.0F) {
+        return config;
+    }
+    float displayScale = std::min(screenWidth / contentWidth, screenHeight / contentHeight);
+    if (displayScale <= 1.02F) {
+        std::string base = "default";
+        auto baseIt = config.params.find("sgsr_base");
+        if (baseIt != config.params.end()) {
+            base = baseIt->second;
+        }
+        config.params.clear();
+        if (base == "crt") {
+            config.type = ShaderManager::Type::SHADER_CRT;
+        } else if (base == "lcd") {
+            config.type = ShaderManager::Type::SHADER_LCD;
+        } else if (base == "sharp") {
+            config.type = ShaderManager::Type::SHADER_SHARP;
+        } else {
+            config.type = ShaderManager::Type::SHADER_DEFAULT;
+        }
+        return config;
+    }
+    int neededPrePasses = (int) std::ceil(std::log2(displayScale)) - 1;
+    neededPrePasses = std::max(0, std::min(3, neededPrePasses));
+    int requestedPrePasses = 1;
+    auto it = config.params.find("sgsr_prepasses");
+    if (it != config.params.end()) {
+        requestedPrePasses = std::max(0, std::min(3, std::atoi(it->second.c_str())));
+    }
+    config.params["sgsr_prepasses"] = std::to_string(std::min(requestedPrePasses, neededPrePasses));
+    return config;
+}
+
 void Video::updateProgram() {
-    if (loadedShaderType.has_value() && loadedShaderType.value() == requestedShaderConfig) {
+    ShaderManager::Config effectiveConfig = effectiveShaderConfig();
+    if (loadedShaderType.has_value() && loadedShaderType.value() == effectiveConfig) {
         return;
     }
 
-    loadedShaderType = requestedShaderConfig;
+    loadedShaderType = effectiveConfig;
 
-    auto shaders = ShaderManager::getShader(requestedShaderConfig);
+    auto shaders = ShaderManager::getShader(effectiveConfig);
 
     shadersChain = {};
 

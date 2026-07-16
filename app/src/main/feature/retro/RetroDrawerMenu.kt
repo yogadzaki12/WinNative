@@ -11,8 +11,10 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -46,6 +48,7 @@ import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Album
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FastForward
 import androidx.compose.material.icons.outlined.Monitor
 import androidx.compose.material.icons.outlined.Pause
@@ -58,6 +61,7 @@ import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
@@ -121,7 +125,20 @@ private val DrawerWidth = 300.dp
 private val DrawerStartPadding = 6.dp
 private val DrawerVerticalPadding = 6.dp
 
-enum class RetroPane { DISPLAY, SYSTEM, SOUND, CONTROLS, HUD }
+enum class RetroPane { DISPLAY, SOUND, CONTROLS, HUD, SAVES }
+
+class RetroRenamePrompt(
+    val title: String,
+    val initial: String,
+    val onConfirm: (String?) -> Unit,
+)
+
+class RetroConflictPrompt(
+    val message: String,
+    val options: List<String>,
+    val onKeepLocal: () -> Unit,
+    val onPick: (Int) -> Unit,
+)
 
 data class RetroTabSpec(
     val pane: RetroPane?,
@@ -149,6 +166,7 @@ sealed class RetroMenuEntry {
         val label: String,
         val values: List<String>,
         val selectedIndex: Int,
+        val visible: Boolean = true,
         val onSelected: (Int) -> Unit,
     ) : RetroMenuEntry()
 
@@ -180,6 +198,15 @@ sealed class RetroMenuEntry {
         val color: Int?,
         val onPick: (Int?) -> Unit,
     ) : RetroMenuEntry()
+
+    class SaveSlot(
+        val slot: Int,
+        val title: String,
+        val subtitle: String,
+        val filled: Boolean,
+        val onClick: () -> Unit,
+        val onRename: () -> Unit,
+    ) : RetroMenuEntry()
 }
 
 val RetroColorPalette: List<Int> =
@@ -208,6 +235,8 @@ class RetroMenuController {
         private set
     var entriesProvider: ((RetroPane?) -> List<RetroMenuEntry>)? = null
     var bottomProvider: (() -> List<RetroMenuEntry.Action>)? = null
+    var renamePrompt by mutableStateOf<RetroRenamePrompt?>(null)
+    var conflictPrompt by mutableStateOf<RetroConflictPrompt?>(null)
 
     val gridColumns: Int
         get() =
@@ -277,6 +306,7 @@ class RetroMenuController {
                 val next = ((current + 1 + step + span) % span) - 1
                 entry.onPick(if (next < 0) null else palette[next])
             }
+            is RetroMenuEntry.SaveSlot -> if (direction == 0) entry.onClick()
             else -> {}
         }
     }
@@ -427,6 +457,12 @@ fun RetroDrawerMenu(controller: RetroMenuController) {
                     }
                 }
             }
+        }
+        controller.renamePrompt?.let { prompt ->
+            RetroRenameDialog(prompt) { controller.renamePrompt = null }
+        }
+        controller.conflictPrompt?.let { prompt ->
+            RetroConflictDialog(prompt)
         }
     }
 }
@@ -780,12 +816,18 @@ private fun RetroPaneList(
                                     },
                                 )
                             is RetroMenuEntry.Choice ->
-                                RetroChoiceRow(
-                                    entry = entry,
-                                    highlighted = highlighted,
-                                    paneScale = paneScale,
-                                    onFocus = { controller.contentIndex = index },
-                                )
+                                androidx.compose.animation.AnimatedVisibility(
+                                    visible = entry.visible,
+                                    enter = expandVertically(tween(240, easing = FastOutSlowInEasing)) + fadeIn(tween(240)),
+                                    exit = shrinkVertically(tween(200, easing = FastOutSlowInEasing)) + fadeOut(tween(160)),
+                                ) {
+                                    RetroChoiceRow(
+                                        entry = entry,
+                                        highlighted = highlighted,
+                                        paneScale = paneScale,
+                                        onFocus = { controller.contentIndex = index },
+                                    )
+                                }
                             is RetroMenuEntry.Radio ->
                                 RetroRadioRow(
                                     entry = entry,
@@ -832,6 +874,16 @@ private fun RetroPaneList(
                                     highlighted = highlighted,
                                     paneScale = paneScale,
                                     onFocus = { controller.contentIndex = index },
+                                )
+                            is RetroMenuEntry.SaveSlot ->
+                                RetroSaveSlotRow(
+                                    entry = entry,
+                                    highlighted = highlighted,
+                                    paneScale = paneScale,
+                                    onClick = {
+                                        controller.contentIndex = index
+                                        entry.onClick()
+                                    },
                                 )
                         }
                     }
@@ -1107,6 +1159,227 @@ private fun RetroHudChip(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+@Composable
+private fun RetroSaveSlotRow(
+    entry: RetroMenuEntry.SaveSlot,
+    highlighted: Boolean,
+    paneScale: Float,
+    onClick: () -> Unit,
+) {
+    RetroRowShell(
+        highlighted = highlighted,
+        activeBorder = entry.filled,
+        paneScale = paneScale,
+        onClick = onClick,
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .size((28f * paneScale).dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(if (entry.filled) DrawerAccent.copy(alpha = 0.24f) else Color(0x14FFFFFF)),
+        ) {
+            Text(
+                text = entry.slot.toString(),
+                color = if (entry.filled) DrawerActiveAccent else DrawerTextSecondary,
+                fontSize = (12f * paneScale).sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.align(Alignment.Center),
+            )
+        }
+        Spacer(Modifier.width((10f * paneScale).dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = entry.title,
+                color = DrawerTextPrimary,
+                fontSize = (13f * paneScale).sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = entry.subtitle,
+                color = if (entry.filled) DrawerActiveAccent else DrawerTextSecondary,
+                fontSize = (11f * paneScale).sp,
+            )
+        }
+        if (entry.filled) {
+            Icon(
+                imageVector = Icons.Outlined.Edit,
+                contentDescription = "Rename",
+                tint = DrawerTextSecondary,
+                modifier =
+                    Modifier
+                        .size((18f * paneScale).dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { entry.onRename() },
+            )
+        }
+    }
+}
+
+@Composable
+internal fun RetroRenameDialog(
+    prompt: RetroRenamePrompt,
+    onDismiss: () -> Unit,
+) {
+    var text by remember(prompt) { mutableStateOf(prompt.initial) }
+    Box(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(Color(0x99000000))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) { onDismiss() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .width(320.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(WinNativeSurface)
+                    .border(1.dp, WinNativeOutline, RoundedCornerShape(16.dp))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) {}
+                    .padding(16.dp),
+        ) {
+            Text(
+                text = prompt.title,
+                color = DrawerTextPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(
+                value = text,
+                onValueChange = { if (it.length <= 48) text = it },
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(color = DrawerTextPrimary, fontSize = 14.sp),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = "Cancel",
+                    color = DrawerTextSecondary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier =
+                        Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onDismiss() }
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+                Text(
+                    text = "Save",
+                    color = DrawerActiveAccent,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier =
+                        Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                prompt.onConfirm(text.trim().ifEmpty { null })
+                                onDismiss()
+                            }
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun RetroConflictDialog(prompt: RetroConflictPrompt) {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(Color(0xCC000000))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) {},
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .width(340.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(WinNativeSurface)
+                    .border(1.dp, WinNativeOutline, RoundedCornerShape(16.dp))
+                    .padding(16.dp),
+        ) {
+            Text(
+                text = "Cloud Save Conflict",
+                color = DrawerTextPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = prompt.message,
+                color = DrawerTextSecondary,
+                fontSize = 12.sp,
+            )
+            Spacer(Modifier.height(12.dp))
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()).weight(1f, fill = false),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                prompt.options.forEachIndexed { index, label ->
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(PaneInnerResting)
+                                .border(1.dp, RestingCardBorder, RoundedCornerShape(10.dp))
+                                .clickable { prompt.onPick(index) }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                    ) {
+                        Text(
+                            text = label,
+                            color = DrawerTextPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(DrawerFocusFill)
+                        .border(1.dp, DrawerAccent, RoundedCornerShape(10.dp))
+                        .clickable { prompt.onKeepLocal() }
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    text = "Keep Local Save",
+                    color = DrawerActiveAccent,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
     }
 }
 
@@ -1395,17 +1668,11 @@ private fun ThinDivider() {
 }
 
 object RetroDrawerTabs {
-    fun build(
-        system: RetroSystem?,
-        hasCoreOptions: Boolean,
-    ): List<RetroTabSpec> {
+    fun build(): List<RetroTabSpec> {
         val tabs = mutableListOf<RetroTabSpec>()
         tabs += RetroTabSpec(null, Icons.Outlined.Apps, "Menu")
         tabs += RetroTabSpec(RetroPane.DISPLAY, Icons.Outlined.Monitor, "Display")
         tabs += RetroTabSpec(RetroPane.HUD, Icons.Outlined.Speed, "HUD")
-        if (hasCoreOptions) {
-            tabs += RetroTabSpec(RetroPane.SYSTEM, Icons.Outlined.Tune, system?.shortName ?: "System")
-        }
         tabs += RetroTabSpec(RetroPane.SOUND, Icons.AutoMirrored.Outlined.VolumeUp, "Sound")
         tabs += RetroTabSpec(RetroPane.CONTROLS, Icons.Outlined.SportsEsports, "Controls")
         return tabs

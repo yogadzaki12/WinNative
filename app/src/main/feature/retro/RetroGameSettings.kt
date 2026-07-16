@@ -1,8 +1,11 @@
 package com.winlator.cmod.feature.retro
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
@@ -121,6 +124,7 @@ class RetroSettingsState(
     )
     var touchControls by mutableStateOf(shortcut.getExtra(RetroShortcuts.KEY_TOUCH_CONTROLS, "1") != "0")
     var audio by mutableStateOf(shortcut.getExtra(RetroShortcuts.KEY_AUDIO, "1") != "0")
+    var hud by mutableStateOf(shortcut.getExtra(RetroShortcuts.KEY_HUD, "0") == "1")
     val optionValues =
         mutableStateMapOf<String, String>().apply {
             coreOptions.forEach { option ->
@@ -150,6 +154,7 @@ class RetroSettingsState(
         shortcut.putExtra(RetroShortcuts.KEY_UPSCALE, upscale)
         shortcut.putExtra(RetroShortcuts.KEY_TOUCH_CONTROLS, if (touchControls) "1" else "0")
         shortcut.putExtra(RetroShortcuts.KEY_AUDIO, if (audio) "1" else "0")
+        shortcut.putExtra(RetroShortcuts.KEY_HUD, if (hud) "1" else "0")
         coreOptions.forEach { option ->
             shortcut.putExtra(
                 RetroShortcuts.VAR_PREFIX + option.key,
@@ -169,9 +174,6 @@ private fun buildRetroSections(state: RetroSettingsState): List<RetroSection> {
     val sections = mutableListOf<RetroSection>()
     sections += RetroSection(Icons.Outlined.Tune, "General")
     sections += RetroSection(Icons.Outlined.Monitor, "Graphics")
-    if (state.coreOptions.isNotEmpty()) {
-        sections += RetroSection(Icons.Outlined.Memory, "${state.system?.shortName ?: "Core"} Options")
-    }
     sections += RetroSection(Icons.Outlined.SportsEsports, "Input")
     sections += RetroSection(Icons.AutoMirrored.Outlined.VolumeUp, "Audio")
     return sections
@@ -187,7 +189,6 @@ fun RetroGameSettingsContent(
     onCancel: () -> Unit,
 ) {
     val sections = remember(state) { buildRetroSections(state) }
-    val hasSystemSection = state.coreOptions.isNotEmpty()
     val selectedIdx = state.currentSection
 
     if (nav != null) {
@@ -228,7 +229,6 @@ fun RetroGameSettingsContent(
             ) {
                 RetroSectionContent(
                     sectionIndex = selectedIdx,
-                    hasSystemSection = hasSystemSection,
                     state = state,
                     nav = nav,
                     onPickArtwork = onPickArtwork,
@@ -242,7 +242,6 @@ fun RetroGameSettingsContent(
 @Composable
 private fun RetroSectionContent(
     sectionIndex: Int,
-    hasSystemSection: Boolean,
     state: RetroSettingsState,
     nav: GameSettingsNav? = null,
     onPickArtwork: ((LibraryShortcutArtwork.LibraryArtworkSlot) -> Unit)? = null,
@@ -292,12 +291,10 @@ private fun RetroSectionContent(
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 20.dp, vertical = 14.dp),
             ) {
-                val systemIdx = 2
-                when {
-                    idx == 0 -> RetroGeneralSection(state, onPickArtwork, onRemoveArtwork)
-                    idx == 1 -> RetroGraphicsSection(state)
-                    hasSystemSection && idx == systemIdx -> RetroSystemSection(state)
-                    idx == (if (hasSystemSection) 3 else 2) -> RetroInputSection(state)
+                when (idx) {
+                    0 -> RetroGeneralSection(state, onPickArtwork, onRemoveArtwork)
+                    1 -> RetroGraphicsSection(state)
+                    2 -> RetroInputSection(state)
                     else -> RetroAudioSection(state)
                 }
                 Spacer(Modifier.height(12.dp))
@@ -839,39 +836,80 @@ private fun RetroGraphicsSection(state: RetroSettingsState) {
             checked = state.sgsr,
             onCheckedChange = { state.sgsr = it },
         )
-        RetroSettingDropdown(
-            label = "SGSR Upscale",
-            entries = UPSCALE_LABELS,
-            selectedIndex = UPSCALE_KEYS.indexOf(state.upscale).coerceAtLeast(0),
-            onSelected = { state.upscale = UPSCALE_KEYS[it] },
+        AnimatedVisibility(
+            visible = state.sgsr,
+            enter = expandVertically(tween(240)) + fadeIn(tween(240)),
+            exit = shrinkVertically(tween(200)) + fadeOut(tween(160)),
+        ) {
+            RetroSettingDropdown(
+                label = "SGSR Upscale",
+                entries = UPSCALE_LABELS,
+                selectedIndex = UPSCALE_KEYS.indexOf(state.upscale).coerceAtLeast(0),
+                onSelected = { state.upscale = UPSCALE_KEYS[it] },
+            )
+        }
+        RetroSettingSwitch(
+            label = "Performance HUD",
+            checked = state.hud,
+            onCheckedChange = { state.hud = it },
         )
     }
-}
-
-@Composable
-private fun RetroSystemSection(state: RetroSettingsState) {
-    RetroSettingGroup {
-        RetroGroupTitle((state.system?.shortName ?: "CORE").uppercase() + " OPTIONS")
-        state.coreOptions.forEach { option ->
-            val current = state.optionValues[option.key] ?: option.defaultValue
-            RetroSettingDropdown(
-                label = option.label,
-                entries = option.valueLabels,
-                selectedIndex = option.values.indexOf(current).coerceAtLeast(0),
-                onSelected = { state.optionValues[option.key] = option.values[it] },
-            )
+    if (state.coreOptions.isNotEmpty()) {
+        Spacer(Modifier.height(12.dp))
+        RetroSettingGroup {
+            RetroGroupTitle((state.system?.shortName ?: "CORE").uppercase())
+            state.coreOptions.forEach { option ->
+                val current = state.optionValues[option.key] ?: option.defaultValue
+                RetroSettingDropdown(
+                    label = option.label,
+                    entries = option.valueLabels,
+                    selectedIndex = option.values.indexOf(current).coerceAtLeast(0),
+                    onSelected = { state.optionValues[option.key] = option.values[it] },
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun RetroInputSection(state: RetroSettingsState) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs =
+        remember(context) {
+            androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+        }
+    var haptic by remember { mutableStateOf(prefs.getFloat("retro_haptic_strength", 0.4f)) }
     RetroSettingGroup {
         RetroGroupTitle("INPUT")
         RetroSettingSwitch(
             label = "On-screen controls",
             checked = state.touchControls,
             onCheckedChange = { state.touchControls = it },
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = TightGap),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "Haptic Feedback",
+                color = TextPrimary,
+                fontSize = ValueSize,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                "${(haptic * 100).toInt()}%",
+                color = TextSecondary,
+                fontSize = ValueSize,
+            )
+        }
+        androidx.compose.material3.Slider(
+            value = haptic,
+            onValueChange = { value ->
+                haptic = value
+                prefs.edit().putFloat("retro_haptic_strength", value).apply()
+            },
+            valueRange = 0f..1f,
+            modifier = Modifier.fillMaxWidth().height(26.dp),
         )
     }
 }

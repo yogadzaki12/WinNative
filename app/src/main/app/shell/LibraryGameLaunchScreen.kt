@@ -392,18 +392,18 @@ internal fun LibraryGameLaunchScreen(
                             size = actionIconSize,
                             onClick = onSettings,
                         )
+                        LaunchIconActionButton(
+                            icon = Icons.Outlined.CloudSync,
+                            contentDescription = stringResource(R.string.cloud_saves_title),
+                            size = actionIconSize,
+                            onClick = onCloudSaves,
+                        )
                         if (!isRetro) {
                             LaunchIconActionButton(
                                 icon = Icons.Outlined.DesktopWindows,
                                 contentDescription = stringResource(R.string.hero_boot_to_desktop_title),
                                 size = actionIconSize,
                                 onClick = onBootToDesktop,
-                            )
-                            LaunchIconActionButton(
-                                icon = Icons.Outlined.CloudSync,
-                                contentDescription = stringResource(R.string.cloud_saves_title),
-                                size = actionIconSize,
-                                onClick = onCloudSaves,
                             )
                             LaunchIconActionButton(
                                 icon = Icons.Outlined.Home,
