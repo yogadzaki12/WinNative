@@ -461,7 +461,7 @@ bool LibretroDroid::step() {
     for (size_t i = 0; i < frames * frameSpeed; i++)
         core->retro_run();
 
-    if (video && !video->rendersInVideoCallback()) {
+    if (video) {
         video->renderFrame();
     }
 
