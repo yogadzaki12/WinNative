@@ -67,6 +67,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import coil.compose.AsyncImage
+import com.winlator.cmod.shared.ui.nav.bindPaneNav
+import com.winlator.cmod.shared.ui.nav.paneNavItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -104,9 +106,27 @@ class RetroAchievementsActivity : ComponentActivity() {
         val inSession = intent.getBooleanExtra(EXTRA_IN_SESSION, false)
         setContent {
             com.winlator.cmod.shared.theme.WinNativeTheme {
-                RetroAchievementsScreen(systemId, gameName, romPath, inSession) { finish() }
+                androidx.compose.runtime.CompositionLocalProvider(
+                    com.winlator.cmod.shared.ui.nav.LocalPaneNav provides navRegistry,
+                ) {
+                    RetroAchievementsScreen(systemId, gameName, romPath, inSession) { finish() }
+                }
             }
         }
+    }
+
+    private val navRegistry = com.winlator.cmod.shared.ui.nav.PaneNavRegistry()
+    private var restoreNav: (() -> Unit)? = null
+
+    override fun onResume() {
+        super.onResume()
+        restoreNav = window.bindPaneNav(navRegistry, onDismiss = { finish() })
+    }
+
+    override fun onPause() {
+        restoreNav?.invoke()
+        restoreNav = null
+        super.onPause()
     }
 }
 
@@ -281,7 +301,7 @@ private fun Header(gameName: String, summary: RetroGameSummary?, onClose: () -> 
                 )
             }
         }
-        IconButton(onClick = onClose, modifier = Modifier.size(40.dp)) {
+        IconButton(onClick = onClose, modifier = Modifier.size(40.dp).paneNavItem(onActivate = onClose)) {
             Icon(Icons.Outlined.Close, contentDescription = "Close", tint = TextSecondary, modifier = Modifier.size(22.dp))
         }
     }
@@ -334,22 +354,23 @@ private fun LoginPane(onLogin: (String, String, (Boolean, String?) -> Unit) -> U
             modifier = Modifier.fillMaxWidth(),
         )
         error?.let { Text(it, color = Color(0xFFE07B6B), style = MaterialTheme.typography.labelMedium) }
-        Button(
-            onClick = {
-                if (username.isBlank() || password.isBlank()) {
-                    error = "Enter your username and password"
-                    return@Button
-                }
+        val submit = {
+            if (username.isBlank() || password.isBlank()) {
+                error = "Enter your username and password"
+            } else {
                 busy = true
                 error = null
                 onLogin(username.trim(), password) { ok, msg ->
                     busy = false
                     if (!ok) error = msg ?: "Login failed"
                 }
-            },
+            }
+        }
+        Button(
+            onClick = submit,
             enabled = !busy,
             colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.White),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().paneNavItem(isEntry = true, onActivate = { submit() }),
         ) {
             if (busy) {
                 CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp))
@@ -412,7 +433,7 @@ private fun AchievementsList(
                 ordered.forEach { AchievementRow(it) }
             }
             Spacer(Modifier.height(8.dp))
-            TextButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
+            TextButton(onClick = onLogout, modifier = Modifier.fillMaxWidth().paneNavItem(onActivate = onLogout)) {
                 Text("Sign Out", color = TextSecondary)
             }
         }
@@ -425,7 +446,7 @@ private fun SettingsRow(label: String, checked: Boolean, onChange: (Boolean) -> 
         shape = RoundedCornerShape(12.dp),
         color = SurfaceDark.copy(alpha = 0.5f),
         border = BorderStroke(1.dp, CardBorder),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().paneNavItem(cornerRadius = 12.dp, onActivate = { onChange(!checked) }),
     ) {
         Row(
             Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
