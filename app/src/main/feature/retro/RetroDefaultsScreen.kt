@@ -6,8 +6,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -53,25 +56,13 @@ fun RetroDefaultsScreen() {
     var confirmHardcore by remember { mutableStateOf(false) }
 
     if (confirmHardcore) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { confirmHardcore = false },
-            title = { Text("Enable Hardcore mode?") },
-            text = {
-                Text(
-                    "Hardcore mode disables loading save states, fast forward, and cheats, " +
-                        "and resets the game when turned on during play. Continue?",
-                )
+        RetroHardcoreConfirmDialog(
+            onConfirm = {
+                confirmHardcore = false
+                RetroAchievementsManager.setHardcorePreferred(context, true)
+                refresh++
             },
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    confirmHardcore = false
-                    RetroAchievementsManager.setHardcorePreferred(context, true)
-                    refresh++
-                }) { Text("Enable") }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { confirmHardcore = false }) { Text("Cancel") }
-            },
+            onDismiss = { confirmHardcore = false },
         )
     }
 
@@ -249,6 +240,42 @@ fun RetroDefaultsScreen() {
                     ) { RetroDefaults.setHud(context, sys, it); refresh++ }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun RetroHardcoreConfirmDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val accent = Color(0xFF1A9FFF)
+    com.winlator.cmod.shared.ui.dialog.WinNativeDialogShell(
+        onDismiss = onDismiss,
+        title = "Enable Hardcore mode?",
+    ) {
+        Text(
+            "Hardcore mode resets the game now and disables loading save states, fast forward, and cheats. Any unsaved progress will be lost. Continue?",
+            color = com.winlator.cmod.shared.theme.WinNativeTextSecondary,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+        )
+        Spacer(Modifier.height(16.dp))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(com.winlator.cmod.shared.theme.WinNativeOutline))
+        Spacer(Modifier.height(16.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) {
+            com.winlator.cmod.shared.ui.dialog.WinNativeDialogButton(
+                label = "Cancel",
+                textColor = com.winlator.cmod.shared.theme.WinNativeTextPrimary,
+                onClick = onDismiss,
+            )
+            com.winlator.cmod.shared.ui.dialog.WinNativeDialogButton(
+                label = "Enable",
+                textColor = accent,
+                backgroundColor = accent.copy(alpha = 0.12f),
+                borderColor = accent.copy(alpha = 0.3f),
+                onClick = onConfirm,
+            )
         }
     }
 }

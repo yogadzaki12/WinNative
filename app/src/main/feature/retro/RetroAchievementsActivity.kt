@@ -162,25 +162,13 @@ private fun RetroAchievementsScreen(
     }
 
     if (confirmHardcore) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { confirmHardcore = false },
-            title = { Text("Enable Hardcore mode?") },
-            text = {
-                Text(
-                    "Hardcore mode resets the game now and disables loading save states, " +
-                        "fast forward, and cheats. Any unsaved progress will be lost. Continue?",
-                )
+        RetroHardcoreConfirmDialog(
+            onConfirm = {
+                confirmHardcore = false
+                hardcore = true
+                RetroAchievementsManager.setHardcorePreferred(context, true)
             },
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    confirmHardcore = false
-                    hardcore = true
-                    RetroAchievementsManager.setHardcorePreferred(context, true)
-                }) { Text("Enable") }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { confirmHardcore = false }) { Text("Cancel") }
-            },
+            onDismiss = { confirmHardcore = false },
         )
     }
 
