@@ -1566,4 +1566,16 @@ Caminho instalado:
     <string name="file_manager_create_folder_failed">A criação da pasta falhou</string>
 
     <string name="settings_content_refresh">Atualizar</string>
+    <string name="settings_retro_title">Retro</string>
+    <string name="retro_save_transfer_title">Transferir save</string>
+    <string name="retro_save_transfer_message">Importe um save local para este jogo ou exporte o save atual.</string>
+    <string name="retro_save_transfer_import">Importar save</string>
+    <string name="retro_save_transfer_export">Exportar save</string>
+    <string name="retro_save_transfer_import_ok">Save importado</string>
+    <string name="retro_save_transfer_import_failed">Não foi possível importar o save</string>
+    <string name="retro_save_transfer_export_ok">Save exportado</string>
+    <string name="retro_save_transfer_export_failed">Não foi possível exportar o save</string>
+    <string name="retro_save_transfer_none">Ainda não existe um save para este jogo</string>
+    <string name="retro_cheats_title">Cheats</string>
+    <string name="retro_cheats_hardcore_blocked">Os cheats estão desativados no modo Hardcore</string>
 </resources>

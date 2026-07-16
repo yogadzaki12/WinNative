@@ -1566,4 +1566,16 @@
     <string name="file_manager_create_folder_failed">フォルダの作成に失敗しました</string>
 
     <string name="settings_content_refresh">更新</string>
+    <string name="settings_retro_title">レトロ</string>
+    <string name="retro_save_transfer_title">セーブの転送</string>
+    <string name="retro_save_transfer_message">このゲームにローカルのセーブをインポートするか、現在のセーブをエクスポートします。</string>
+    <string name="retro_save_transfer_import">セーブをインポート</string>
+    <string name="retro_save_transfer_export">セーブをエクスポート</string>
+    <string name="retro_save_transfer_import_ok">セーブをインポートしました</string>
+    <string name="retro_save_transfer_import_failed">セーブをインポートできませんでした</string>
+    <string name="retro_save_transfer_export_ok">セーブをエクスポートしました</string>
+    <string name="retro_save_transfer_export_failed">セーブをエクスポートできませんでした</string>
+    <string name="retro_save_transfer_none">このゲームのセーブはまだありません</string>
+    <string name="retro_cheats_title">チート</string>
+    <string name="retro_cheats_hardcore_blocked">ハードコアモードではチートは無効です</string>
 </resources>

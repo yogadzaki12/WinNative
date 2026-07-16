@@ -1569,5 +1569,17 @@ Percorso installato:
     <string name="steam_chat_setting_stay_running">Esegui in background</string>
     <string name="steam_chat_setting_stay_running_desc">Mantieni la chat attiva dopo aver chiuso WinNative</string>
     <string name="settings_content_refresh">Aggiorna</string>
+    <string name="settings_retro_title">Retro</string>
+    <string name="retro_save_transfer_title">Trasferisci salvataggio</string>
+    <string name="retro_save_transfer_message">Importa un salvataggio locale per questo gioco o esporta il salvataggio attuale.</string>
+    <string name="retro_save_transfer_import">Importa salvataggio</string>
+    <string name="retro_save_transfer_export">Esporta salvataggio</string>
+    <string name="retro_save_transfer_import_ok">Salvataggio importato</string>
+    <string name="retro_save_transfer_import_failed">Impossibile importare il salvataggio</string>
+    <string name="retro_save_transfer_export_ok">Salvataggio esportato</string>
+    <string name="retro_save_transfer_export_failed">Impossibile esportare il salvataggio</string>
+    <string name="retro_save_transfer_none">Non esiste ancora alcun salvataggio per questo gioco</string>
+    <string name="retro_cheats_title">Trucchi</string>
+    <string name="retro_cheats_hardcore_blocked">I trucchi sono disattivati in modalità Hardcore</string>
 </resources>
 

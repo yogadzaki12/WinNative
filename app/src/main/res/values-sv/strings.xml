@@ -1566,4 +1566,16 @@ Installerad sökväg:
     <string name="file_manager_create_folder_failed">Det gick inte att skapa mappen</string>
 
     <string name="settings_content_refresh">Uppdatera</string>
+    <string name="settings_retro_title">Retro</string>
+    <string name="retro_save_transfer_title">Överför sparfil</string>
+    <string name="retro_save_transfer_message">Importera en lokal sparfil till det här spelet eller exportera spelets nuvarande sparfil.</string>
+    <string name="retro_save_transfer_import">Importera sparfil</string>
+    <string name="retro_save_transfer_export">Exportera sparfil</string>
+    <string name="retro_save_transfer_import_ok">Sparfil importerad</string>
+    <string name="retro_save_transfer_import_failed">Det gick inte att importera sparfilen</string>
+    <string name="retro_save_transfer_export_ok">Sparfil exporterad</string>
+    <string name="retro_save_transfer_export_failed">Det gick inte att exportera sparfilen</string>
+    <string name="retro_save_transfer_none">Det finns ännu ingen sparfil för det här spelet</string>
+    <string name="retro_cheats_title">Fusk</string>
+    <string name="retro_cheats_hardcore_blocked">Fusk är inaktiverat i Hardcore-läge</string>
 </resources>

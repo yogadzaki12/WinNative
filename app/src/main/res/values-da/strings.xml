@@ -1570,4 +1570,16 @@ Installeret sti:
     <string name="steam_chat_setting_stay_running">Kør i baggrunden</string>
     <string name="steam_chat_setting_stay_running_desc">Hold chatten kørende, efter du afslutter WinNative</string>
     <string name="settings_content_refresh">Opdater</string>
+    <string name="settings_retro_title">Retro</string>
+    <string name="retro_save_transfer_title">Overfør gemt spil</string>
+    <string name="retro_save_transfer_message">Importer et lokalt gemt spil til dette spil, eller eksporter det aktuelle gemte spil.</string>
+    <string name="retro_save_transfer_import">Importer gemt spil</string>
+    <string name="retro_save_transfer_export">Eksporter gemt spil</string>
+    <string name="retro_save_transfer_import_ok">Gemt spil importeret</string>
+    <string name="retro_save_transfer_import_failed">Kunne ikke importere gemt spil</string>
+    <string name="retro_save_transfer_export_ok">Gemt spil eksporteret</string>
+    <string name="retro_save_transfer_export_failed">Kunne ikke eksportere gemt spil</string>
+    <string name="retro_save_transfer_none">Der findes endnu ikke et gemt spil til dette spil</string>
+    <string name="retro_cheats_title">Snydekoder</string>
+    <string name="retro_cheats_hardcore_blocked">Snydekoder er deaktiveret i Hardcore-tilstand</string>
 </resources>

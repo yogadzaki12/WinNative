@@ -1568,5 +1568,17 @@
     <string name="steam_chat_setting_stay_running">在背景執行</string>
     <string name="steam_chat_setting_stay_running_desc">離開 WinNative 後保持聊天執行</string>
     <string name="settings_content_refresh">重新整理</string>
+    <string name="settings_retro_title">復古</string>
+    <string name="retro_save_transfer_title">傳輸存檔</string>
+    <string name="retro_save_transfer_message">為此遊戲匯入本機存檔，或匯出目前的存檔。</string>
+    <string name="retro_save_transfer_import">匯入存檔</string>
+    <string name="retro_save_transfer_export">匯出存檔</string>
+    <string name="retro_save_transfer_import_ok">已匯入存檔</string>
+    <string name="retro_save_transfer_import_failed">無法匯入存檔</string>
+    <string name="retro_save_transfer_export_ok">已匯出存檔</string>
+    <string name="retro_save_transfer_export_failed">無法匯出存檔</string>
+    <string name="retro_save_transfer_none">此遊戲尚無存檔</string>
+    <string name="retro_cheats_title">金手指</string>
+    <string name="retro_cheats_hardcore_blocked">硬派模式下已停用金手指</string>
 </resources>
 

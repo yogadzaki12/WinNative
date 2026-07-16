@@ -1575,5 +1575,17 @@ Zainstalowana ścieżka:
     <string name="steam_chat_setting_stay_running">Uruchom w tle</string>
     <string name="steam_chat_setting_stay_running_desc">Pozostaw czat aktywny po zamknięciu WinNative</string>
     <string name="settings_content_refresh">Odśwież</string>
+    <string name="settings_retro_title">Retro</string>
+    <string name="retro_save_transfer_title">Przenieś zapis</string>
+    <string name="retro_save_transfer_message">Zaimportuj lokalny zapis do tej gry lub wyeksportuj bieżący zapis.</string>
+    <string name="retro_save_transfer_import">Importuj zapis</string>
+    <string name="retro_save_transfer_export">Eksportuj zapis</string>
+    <string name="retro_save_transfer_import_ok">Zaimportowano zapis</string>
+    <string name="retro_save_transfer_import_failed">Nie udało się zaimportować zapisu</string>
+    <string name="retro_save_transfer_export_ok">Wyeksportowano zapis</string>
+    <string name="retro_save_transfer_export_failed">Nie udało się wyeksportować zapisu</string>
+    <string name="retro_save_transfer_none">Dla tej gry nie ma jeszcze zapisu</string>
+    <string name="retro_cheats_title">Kody</string>
+    <string name="retro_cheats_hardcore_blocked">Kody są wyłączone w trybie Hardcore</string>
 </resources>
 

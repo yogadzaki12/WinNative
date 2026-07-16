@@ -1566,4 +1566,16 @@
     <string name="file_manager_create_folder_failed">สร้างโฟลเดอร์ล้มเหลว</string>
 
     <string name="settings_content_refresh">รีเฟรช</string>
+    <string name="settings_retro_title">เรโทร</string>
+    <string name="retro_save_transfer_title">ถ่ายโอนเซฟ</string>
+    <string name="retro_save_transfer_message">นำเข้าไฟล์เซฟในเครื่องสำหรับเกมนี้ หรือส่งออกเซฟปัจจุบันของเกม</string>
+    <string name="retro_save_transfer_import">นำเข้าเซฟ</string>
+    <string name="retro_save_transfer_export">ส่งออกเซฟ</string>
+    <string name="retro_save_transfer_import_ok">นำเข้าเซฟแล้ว</string>
+    <string name="retro_save_transfer_import_failed">ไม่สามารถนำเข้าเซฟได้</string>
+    <string name="retro_save_transfer_export_ok">ส่งออกเซฟแล้ว</string>
+    <string name="retro_save_transfer_export_failed">ไม่สามารถส่งออกเซฟได้</string>
+    <string name="retro_save_transfer_none">ยังไม่มีเซฟสำหรับเกมนี้</string>
+    <string name="retro_cheats_title">สูตรโกง</string>
+    <string name="retro_cheats_hardcore_blocked">สูตรโกงถูกปิดใช้งานในโหมดฮาร์ดคอร์</string>
 </resources>

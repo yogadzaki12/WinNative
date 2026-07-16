@@ -1569,5 +1569,17 @@ Chemin installé :
     <string name="steam_chat_setting_stay_running">Exécuter en arrière-plan</string>
     <string name="steam_chat_setting_stay_running_desc">Garder le chat actif après avoir quitté WinNative</string>
     <string name="settings_content_refresh">Actualiser</string>
+    <string name="settings_retro_title">Rétro</string>
+    <string name="retro_save_transfer_title">Transférer la sauvegarde</string>
+    <string name="retro_save_transfer_message">Importez une sauvegarde locale pour ce jeu ou exportez la sauvegarde actuelle.</string>
+    <string name="retro_save_transfer_import">Importer la sauvegarde</string>
+    <string name="retro_save_transfer_export">Exporter la sauvegarde</string>
+    <string name="retro_save_transfer_import_ok">Sauvegarde importée</string>
+    <string name="retro_save_transfer_import_failed">Impossible d\'importer la sauvegarde</string>
+    <string name="retro_save_transfer_export_ok">Sauvegarde exportée</string>
+    <string name="retro_save_transfer_export_failed">Impossible d\'exporter la sauvegarde</string>
+    <string name="retro_save_transfer_none">Aucune sauvegarde n\'existe encore pour ce jeu</string>
+    <string name="retro_cheats_title">Codes de triche</string>
+    <string name="retro_cheats_hardcore_blocked">Les codes de triche sont désactivés en mode Hardcore</string>
 </resources>
 

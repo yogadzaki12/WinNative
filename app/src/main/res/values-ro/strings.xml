@@ -1568,5 +1568,17 @@ Cale instalata:
     <string name="steam_chat_setting_stay_running">Rulează în fundal</string>
     <string name="steam_chat_setting_stay_running_desc">Menține chatul activ după ce ieși din WinNative</string>
     <string name="settings_content_refresh">Reîmprospătează</string>
+    <string name="settings_retro_title">Retro</string>
+    <string name="retro_save_transfer_title">Transferă salvarea</string>
+    <string name="retro_save_transfer_message">Importă o salvare locală în acest joc sau exportă salvarea curentă.</string>
+    <string name="retro_save_transfer_import">Importă salvarea</string>
+    <string name="retro_save_transfer_export">Exportă salvarea</string>
+    <string name="retro_save_transfer_import_ok">Salvare importată</string>
+    <string name="retro_save_transfer_import_failed">Salvarea nu a putut fi importată</string>
+    <string name="retro_save_transfer_export_ok">Salvare exportată</string>
+    <string name="retro_save_transfer_export_failed">Salvarea nu a putut fi exportată</string>
+    <string name="retro_save_transfer_none">Nu există încă o salvare pentru acest joc</string>
+    <string name="retro_cheats_title">Coduri</string>
+    <string name="retro_cheats_hardcore_blocked">Codurile sunt dezactivate în modul Hardcore</string>
 </resources>
 

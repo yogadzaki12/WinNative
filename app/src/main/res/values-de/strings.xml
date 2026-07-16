@@ -1570,4 +1570,16 @@ Installierter Pfad:
     <string name="steam_chat_setting_stay_running">Im Hintergrund ausführen</string>
     <string name="steam_chat_setting_stay_running_desc">Chat nach dem Beenden von WinNative weiterlaufen lassen</string>
     <string name="settings_content_refresh">Aktualisieren</string>
+    <string name="settings_retro_title">Retro</string>
+    <string name="retro_save_transfer_title">Spielstand übertragen</string>
+    <string name="retro_save_transfer_message">Importiere einen lokalen Spielstand für dieses Spiel oder exportiere den aktuellen Spielstand.</string>
+    <string name="retro_save_transfer_import">Spielstand importieren</string>
+    <string name="retro_save_transfer_export">Spielstand exportieren</string>
+    <string name="retro_save_transfer_import_ok">Spielstand importiert</string>
+    <string name="retro_save_transfer_import_failed">Spielstand konnte nicht importiert werden</string>
+    <string name="retro_save_transfer_export_ok">Spielstand exportiert</string>
+    <string name="retro_save_transfer_export_failed">Spielstand konnte nicht exportiert werden</string>
+    <string name="retro_save_transfer_none">Für dieses Spiel existiert noch kein Spielstand</string>
+    <string name="retro_cheats_title">Cheats</string>
+    <string name="retro_cheats_hardcore_blocked">Cheats sind im Hardcore-Modus deaktiviert</string>
 </resources>

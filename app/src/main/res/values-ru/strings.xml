@@ -1475,4 +1475,16 @@
     <string name="steam_chat_setting_stay_running">Работать в фоне</string>
     <string name="steam_chat_setting_stay_running_desc">Оставлять чат активным после выхода из WinNative</string>
     <string name="settings_content_refresh">Обновить</string>
+    <string name="settings_retro_title">Ретро</string>
+    <string name="retro_save_transfer_title">Перенос сохранения</string>
+    <string name="retro_save_transfer_message">Импортируйте локальное сохранение для этой игры или экспортируйте текущее сохранение.</string>
+    <string name="retro_save_transfer_import">Импорт сохранения</string>
+    <string name="retro_save_transfer_export">Экспорт сохранения</string>
+    <string name="retro_save_transfer_import_ok">Сохранение импортировано</string>
+    <string name="retro_save_transfer_import_failed">Не удалось импортировать сохранение</string>
+    <string name="retro_save_transfer_export_ok">Сохранение экспортировано</string>
+    <string name="retro_save_transfer_export_failed">Не удалось экспортировать сохранение</string>
+    <string name="retro_save_transfer_none">Для этой игры ещё нет сохранения</string>
+    <string name="retro_cheats_title">Читы</string>
+    <string name="retro_cheats_hardcore_blocked">Читы отключены в режиме Hardcore</string>
 </resources>

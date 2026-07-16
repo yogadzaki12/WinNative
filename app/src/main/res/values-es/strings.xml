@@ -1569,5 +1569,17 @@ Ruta instalada:
     <string name="steam_chat_setting_stay_running">Ejecutar en segundo plano</string>
     <string name="steam_chat_setting_stay_running_desc">Mantener el chat activo después de salir de WinNative</string>
     <string name="settings_content_refresh">Actualizar</string>
+    <string name="settings_retro_title">Retro</string>
+    <string name="retro_save_transfer_title">Transferir partida</string>
+    <string name="retro_save_transfer_message">Importa una partida guardada local para este juego o exporta la partida actual.</string>
+    <string name="retro_save_transfer_import">Importar partida</string>
+    <string name="retro_save_transfer_export">Exportar partida</string>
+    <string name="retro_save_transfer_import_ok">Partida importada</string>
+    <string name="retro_save_transfer_import_failed">No se pudo importar la partida</string>
+    <string name="retro_save_transfer_export_ok">Partida exportada</string>
+    <string name="retro_save_transfer_export_failed">No se pudo exportar la partida</string>
+    <string name="retro_save_transfer_none">Aún no existe ninguna partida guardada para este juego</string>
+    <string name="retro_cheats_title">Trucos</string>
+    <string name="retro_cheats_hardcore_blocked">Los trucos están desactivados en el modo Hardcore</string>
 </resources>
 

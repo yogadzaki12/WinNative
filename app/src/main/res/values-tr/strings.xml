@@ -1566,4 +1566,16 @@ Yüklü konum:
     <string name="file_manager_create_folder_failed">Klasör oluşturma başarısız oldu</string>
 
     <string name="settings_content_refresh">Yenile</string>
+    <string name="settings_retro_title">Retro</string>
+    <string name="retro_save_transfer_title">Kaydı aktar</string>
+    <string name="retro_save_transfer_message">Bu oyuna yerel bir kayıt içe aktarın veya oyunun mevcut kaydını dışa aktarın.</string>
+    <string name="retro_save_transfer_import">Kaydı içe aktar</string>
+    <string name="retro_save_transfer_export">Kaydı dışa aktar</string>
+    <string name="retro_save_transfer_import_ok">Kayıt içe aktarıldı</string>
+    <string name="retro_save_transfer_import_failed">Kayıt içe aktarılamadı</string>
+    <string name="retro_save_transfer_export_ok">Kayıt dışa aktarıldı</string>
+    <string name="retro_save_transfer_export_failed">Kayıt dışa aktarılamadı</string>
+    <string name="retro_save_transfer_none">Bu oyun için henüz bir kayıt yok</string>
+    <string name="retro_cheats_title">Hileler</string>
+    <string name="retro_cheats_hardcore_blocked">Hileler Hardcore modunda devre dışı</string>
 </resources>

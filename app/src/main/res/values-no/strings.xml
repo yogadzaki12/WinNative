@@ -1566,4 +1566,16 @@ Installert bane:
     <string name="file_manager_create_folder_failed">Oppretting av mappe mislyktes</string>
 
     <string name="settings_content_refresh">Oppdater</string>
+    <string name="settings_retro_title">Retro</string>
+    <string name="retro_save_transfer_title">Overfør lagret spill</string>
+    <string name="retro_save_transfer_message">Importer et lokalt lagret spill til dette spillet, eller eksporter det gjeldende lagrede spillet.</string>
+    <string name="retro_save_transfer_import">Importer lagret spill</string>
+    <string name="retro_save_transfer_export">Eksporter lagret spill</string>
+    <string name="retro_save_transfer_import_ok">Lagret spill importert</string>
+    <string name="retro_save_transfer_import_failed">Kunne ikke importere lagret spill</string>
+    <string name="retro_save_transfer_export_ok">Lagret spill eksportert</string>
+    <string name="retro_save_transfer_export_failed">Kunne ikke eksportere lagret spill</string>
+    <string name="retro_save_transfer_none">Det finnes ennå ingen lagring for dette spillet</string>
+    <string name="retro_cheats_title">Juksekoder</string>
+    <string name="retro_cheats_hardcore_blocked">Juksekoder er deaktivert i Hardcore-modus</string>
 </resources>

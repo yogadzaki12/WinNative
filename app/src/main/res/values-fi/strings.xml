@@ -1566,4 +1566,16 @@ Asennuspolku:
     <string name="file_manager_create_folder_failed">Kansion luonti epäonnistui</string>
 
     <string name="settings_content_refresh">Päivitä</string>
+    <string name="settings_retro_title">Retro</string>
+    <string name="retro_save_transfer_title">Siirrä tallennus</string>
+    <string name="retro_save_transfer_message">Tuo peliin paikallinen tallennus tai vie pelin nykyinen tallennus.</string>
+    <string name="retro_save_transfer_import">Tuo tallennus</string>
+    <string name="retro_save_transfer_export">Vie tallennus</string>
+    <string name="retro_save_transfer_import_ok">Tallennus tuotu</string>
+    <string name="retro_save_transfer_import_failed">Tallennuksen tuonti epäonnistui</string>
+    <string name="retro_save_transfer_export_ok">Tallennus viety</string>
+    <string name="retro_save_transfer_export_failed">Tallennuksen vienti epäonnistui</string>
+    <string name="retro_save_transfer_none">Tälle pelille ei ole vielä tallennusta</string>
+    <string name="retro_cheats_title">Huijaukset</string>
+    <string name="retro_cheats_hardcore_blocked">Huijaukset on poistettu käytöstä Hardcore-tilassa</string>
 </resources>
