@@ -123,6 +123,7 @@ private fun RetroAchievementsScreen(
     var loggedIn by remember { mutableStateOf(RetroAchievementsManager.isLoggedIn(context)) }
     var enabled by remember { mutableStateOf(RetroAchievementsManager.isEnabled(context)) }
     var hardcore by remember { mutableStateOf(RetroAchievementsManager.isHardcorePreferred(context)) }
+    var confirmHardcore by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(loggedIn) }
     var summary by remember { mutableStateOf<RetroGameSummary?>(null) }
     var achievements by remember { mutableStateOf<List<RetroAchievement>>(emptyList()) }
@@ -158,6 +159,29 @@ private fun RetroAchievementsScreen(
         summary = withContext(Dispatchers.IO) { RetroAchievementsManager.getSummary() }
         achievements = withContext(Dispatchers.IO) { RetroAchievementsManager.getAchievements() }
         loading = false
+    }
+
+    if (confirmHardcore) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmHardcore = false },
+            title = { Text("Enable Hardcore mode?") },
+            text = {
+                Text(
+                    "Hardcore mode resets the game now and disables loading save states, " +
+                        "fast forward, and cheats. Any unsaved progress will be lost. Continue?",
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    confirmHardcore = false
+                    hardcore = true
+                    RetroAchievementsManager.setHardcorePreferred(context, true)
+                }) { Text("Enable") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmHardcore = false }) { Text("Cancel") }
+            },
+        )
     }
 
     BoxWithConstraints(
@@ -207,8 +231,12 @@ private fun RetroAchievementsScreen(
                         RetroAchievementsManager.setEnabled(context, it)
                     },
                     onHardcoreChange = {
-                        hardcore = it
-                        RetroAchievementsManager.setHardcorePreferred(context, it)
+                        if (it) {
+                            confirmHardcore = true
+                        } else {
+                            hardcore = false
+                            RetroAchievementsManager.setHardcorePreferred(context, false)
+                        }
                     },
                     onLogout = {
                         RetroAchievementsManager.logout(context)

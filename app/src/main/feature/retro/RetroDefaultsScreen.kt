@@ -50,6 +50,30 @@ fun RetroDefaultsScreen() {
     val context = LocalContext.current
     var expandedConsole by remember { mutableStateOf<String?>(null) }
     var refresh by remember { mutableIntStateOf(0) }
+    var confirmHardcore by remember { mutableStateOf(false) }
+
+    if (confirmHardcore) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmHardcore = false },
+            title = { Text("Enable Hardcore mode?") },
+            text = {
+                Text(
+                    "Hardcore mode disables loading save states, fast forward, and cheats, " +
+                        "and resets the game when turned on during play. Continue?",
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    confirmHardcore = false
+                    RetroAchievementsManager.setHardcorePreferred(context, true)
+                    refresh++
+                }) { Text("Enable") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmHardcore = false }) { Text("Cancel") }
+            },
+        )
+    }
 
     val biosPicker =
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -111,8 +135,12 @@ fun RetroDefaultsScreen() {
                 "Hardcore mode by default (no save states)",
                 RetroAchievementsManager.isHardcorePreferred(context),
             ) {
-                RetroAchievementsManager.setHardcorePreferred(context, it)
-                refresh++
+                if (it) {
+                    confirmHardcore = true
+                } else {
+                    RetroAchievementsManager.setHardcorePreferred(context, false)
+                    refresh++
+                }
             }
             if (RetroAchievementsManager.isLoggedIn(context)) {
                 OutlinedButton(
