@@ -46,6 +46,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ExitToApp
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Album
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Edit
@@ -1691,5 +1692,6 @@ object RetroDrawerIcons {
     val Disc = Icons.Outlined.Album
     val Hud = Icons.Outlined.Speed
     val Achievements = Icons.Outlined.EmojiEvents
+    val Cheats = Icons.Outlined.Bolt
     val Exit = Icons.AutoMirrored.Outlined.ExitToApp
 }

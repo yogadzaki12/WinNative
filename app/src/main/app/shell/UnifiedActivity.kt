@@ -6588,6 +6588,28 @@ class UnifiedActivity :
                                     },
                                     onCloudSaves = { activePopup = LibraryDetailPopup.CloudSaves },
                                     onSaveTransfer = if (isRetro) ({ showSaveTransfer = true }) else null,
+                                    onCheats =
+                                        if (isRetro && retroSystemId != null) {
+                                            {
+                                                context.startActivity(
+                                                    android.content.Intent(
+                                                        context,
+                                                        com.winlator.cmod.feature.retro.RetroCheatsActivity::class.java,
+                                                    ).apply {
+                                                        putExtra(com.winlator.cmod.feature.retro.RetroCheatsActivity.EXTRA_SYSTEM_ID, retroSystemId)
+                                                        putExtra(com.winlator.cmod.feature.retro.RetroCheatsActivity.EXTRA_GAME_NAME, app.name)
+                                                    },
+                                                )
+                                            }
+                                        } else {
+                                            null
+                                        },
+                                    cheatsEnabled =
+                                        !(
+                                            com.winlator.cmod.feature.retro.RetroAchievementsManager.isEnabled(context) &&
+                                                com.winlator.cmod.feature.retro.RetroAchievementsManager.isLoggedIn(context) &&
+                                                com.winlator.cmod.feature.retro.RetroAchievementsManager.isHardcorePreferred(context)
+                                        ),
                                     onUninstall = uninstallGame,
                                     // Store source tag actions. Steam exposes verify/update/workshop;
                                     // Epic and GOG expose verify/update for installed games.

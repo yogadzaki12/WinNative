@@ -254,6 +254,34 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         Toast.makeText(this, text, Toast.LENGTH_LONG).show()
     }
 
+    fun cheatsAllowed(): Boolean = !(achievementsSessionStarted && RetroAchievementsManager.isHardcoreActive())
+
+    private fun applyCheats() {
+        if (!retroReady) return
+        runCatching { retroView.resetCheat() }
+        if (!cheatsAllowed()) return
+        val enabled = RetroCheats.load(this, gameName).filter { it.enabled }
+        if (enabled.isEmpty()) return
+        enabled.forEachIndexed { index, cheat ->
+            runCatching { retroView.setCheat(index, true, cheat.code) }
+        }
+        if (achievementsSessionStarted) {
+            RetroAchievementsManager.endSession()
+            achievementsSessionStarted = false
+            Toast.makeText(this, "Cheats enabled — achievements are disabled for this session", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun openCheatsScreen() {
+        val sys = system ?: return
+        startActivity(
+            android.content.Intent(this, RetroCheatsActivity::class.java).apply {
+                putExtra(RetroCheatsActivity.EXTRA_SYSTEM_ID, sys.id)
+                putExtra(RetroCheatsActivity.EXTRA_GAME_NAME, gameName)
+            },
+        )
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -778,6 +806,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                             }
                         }
                         startAchievementsSession()
+                        applyCheats()
                     }
                 }
             }.launchIn(lifecycleScope)
@@ -1124,6 +1153,15 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 }
         }
         entries +=
+            RetroMenuEntry.Action("Cheats", RetroDrawerIcons.Cheats, active = !cheatsAllowed()) {
+                if (!cheatsAllowed()) {
+                    Toast.makeText(this, "Cheats are disabled in Hardcore mode", Toast.LENGTH_SHORT).show()
+                } else {
+                    menu.close()
+                    openCheatsScreen()
+                }
+            }
+        entries +=
             RetroMenuEntry.Action("Reset", RetroDrawerIcons.Reset) {
                 menu.close()
                 retroView.reset()
@@ -1438,6 +1476,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
 
     override fun onResume() {
         super.onResume()
+        if (retroReady && surfaceReady) applyCheats()
         if (emulationPaused && retroReady) {
             window.decorView.post {
                 if (emulationPaused && retroReady) {

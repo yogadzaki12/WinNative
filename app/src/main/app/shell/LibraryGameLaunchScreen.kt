@@ -43,6 +43,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.FactCheck
 import androidx.compose.material.icons.outlined.ArrowDropDown
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.CloudSync
 import androidx.compose.material.icons.outlined.SaveAlt
 import androidx.compose.material.icons.outlined.Construction
@@ -149,6 +150,8 @@ internal fun LibraryGameLaunchScreen(
     onSettings: () -> Unit,
     onBootToDesktop: () -> Unit,
     onAchievements: (() -> Unit)? = null,
+    onCheats: (() -> Unit)? = null,
+    cheatsEnabled: Boolean = true,
     onShortcut: () -> Unit,
     onCloudSaves: () -> Unit,
     onSaveTransfer: (() -> Unit)? = null,
@@ -281,11 +284,14 @@ internal fun LibraryGameLaunchScreen(
                 showCheckForUpdate = showCheckForUpdate,
                 showWorkshop = showWorkshop,
                 showAchievements = onAchievements != null,
+                showCheats = onCheats != null,
+                cheatsEnabled = cheatsEnabled,
                 areSteamActionsEnabled = areSteamActionsEnabled,
                 onVerifyFiles = onVerifyFiles,
                 onCheckForUpdate = onCheckForUpdate,
                 onWorkshop = onWorkshop,
                 onAchievements = { onAchievements?.invoke() },
+                onCheats = { onCheats?.invoke() },
             )
         }
 
@@ -834,15 +840,18 @@ private fun SourceTag(
     showCheckForUpdate: Boolean = true,
     showWorkshop: Boolean = true,
     showAchievements: Boolean = false,
+    showCheats: Boolean = false,
+    cheatsEnabled: Boolean = true,
     areSteamActionsEnabled: Boolean = true,
     onVerifyFiles: () -> Unit = {},
     onCheckForUpdate: () -> Unit = {},
     onWorkshop: () -> Unit = {},
     onAchievements: () -> Unit = {},
+    onCheats: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     var anchorHeightPx by remember { mutableStateOf(0) }
-    val menuInteractive = menuEnabled || showAchievements
+    val menuInteractive = menuEnabled || showAchievements || showCheats
     Box {
         Surface(
             color = Color.White.copy(alpha = 0.1f),
@@ -915,6 +924,13 @@ private fun SourceTag(
                         icon = Icons.Outlined.EmojiEvents,
                         label = stringResource(R.string.steam_achievements_title),
                     ) { menuOpen = false; onAchievements() }
+                }
+                if (showCheats) {
+                    LaunchSourceMenuItem(
+                        icon = Icons.Outlined.Bolt,
+                        label = stringResource(R.string.retro_cheats_title),
+                        enabled = cheatsEnabled,
+                    ) { menuOpen = false; onCheats() }
                 }
             }
         }
