@@ -1384,6 +1384,12 @@ Installed path:
     <string name="cloud_saves_keep_replaced_backup_summary">If you change your mind, you can restore it from Save History.</string>
     <string name="cloud_saves_history_refresh">Refresh</string>
     <string name="cloud_saves_history_rename">Rename</string>
+    <string name="cloud_saves_history_delete">Delete</string>
+    <string name="cloud_saves_history_delete_confirm_title">Delete Cloud Save</string>
+    <string name="cloud_saves_history_delete_confirm_body">Permanently delete the cloud save from %1$s? This cannot be undone.</string>
+    <string name="cloud_saves_history_delete_success">Cloud save deleted</string>
+    <string name="cloud_saves_history_delete_failed">Could not delete cloud save</string>
+    <string name="cloud_saves_deleting">Deleting save…</string>
     <string name="cloud_saves_history_rename_title">Name this backup</string>
     <string name="cloud_saves_history_rename_hint">e.g. Boss fight, Before ending</string>
     <string name="cloud_saves_history_rename_save">Save</string>

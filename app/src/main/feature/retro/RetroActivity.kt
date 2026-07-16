@@ -427,7 +427,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         lifecycleScope.launch(Dispatchers.IO) {
             cloudSyncEnabled =
                 runCatching { loadShortcut()?.getExtra("cloud_sync_enabled", "1") != "0" }.getOrDefault(true)
-            if (cloudSyncEnabled && !RetroSaveStates.hasAnySave(this@RetroActivity, gameName)) {
+            if (cloudSyncEnabled && !RetroSaveStates.sramFile(this@RetroActivity, gameName).isFile) {
                 runCatching {
                     withTimeout(12_000L) {
                         val entries =
@@ -446,7 +446,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                                     GameSaveBackupManager.GameSource.CUSTOM,
                                     retroCloudId,
                                     GoogleAuthMode.RESUME,
-                                    customSaveDir = RetroSaveStates.gameDir(this@RetroActivity, gameName),
+                                    customSaveDir = RetroSaveStates.cloudDir(this@RetroActivity, gameName),
                                 )
                             if (result.success) {
                                 setCloudMark(latest.timestampMs)
@@ -471,7 +471,8 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         conflictChecked = true
         lifecycleScope.launch(Dispatchers.IO) {
             runCatching {
-                val localTs = RetroSaveStates.latestLocalTimestamp(this@RetroActivity, gameName)
+                val sram = RetroSaveStates.sramFile(this@RetroActivity, gameName)
+                val localTs = if (sram.isFile) sram.lastModified() else 0L
                 if (localTs <= 0L) return@runCatching
                 val entries =
                     GameSaveBackupManager.listGoogleHistory(
@@ -525,7 +526,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                         GameSaveBackupManager.GameSource.CUSTOM,
                         retroCloudId,
                         GoogleAuthMode.INTERACTIVE,
-                        customSaveDir = RetroSaveStates.gameDir(this@RetroActivity, gameName),
+                        customSaveDir = RetroSaveStates.cloudDir(this@RetroActivity, gameName),
                     )
                 }.getOrNull()
             runOnUiThread {
@@ -563,7 +564,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
 
     private fun launchExitCloudBackup() {
         if (!cloudSyncEnabled || cloudBackupLaunched) return
-        if (!RetroSaveStates.hasAnySave(this, gameName)) return
+        if (!RetroSaveStates.sramFile(this, gameName).isFile) return
         cloudBackupLaunched = true
         androidx.preference.PreferenceManager
             .getDefaultSharedPreferences(this)

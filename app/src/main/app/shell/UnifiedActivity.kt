@@ -940,7 +940,7 @@ class UnifiedActivity :
                         com.winlator.cmod.feature.sync.google.GoogleAuthMode.RESUME,
                         customSaveDir =
                             com.winlator.cmod.feature.retro.RetroSaveStates
-                                .gameDir(this@UnifiedActivity, pendingName),
+                                .cloudDir(this@UnifiedActivity, pendingName),
                     )
                 }.getOrNull()
             if (result?.success == true) {
@@ -6888,7 +6888,7 @@ class UnifiedActivity :
                                         }
                                     val retroSaveDir =
                                         if (isRetroGame) {
-                                            com.winlator.cmod.feature.retro.RetroSaveStates.gameDir(this@UnifiedActivity, app.name)
+                                            com.winlator.cmod.feature.retro.RetroSaveStates.cloudDir(this@UnifiedActivity, app.name)
                                         } else {
                                             null
                                         }

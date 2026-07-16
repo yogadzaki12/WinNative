@@ -37,10 +37,19 @@ object RetroSaveStates {
         slot: Int,
     ): File = File(gameDir(context, gameName), "slot$slot.state")
 
+    fun cloudDir(
+        context: Context,
+        gameName: String,
+    ): File {
+        val dir = File(gameDir(context, gameName), "sram")
+        dir.mkdirs()
+        return dir
+    }
+
     fun sramFile(
         context: Context,
         gameName: String,
-    ): File = File(gameDir(context, gameName), "${safeName(gameName)}.srm")
+    ): File = File(cloudDir(context, gameName), "${safeName(gameName)}.srm")
 
     private fun metaFile(dir: File): File = File(dir, "slots.json")
 
@@ -87,6 +96,8 @@ object RetroSaveStates {
             val legacySram = File(File(context.filesDir, "retro/saves"), "$safe.srm")
             val sram = sramFile(context, gameName)
             if (legacySram.isFile && !sram.exists()) legacySram.renameTo(sram)
+            val flatSram = File(dir, "$safe.srm")
+            if (flatSram.isFile && !sram.exists()) flatSram.renameTo(sram)
         }
     }
 

@@ -36,6 +36,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.CloudSync
 import androidx.compose.material.icons.outlined.CloudUpload
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FolderOpen
@@ -121,6 +122,7 @@ private val CloudBorder = Color(0xFF2A2A3A)
 private val CloudAccent = Color(0xFF5CC8FF)
 private val CloudSuccess = Color(0xFF65D394)
 private val CloudWarning = Color(0xFFFFB85C)
+private val CloudDanger = Color(0xFFE07B6B)
 
 @Composable
 internal fun CloudSavesContent(
@@ -156,6 +158,10 @@ internal fun CloudSavesContent(
     var entryPendingRename by remember {
         mutableStateOf<GameSaveBackupManager.BackupHistoryEntry?>(null)
     }
+    var entryPendingDelete by remember {
+        mutableStateOf<GameSaveBackupManager.BackupHistoryEntry?>(null)
+    }
+    var deleteInProgress by remember { mutableStateOf(false) }
     val steamManagedCloud = gameSource == GameSaveBackupManager.GameSource.STEAM
     val targetContainerId =
         shortcut
@@ -769,6 +775,7 @@ internal fun CloudSavesContent(
             },
             onRestore = { entry -> entryPendingRestore = entry },
             onRename = { entry -> entryPendingRename = entry },
+            onDelete = { entry -> entryPendingDelete = entry },
             onDownload = { entry ->
                 pendingCloudFileDownload = entry
                 runCatching {
@@ -791,6 +798,81 @@ internal fun CloudSavesContent(
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(stringResource(R.string.common_ui_back), color = TextSecondary)
+            }
+        }
+    }
+
+    entryPendingDelete?.let { entry ->
+        val whenLabel =
+            remember(entry.timestampMs) {
+                android.text.format.DateUtils
+                    .getRelativeTimeSpanString(
+                        entry.timestampMs,
+                        System.currentTimeMillis(),
+                        android.text.format.DateUtils.MINUTE_IN_MILLIS,
+                    ).toString()
+            }
+        LaunchDangerConfirmDialog(
+            visible = true,
+            title = stringResource(R.string.cloud_saves_history_delete_confirm_title),
+            message = stringResource(R.string.cloud_saves_history_delete_confirm_body, whenLabel),
+            confirmLabel = stringResource(R.string.cloud_saves_history_delete),
+            icon = Icons.Outlined.Delete,
+            titleTextAlign = TextAlign.Center,
+            messageTextAlign = TextAlign.Center,
+            accentColor = CloudDanger,
+            onDismissRequest = { entryPendingDelete = null },
+            onConfirm = {
+                val target = entryPendingDelete ?: return@LaunchDangerConfirmDialog
+                entryPendingDelete = null
+                scope.launch {
+                    deleteInProgress = true
+                    val result =
+                        runCatching {
+                            GameSaveBackupManager.deleteGoogleEntry(activity, target)
+                        }.getOrElse {
+                            GameSaveBackupManager.BackupResult(false, it.message ?: "")
+                        }
+                    deleteInProgress = false
+                    notify(
+                        if (result.success) {
+                            context.getString(R.string.cloud_saves_history_delete_success)
+                        } else {
+                            context.getString(R.string.cloud_saves_history_delete_failed)
+                        },
+                        Toast.LENGTH_SHORT,
+                    )
+                    historyRefreshKey++
+                }
+            },
+        )
+    }
+
+    if (deleteInProgress) {
+        Dialog(
+            onDismissRequest = { deleteInProgress = false },
+            properties = DialogProperties(dismissOnClickOutside = false),
+        ) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = CloudPanel,
+                border = BorderStroke(1.dp, CloudBorder),
+            ) {
+                Row(
+                    modifier = Modifier.padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(26.dp),
+                        color = CloudDanger,
+                        strokeWidth = 3.dp,
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    Text(
+                        text = stringResource(R.string.cloud_saves_deleting),
+                        color = Color.White,
+                    )
+                }
             }
         }
     }
@@ -1109,6 +1191,7 @@ private fun SaveHistorySection(
     onRefresh: () -> Unit,
     onRestore: (GameSaveBackupManager.BackupHistoryEntry) -> Unit,
     onRename: (GameSaveBackupManager.BackupHistoryEntry) -> Unit,
+    onDelete: (GameSaveBackupManager.BackupHistoryEntry) -> Unit,
     onDownload: (GameSaveBackupManager.BackupHistoryEntry) -> Unit,
 ) {
     Row(
@@ -1185,6 +1268,7 @@ private fun SaveHistorySection(
                                 entry = entry,
                                 onRestore = { onRestore(entry) },
                                 onRename = { onRename(entry) },
+                                onDelete = { onDelete(entry) },
                                 onDownload = { onDownload(entry) },
                             )
                             if (index < entries.lastIndex) {
@@ -1206,6 +1290,7 @@ private fun SaveHistoryRow(
     entry: GameSaveBackupManager.BackupHistoryEntry,
     onRestore: () -> Unit,
     onRename: () -> Unit,
+    onDelete: () -> Unit,
     onDownload: () -> Unit,
 ) {
     val whenLabel =
@@ -1335,6 +1420,14 @@ private fun SaveHistoryRow(
                 tint = TextPrimary,
                 onClick = onRename,
             )
+            if (entry.storage == GameSaveBackupManager.BackupStorage.GOOGLE) {
+                HistoryIconButton(
+                    icon = Icons.Outlined.Delete,
+                    contentDescription = stringResource(R.string.cloud_saves_history_delete),
+                    tint = CloudDanger,
+                    onClick = onDelete,
+                )
+            }
         }
     }
 }
