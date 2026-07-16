@@ -44,6 +44,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.FactCheck
 import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.CloudSync
+import androidx.compose.material.icons.outlined.SaveAlt
 import androidx.compose.material.icons.outlined.Construction
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DesktopWindows
@@ -150,6 +151,7 @@ internal fun LibraryGameLaunchScreen(
     onAchievements: (() -> Unit)? = null,
     onShortcut: () -> Unit,
     onCloudSaves: () -> Unit,
+    onSaveTransfer: (() -> Unit)? = null,
     onUninstall: () -> Unit,
     onVerifyFiles: () -> Unit = {},
     onCheckForUpdate: () -> Unit = {},
@@ -166,7 +168,7 @@ internal fun LibraryGameLaunchScreen(
         val actionIconSize = 46.dp
         val actionIconSpacing = 8.dp
         // Action icons: Settings, Boot, CloudSync, Shortcut, Delete.
-        val actionIconCount = if (isRetro) 2 else 5
+        val actionIconCount = if (isRetro) 4 else 5
         val actionWidth = actionIconSize * actionIconCount + actionIconSpacing * (actionIconCount - 1)
         val playHeight = 56.dp
         val contentGap = 18.dp
@@ -392,6 +394,14 @@ internal fun LibraryGameLaunchScreen(
                             size = actionIconSize,
                             onClick = onSettings,
                         )
+                        if (onSaveTransfer != null) {
+                            LaunchIconActionButton(
+                                icon = Icons.Outlined.SaveAlt,
+                                contentDescription = stringResource(R.string.retro_save_transfer_title),
+                                size = actionIconSize,
+                                onClick = onSaveTransfer,
+                            )
+                        }
                         LaunchIconActionButton(
                             icon = Icons.Outlined.CloudSync,
                             contentDescription = stringResource(R.string.cloud_saves_title),

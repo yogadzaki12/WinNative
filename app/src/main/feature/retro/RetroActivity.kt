@@ -237,12 +237,19 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             runOnUiThread { showAchievementUnlock(unlock) }
         }
         RetroAchievementsManager.resetListener = {
-            runOnUiThread { if (retroReady) retroView.reset() }
+            runOnUiThread {
+                if (retroReady) retroView.reset()
+                RetroAchievementsManager.onEmulatorReset()
+            }
+        }
+        RetroAchievementsManager.hardcoreNoticeListener = { message ->
+            runOnUiThread { Toast.makeText(this, message, Toast.LENGTH_LONG).show() }
         }
         RetroAchievementsManager.startSession(this, sys.id, rom)
     }
 
     private fun showAchievementUnlock(unlock: RetroUnlock) {
+        if (unlock.title.contains("Unknown Emulator", ignoreCase = true)) return
         val text = "🏆 ${unlock.title}  (+${unlock.points})"
         Toast.makeText(this, text, Toast.LENGTH_LONG).show()
     }
@@ -613,6 +620,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         if (achievementsSessionStarted) {
             RetroAchievementsManager.unlockListener = null
             RetroAchievementsManager.resetListener = null
+            RetroAchievementsManager.hardcoreNoticeListener = null
             RetroAchievementsManager.endSession()
         }
         super.onDestroy()

@@ -75,6 +75,7 @@ public:
 
     size_t coreMemorySize(unsigned id);
     void* coreMemoryData(unsigned id);
+    std::string coreLibraryName();
 
     void onSurfaceCreated();
     void onSurfaceChanged(unsigned int width, unsigned int height);

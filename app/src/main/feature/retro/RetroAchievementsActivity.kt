@@ -5,10 +5,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -76,6 +80,7 @@ private val AccentGlow = Color(0xFF58A6FF)
 private val TextPrimary = Color(0xFFF0F4FF)
 private val TextSecondary = Color(0xFF93A6BC)
 private val Gold = Color(0xFFF2C14E)
+private val Scrim = Color(0xFF000000)
 private val StatusOnline = Color(0xFF3FB950)
 
 class RetroAchievementsActivity : ComponentActivity() {
@@ -148,15 +153,34 @@ private fun RetroAchievementsScreen(
         loading = false
     }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = BgDark) {
-        Column(
+    BoxWithConstraints(
+        modifier =
             Modifier
                 .fillMaxSize()
+                .background(Scrim.copy(alpha = 0.62f))
+                .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { onClose() }
                 .windowInsetsPadding(WindowInsets.systemBars),
+        contentAlignment = Alignment.Center,
+    ) {
+        val dialogWidth = (maxWidth - 32.dp).coerceAtMost(560.dp)
+        val dialogHeight = (maxHeight - 40.dp).coerceIn(340.dp, 680.dp)
+        Surface(
+            modifier =
+                Modifier
+                    .widthIn(min = 320.dp, max = dialogWidth)
+                    .fillMaxWidth()
+                    .height(dialogHeight)
+                    .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {},
+            shape = RoundedCornerShape(16.dp),
+            color = BgDark,
+            border = BorderStroke(1.dp, CardBorder),
+            tonalElevation = 8.dp,
         ) {
-            Header(gameName, summary, onClose)
-            HorizontalDivider(color = CardBorder, thickness = 0.5.dp)
-            when {
+            Column(Modifier.fillMaxSize()) {
+                Header(gameName, summary, onClose)
+                HorizontalDivider(color = CardBorder, thickness = 0.5.dp)
+                Box(Modifier.fillMaxWidth().weight(1f)) {
+                when {
                 !loggedIn -> LoginPane { user, pass, onResult ->
                     RetroAchievementsManager.login(context, user, pass) { ok, msg ->
                         onResult(ok, msg)
@@ -186,6 +210,8 @@ private fun RetroAchievementsScreen(
                         achievements = emptyList()
                     },
                 )
+                }
+                }
             }
         }
     }

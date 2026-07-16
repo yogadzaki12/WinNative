@@ -272,6 +272,20 @@ Java_com_swordfish_libretrodroid_RetroAchievements_nativeGetHardcore(JNIEnv *env
     return rc_client_get_hardcore_enabled(g_client) ? JNI_TRUE : JNI_FALSE;
 }
 
+JNIEXPORT jboolean JNICALL
+Java_com_swordfish_libretrodroid_RetroAchievements_nativeHardcoreCompatible(JNIEnv *env, jobject) {
+    std::string libraryName = LibretroDroid::getInstance().coreLibraryName();
+    if (libraryName.empty()) return JNI_TRUE;
+    const rc_disallowed_setting_t *disallowed = rc_libretro_get_disallowed_settings(libraryName.c_str());
+    if (disallowed == nullptr) return JNI_TRUE;
+    for (const auto &variable : Environment::getInstance().getVariables()) {
+        if (!rc_libretro_is_setting_allowed(disallowed, variable.key.c_str(), variable.value.c_str())) {
+            return JNI_FALSE;
+        }
+    }
+    return JNI_TRUE;
+}
+
 JNIEXPORT jobjectArray JNICALL
 Java_com_swordfish_libretrodroid_RetroAchievements_nativePollHttpRequest(JNIEnv *env, jobject) {
     HttpRequest req;

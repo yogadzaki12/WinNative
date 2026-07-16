@@ -26,6 +26,7 @@ public class RetroAchievements {
 
     public native void nativeSetHardcore(boolean enabled);
     public native boolean nativeGetHardcore();
+    public native boolean nativeHardcoreCompatible();
 
     public native String[] nativePollHttpRequest();
     public native void nativeProvideResponse(int requestId, int httpStatus, byte[] body);

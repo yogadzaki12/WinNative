@@ -181,6 +181,13 @@ void* LibretroDroid::coreMemoryData(unsigned id) {
     return core->retro_get_memory_data(id);
 }
 
+std::string LibretroDroid::coreLibraryName() {
+    if (!core) return std::string();
+    struct retro_system_info info {};
+    core->retro_get_system_info(&info);
+    return info.library_name != nullptr ? std::string(info.library_name) : std::string();
+}
+
 std::pair<int8_t*, size_t> LibretroDroid::serializeSRAM() {
     std::lock_guard<std::mutex> lock(coreLock);
 

@@ -53,7 +53,17 @@ object RetroAchievementsManager {
     private const val KEY_ENABLED = "enabled"
     private const val KEY_HARDCORE = "hardcore"
 
-    private const val USER_AGENT = "WinNative/1.0"
+    private const val CLIENT_VERSION = "1.0.0"
+
+    @Volatile private var userAgent = "WinNative/$CLIENT_VERSION"
+
+    private fun coreTag(systemId: String?): String {
+        val core = RetroSystems.fromId(systemId)?.coreFileName ?: return "unknown"
+        return core.removePrefix("lib").removeSuffix(".so").removeSuffix("_libretro_android")
+    }
+
+    private fun buildUserAgent(systemId: String?): String =
+        "WinNative/$CLIENT_VERSION (Android ${android.os.Build.VERSION.RELEASE}) ${coreTag(systemId)}"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -76,6 +86,7 @@ object RetroAchievementsManager {
     var unlockListener: ((RetroUnlock) -> Unit)? = null
     var stateListener: (() -> Unit)? = null
     var resetListener: (() -> Unit)? = null
+    var hardcoreNoticeListener: ((String) -> Unit)? = null
 
     private var loginCallback: ((Boolean, String?) -> Unit)? = null
     private var appContext: Context? = null
@@ -157,6 +168,7 @@ object RetroAchievementsManager {
         val username = prefs(context).getString(KEY_USERNAME, null) ?: return
         val token = prefs(context).getString(KEY_TOKEN, null) ?: return
         RetroAchievements.active = true
+        userAgent = buildUserAgent(systemId)
         if (loadedRomPath == romPath && loadState != LOAD_LOADING) return
         loadedRomPath = romPath
         loadState = LOAD_LOADING
@@ -173,6 +185,7 @@ object RetroAchievementsManager {
         ensureClient(context)
         val username = prefs(context).getString(KEY_USERNAME, null) ?: return
         val token = prefs(context).getString(KEY_TOKEN, null) ?: return
+        userAgent = buildUserAgent(systemId)
         if (loadedRomPath == romPath && loadState != LOAD_LOADING) return
         loadedRomPath = romPath
         loadState = LOAD_LOADING
@@ -264,7 +277,7 @@ object RetroAchievementsManager {
             val connection = (URL(url).openConnection() as HttpURLConnection).apply {
                 connectTimeout = 30000
                 readTimeout = 30000
-                setRequestProperty("User-Agent", USER_AGENT)
+                setRequestProperty("User-Agent", userAgent)
                 if (postData.isNotEmpty()) {
                     doOutput = true
                     requestMethod = "POST"
@@ -335,6 +348,16 @@ object RetroAchievementsManager {
                 }
                 "game_loaded" -> {
                     loadState = LOAD_LOADED
+                    if (RetroAchievements.INSTANCE.nativeGetHardcore() &&
+                        !RetroAchievements.INSTANCE.nativeHardcoreCompatible()
+                    ) {
+                        RetroAchievements.INSTANCE.nativeSetHardcore(false)
+                        postMain {
+                            hardcoreNoticeListener?.invoke(
+                                "Hardcore disabled: a core option is not allowed in hardcore mode",
+                            )
+                        }
+                    }
                     postMain { stateListener?.invoke() }
                 }
                 "game_unidentified", "game_load_failed" -> {

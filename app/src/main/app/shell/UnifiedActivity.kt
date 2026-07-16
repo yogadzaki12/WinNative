@@ -6396,6 +6396,78 @@ class UnifiedActivity :
                                                 )
                                     }
                                 }
+                                var showSaveTransfer by remember(app.id) { mutableStateOf(false) }
+                                val retroSaveImportLauncher =
+                                    rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                                        if (uri != null) {
+                                            val ok =
+                                                runCatching {
+                                                    val bytes =
+                                                        context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                                                            ?: return@runCatching false
+                                                    com.winlator.cmod.feature.retro.RetroSaveStates
+                                                        .sramFile(context, app.name).writeBytes(bytes)
+                                                    true
+                                                }.getOrDefault(false)
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                context.getString(
+                                                    if (ok) R.string.retro_save_transfer_import_ok else R.string.retro_save_transfer_import_failed,
+                                                ),
+                                                android.widget.Toast.LENGTH_SHORT,
+                                            ).show()
+                                        }
+                                    }
+                                val retroSaveExportLauncher =
+                                    rememberLauncherForActivityResult(
+                                        ActivityResultContracts.CreateDocument("application/octet-stream"),
+                                    ) { uri ->
+                                        if (uri != null) {
+                                            val ok =
+                                                runCatching {
+                                                    val sram =
+                                                        com.winlator.cmod.feature.retro.RetroSaveStates.sramFile(context, app.name)
+                                                    if (!sram.isFile) return@runCatching false
+                                                    context.contentResolver.openOutputStream(uri)?.use { it.write(sram.readBytes()) }
+                                                    true
+                                                }.getOrDefault(false)
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                context.getString(
+                                                    if (ok) R.string.retro_save_transfer_export_ok else R.string.retro_save_transfer_export_failed,
+                                                ),
+                                                android.widget.Toast.LENGTH_SHORT,
+                                            ).show()
+                                        }
+                                    }
+                                if (showSaveTransfer) {
+                                    androidx.compose.material3.AlertDialog(
+                                        onDismissRequest = { showSaveTransfer = false },
+                                        title = { androidx.compose.material3.Text(stringResource(R.string.retro_save_transfer_title)) },
+                                        text = { androidx.compose.material3.Text(stringResource(R.string.retro_save_transfer_message)) },
+                                        confirmButton = {
+                                            androidx.compose.material3.TextButton(onClick = {
+                                                showSaveTransfer = false
+                                                retroSaveImportLauncher.launch(arrayOf("*/*"))
+                                            }) { androidx.compose.material3.Text(stringResource(R.string.retro_save_transfer_import)) }
+                                        },
+                                        dismissButton = {
+                                            androidx.compose.material3.TextButton(onClick = {
+                                                val sram = com.winlator.cmod.feature.retro.RetroSaveStates.sramFile(context, app.name)
+                                                showSaveTransfer = false
+                                                if (!sram.isFile) {
+                                                    android.widget.Toast.makeText(
+                                                        context,
+                                                        context.getString(R.string.retro_save_transfer_none),
+                                                        android.widget.Toast.LENGTH_SHORT,
+                                                    ).show()
+                                                } else {
+                                                    retroSaveExportLauncher.launch("${app.name}.srm")
+                                                }
+                                            }) { androidx.compose.material3.Text(stringResource(R.string.retro_save_transfer_export)) }
+                                        },
+                                    )
+                                }
                                 LibraryGameLaunchScreen(
                                     appName = launchAppName,
                                     subtitle = subtitle,
@@ -6515,6 +6587,7 @@ class UnifiedActivity :
                                         }
                                     },
                                     onCloudSaves = { activePopup = LibraryDetailPopup.CloudSaves },
+                                    onSaveTransfer = if (isRetro) ({ showSaveTransfer = true }) else null,
                                     onUninstall = uninstallGame,
                                     // Store source tag actions. Steam exposes verify/update/workshop;
                                     // Epic and GOG expose verify/update for installed games.

@@ -137,7 +137,7 @@
 
         <activity
             android:name="com.winlator.cmod.feature.retro.RetroAchievementsActivity"
-            android:theme="@style/AppThemeFullscreen"
+            android:theme="@style/AppThemeTranslucent"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation"
             android:exported="false" />
 

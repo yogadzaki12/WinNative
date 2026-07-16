@@ -1070,6 +1070,15 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="settings_debug_wine_debug_channel">Wine Debug Channel</string>
     <string name="settings_debug_title">Debug</string>
     <string name="settings_retro_title">Retro</string>
+    <string name="retro_save_transfer_title">Transfer Save</string>
+    <string name="retro_save_transfer_message">Import a local save file to this game, or export this game\'s current save.</string>
+    <string name="retro_save_transfer_import">Import Save</string>
+    <string name="retro_save_transfer_export">Export Save</string>
+    <string name="retro_save_transfer_import_ok">Save imported</string>
+    <string name="retro_save_transfer_import_failed">Could not import save</string>
+    <string name="retro_save_transfer_export_ok">Save exported</string>
+    <string name="retro_save_transfer_export_failed">Could not export save</string>
+    <string name="retro_save_transfer_none">No save exists yet for this game</string>
     <string name="settings_debug_wine_logs_title">Enable Wine Debug Logs</string>
     <string name="settings_debug_wine_logs_subtitle">Write Wine debug output to file</string>
     <string name="settings_debug_box_logs_title">Enable Box86/64 Logs</string>
