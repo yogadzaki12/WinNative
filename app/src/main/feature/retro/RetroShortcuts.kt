@@ -35,6 +35,20 @@ object RetroShortcuts {
         return vars
     }
 
+    fun resolvedCoreVariables(
+        context: Context,
+        shortcut: Shortcut,
+    ): HashMap<String, String> {
+        val vars = coreVariables(shortcut)
+        val system = systemForShortcut(shortcut) ?: return vars
+        RetroCoreOptions.forSystem(system).forEach { option ->
+            if (!vars.containsKey(option.key)) {
+                vars[option.key] = RetroDefaults.coreOption(context, system.id, option.key, option.defaultValue)
+            }
+        }
+        return vars
+    }
+
     @JvmStatic
     fun isRetroShortcut(shortcut: Shortcut): Boolean = shortcut.getExtra(KEY_SYSTEM).isNotEmpty()
 
@@ -87,17 +101,36 @@ object RetroShortcuts {
         shortcut: Shortcut,
     ): Intent =
         Intent(context, RetroActivity::class.java).apply {
+            val sysId = shortcut.getExtra(KEY_SYSTEM)
             putExtra(RetroActivity.EXTRA_ROM_PATH, shortcut.getExtra(KEY_ROM))
-            putExtra(RetroActivity.EXTRA_SYSTEM_ID, shortcut.getExtra(KEY_SYSTEM))
+            putExtra(RetroActivity.EXTRA_SYSTEM_ID, sysId)
             putExtra(RetroActivity.EXTRA_GAME_NAME, shortcut.getExtra("custom_name", shortcut.name))
             putExtra(RetroActivity.EXTRA_SHORTCUT_PATH, shortcut.file.absolutePath)
             putExtra(RetroActivity.EXTRA_CONTAINER_ID, shortcut.container.id)
-            putExtra(RetroActivity.EXTRA_SHADER, shortcut.getExtra(KEY_SHADER, "default"))
-            putExtra(RetroActivity.EXTRA_UPSCALE, shortcut.getExtra(KEY_UPSCALE, "native"))
-            putExtra(RetroActivity.EXTRA_SGSR, shortcut.getExtra(KEY_SGSR, "0") == "1")
-            putExtra(RetroActivity.EXTRA_TOUCH_CONTROLS, shortcut.getExtra(KEY_TOUCH_CONTROLS, "1") != "0")
-            putExtra(RetroActivity.EXTRA_AUDIO, shortcut.getExtra(KEY_AUDIO, "1") != "0")
-            putExtra(RetroActivity.EXTRA_HUD, shortcut.getExtra(KEY_HUD, "0") == "1")
-            putExtra(RetroActivity.EXTRA_VARIABLES, coreVariables(shortcut))
+            putExtra(
+                RetroActivity.EXTRA_SHADER,
+                shortcut.getExtra(KEY_SHADER).ifEmpty { RetroDefaults.shader(context, sysId) },
+            )
+            putExtra(
+                RetroActivity.EXTRA_UPSCALE,
+                shortcut.getExtra(KEY_UPSCALE).ifEmpty { RetroDefaults.upscale(context, sysId) },
+            )
+            putExtra(
+                RetroActivity.EXTRA_SGSR,
+                shortcut.getExtra(KEY_SGSR).ifEmpty { if (RetroDefaults.sgsr(context, sysId)) "1" else "0" } == "1",
+            )
+            putExtra(
+                RetroActivity.EXTRA_TOUCH_CONTROLS,
+                shortcut.getExtra(KEY_TOUCH_CONTROLS).ifEmpty { if (RetroDefaults.touchControls(context, sysId)) "1" else "0" } != "0",
+            )
+            putExtra(
+                RetroActivity.EXTRA_AUDIO,
+                shortcut.getExtra(KEY_AUDIO).ifEmpty { if (RetroDefaults.audio(context, sysId)) "1" else "0" } != "0",
+            )
+            putExtra(
+                RetroActivity.EXTRA_HUD,
+                shortcut.getExtra(KEY_HUD).ifEmpty { if (RetroDefaults.hud(context, sysId)) "1" else "0" } == "1",
+            )
+            putExtra(RetroActivity.EXTRA_VARIABLES, resolvedCoreVariables(context, shortcut))
         }
 }

@@ -36,7 +36,7 @@ class RetroSettingsDialog(
     private val activity: Activity,
     private val shortcut: Shortcut,
 ) {
-    private val state = RetroSettingsState(shortcut)
+    private val state = RetroSettingsState(shortcut, activity)
     private val nav = GameSettingsNav()
     private var restorePaneNav: (() -> Unit)? = null
     private var pendingArtworkSlot = LibraryShortcutArtwork.LibraryArtworkSlot.GAME_CARD
@@ -47,6 +47,23 @@ class RetroSettingsDialog(
             ActivityResultContracts.OpenDocument(),
         ) { uri: Uri? ->
             if (uri != null) saveSelectedArtwork(uri)
+        }
+
+    private val biosPickerLauncher: ActivityResultLauncher<Array<String>>? =
+        (activity as? ComponentActivity)?.activityResultRegistry?.register(
+            "retro_bios_picker",
+            ActivityResultContracts.OpenDocument(),
+        ) { uri: Uri? ->
+            if (uri != null) {
+                RetroBiosImport.importFromUri(activity, uri)
+                    .onSuccess {
+                        Toast.makeText(activity, "BIOS imported: $it", Toast.LENGTH_SHORT).show()
+                        state.biosRefresh++
+                    }
+                    .onFailure {
+                        Toast.makeText(activity, it.message ?: "Invalid BIOS file", Toast.LENGTH_LONG).show()
+                    }
+            }
         }
 
     private fun saveSelectedArtwork(uri: Uri) {
@@ -126,6 +143,7 @@ class RetroSettingsDialog(
                                     artworkPickerLauncher?.launch(arrayOf("image/*"))
                                 },
                                 onRemoveArtwork = { slot -> clearArtwork(slot) },
+                                onImportBios = { biosPickerLauncher?.launch(arrayOf("*/*")) },
                                 onSave = {
                                     state.save()
                                     dialog.dismiss()

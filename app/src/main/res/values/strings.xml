@@ -1069,6 +1069,7 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <!-- Settings > Debug -->
     <string name="settings_debug_wine_debug_channel">Wine Debug Channel</string>
     <string name="settings_debug_title">Debug</string>
+    <string name="settings_retro_title">Retro</string>
     <string name="settings_debug_wine_logs_title">Enable Wine Debug Logs</string>
     <string name="settings_debug_wine_logs_subtitle">Write Wine debug output to file</string>
     <string name="settings_debug_box_logs_title">Enable Box86/64 Logs</string>

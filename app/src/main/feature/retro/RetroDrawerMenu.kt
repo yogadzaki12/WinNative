@@ -49,6 +49,7 @@ import androidx.compose.material.icons.outlined.Album
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.FastForward
 import androidx.compose.material.icons.outlined.Monitor
 import androidx.compose.material.icons.outlined.Pause
@@ -1689,5 +1690,6 @@ object RetroDrawerIcons {
     val FastForward = Icons.Outlined.FastForward
     val Disc = Icons.Outlined.Album
     val Hud = Icons.Outlined.Speed
+    val Achievements = Icons.Outlined.EmojiEvents
     val Exit = Icons.AutoMirrored.Outlined.ExitToApp
 }

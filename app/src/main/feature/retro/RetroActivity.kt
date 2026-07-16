@@ -95,11 +95,27 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
     private var hudFrametimeNumeric = false
     private var hudDualBattery = false
     private var frameRating: FrameRating? = null
+    private val biosPicker =
+        registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) {
+                RetroBiosImport.importFromUri(this, uri)
+                    .onSuccess {
+                        Toast.makeText(this, "BIOS imported: $it", Toast.LENGTH_SHORT).show()
+                        recreate()
+                    }
+                    .onFailure {
+                        Toast.makeText(this, it.message ?: "Invalid BIOS file", Toast.LENGTH_LONG).show()
+                    }
+            } else {
+                finish()
+            }
+        }
     private var rootLayout: FrameLayout? = null
     private var menuComposeView: ComposeView? = null
     private var surfaceReady = false
     private var customColors = RetroCustomColors()
     private var savesLoadMode = false
+    private var achievementsSessionStarted = false
     private var cloudSyncEnabled = false
     private var cloudBackupLaunched = false
     private var conflictChecked = false
@@ -201,6 +217,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         emulationPaused = true
         retroView.onPause()
         LibretroDroid.pause()
+        RetroAchievementsManager.idle()
     }
 
     private fun resumeEmulation() {
@@ -208,6 +225,26 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         emulationPaused = false
         LibretroDroid.resume()
         retroView.onResume()
+    }
+
+    private fun startAchievementsSession() {
+        if (achievementsSessionStarted) return
+        val sys = system ?: return
+        val rom = intent.getStringExtra(EXTRA_ROM_PATH) ?: return
+        if (!RetroAchievementsManager.isEnabled(this) || !RetroAchievementsManager.isLoggedIn(this)) return
+        achievementsSessionStarted = true
+        RetroAchievementsManager.unlockListener = { unlock ->
+            runOnUiThread { showAchievementUnlock(unlock) }
+        }
+        RetroAchievementsManager.resetListener = {
+            runOnUiThread { if (retroReady) retroView.reset() }
+        }
+        RetroAchievementsManager.startSession(this, sys.id, rom)
+    }
+
+    private fun showAchievementUnlock(unlock: RetroUnlock) {
+        val text = "🏆 ${unlock.title}  (+${unlock.points})"
+        Toast.makeText(this, text, Toast.LENGTH_LONG).show()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -245,11 +282,8 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         }
 
         if (RetroCoreManager.missingBios(this, resolvedSystem)) {
-            Toast.makeText(
-                this,
-                "${resolvedSystem.shortName} needs a BIOS in ${RetroCoreManager.systemDir(this)}",
-                Toast.LENGTH_LONG,
-            ).show()
+            showBiosRequiredDialog(resolvedSystem)
+            return
         }
 
         if (resolvedSystem.id == RetroSystems.N64.id) RetroCoreManager.ensureGlideN64Ini(this)
@@ -576,6 +610,11 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
 
     override fun onDestroy() {
         inputManager?.unregisterInputDeviceListener(inputDeviceListener)
+        if (achievementsSessionStarted) {
+            RetroAchievementsManager.unlockListener = null
+            RetroAchievementsManager.resetListener = null
+            RetroAchievementsManager.endSession()
+        }
         super.onDestroy()
     }
 
@@ -730,6 +769,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                                 currentDisk = retroView.getCurrentDisk()
                             }
                         }
+                        startAchievementsSession()
                     }
                 }
             }.launchIn(lifecycleScope)
@@ -1053,6 +1093,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
 
     private fun buildMainEntries(): List<RetroMenuEntry> {
         val entries = mutableListOf<RetroMenuEntry>()
+        val hardcoreActive = achievementsSessionStarted && RetroAchievementsManager.isHardcoreActive()
         entries +=
             RetroMenuEntry.Action("Save State", RetroDrawerIcons.Save) {
                 savesLoadMode = false
@@ -1060,19 +1101,35 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             }
         entries +=
             RetroMenuEntry.Action("Load Save State", RetroDrawerIcons.Load) {
-                savesLoadMode = true
-                menu.showPane(RetroPane.SAVES)
+                if (hardcoreActive) {
+                    Toast.makeText(this, "Loading states is disabled in Hardcore mode", Toast.LENGTH_SHORT).show()
+                } else {
+                    savesLoadMode = true
+                    menu.showPane(RetroPane.SAVES)
+                }
             }
+        if (RetroAchievementsManager.isLoggedIn(this) && RetroAchievementsManager.consoleId(system?.id) != 0) {
+            entries +=
+                RetroMenuEntry.Action("Achievements", RetroDrawerIcons.Achievements) {
+                    menu.close()
+                    openAchievementsScreen()
+                }
+        }
         entries +=
             RetroMenuEntry.Action("Reset", RetroDrawerIcons.Reset) {
                 menu.close()
                 retroView.reset()
+                RetroAchievementsManager.onEmulatorReset()
             }
         entries +=
             RetroMenuEntry.Action("Fast Forward", RetroDrawerIcons.FastForward, active = fastForward) {
-                fastForward = !fastForward
-                retroView.frameSpeed = if (fastForward) 2 else 1
-                menu.rebuild()
+                if (hardcoreActive) {
+                    Toast.makeText(this, "Fast forward is disabled in Hardcore mode", Toast.LENGTH_SHORT).show()
+                } else {
+                    fastForward = !fastForward
+                    retroView.frameSpeed = if (fastForward) 2 else 1
+                    menu.rebuild()
+                }
             }
         entries +=
             RetroMenuEntry.Action("HUD", RetroDrawerIcons.Hud, active = hudVisible) {
@@ -1279,7 +1336,40 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         }
     }
 
+    private fun showBiosRequiredDialog(system: RetroSystem) {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("${system.shortName} BIOS required")
+            .setMessage(
+                "PlayStation games need a real console BIOS file that you must provide. " +
+                    "Import a BIOS (scph5501.bin, scph5500.bin, scph5502.bin, scph1001.bin or scph7001.bin) to continue.",
+            )
+            .setCancelable(false)
+            .setPositiveButton("Import BIOS…") { _, _ ->
+                runCatching { biosPicker.launch(arrayOf("*/*")) }
+                    .onFailure { finish() }
+            }
+            .setNegativeButton("Cancel") { _, _ -> finish() }
+            .show()
+    }
+
+    private fun openAchievementsScreen() {
+        val sys = system ?: return
+        val rom = intent.getStringExtra(EXTRA_ROM_PATH) ?: return
+        startActivity(
+            android.content.Intent(this, RetroAchievementsActivity::class.java).apply {
+                putExtra(RetroAchievementsActivity.EXTRA_SYSTEM_ID, sys.id)
+                putExtra(RetroAchievementsActivity.EXTRA_GAME_NAME, gameName)
+                putExtra(RetroAchievementsActivity.EXTRA_ROM_PATH, rom)
+                putExtra(RetroAchievementsActivity.EXTRA_IN_SESSION, true)
+            },
+        )
+    }
+
     private fun loadState(slot: Int) {
+        if (achievementsSessionStarted && RetroAchievementsManager.isHardcoreActive()) {
+            Toast.makeText(this, "Loading states is disabled in Hardcore mode", Toast.LENGTH_SHORT).show()
+            return
+        }
         val bytes = RetroSaveStates.readSlot(this, gameName, slot)
         if (bytes == null) {
             Toast.makeText(this, "Slot $slot is empty", Toast.LENGTH_SHORT).show()

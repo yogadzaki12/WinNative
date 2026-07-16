@@ -73,6 +73,9 @@ public:
     std::pair<int8_t *, size_t> serializeSRAM();
     jboolean unserializeSRAM(int8_t *data, size_t size);
 
+    size_t coreMemorySize(unsigned id);
+    void* coreMemoryData(unsigned id);
+
     void onSurfaceCreated();
     void onSurfaceChanged(unsigned int width, unsigned int height);
 

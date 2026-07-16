@@ -94,10 +94,10 @@ object RetroSystems {
             id = "psx",
             displayName = "Sony PlayStation",
             shortName = "PS1",
-            coreFileName = "libpcsx_rearmed_libretro_android.so",
+            coreFileName = "libswanstation_libretro_android.so",
             extensions = setOf("cue", "chd", "pbp", "m3u", "iso"),
-            needsBios = false,
-            biosFiles = listOf("scph5501.bin", "scph5500.bin", "scph5502.bin", "scph1001.bin"),
+            needsBios = true,
+            biosFiles = listOf("scph5501.bin", "scph5500.bin", "scph5502.bin", "scph1001.bin", "scph7001.bin"),
         )
 
     val ALL =

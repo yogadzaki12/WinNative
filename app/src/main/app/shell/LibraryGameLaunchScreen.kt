@@ -832,6 +832,7 @@ private fun SourceTag(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     var anchorHeightPx by remember { mutableStateOf(0) }
+    val menuInteractive = menuEnabled || showAchievements
     Box {
         Surface(
             color = Color.White.copy(alpha = 0.1f),
@@ -840,7 +841,7 @@ private fun SourceTag(
             modifier =
                 Modifier
                     .onSizeChanged { anchorHeightPx = it.height }
-                    .then(if (menuEnabled) Modifier.clickable { menuOpen = true } else Modifier),
+                    .then(if (menuInteractive) Modifier.clickable { menuOpen = true } else Modifier),
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -861,7 +862,7 @@ private fun SourceTag(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (menuEnabled) {
+                if (menuInteractive) {
                     Icon(
                         Icons.Outlined.ArrowDropDown,
                         contentDescription = stringResource(R.string.store_game_steam_options),
@@ -871,28 +872,28 @@ private fun SourceTag(
                 }
             }
         }
-        if (menuEnabled) {
+        if (menuInteractive) {
             val gapPx = with(LocalDensity.current) { 6.dp.roundToPx() }
             LaunchSourceActionPopup(
                 expanded = menuOpen,
                 onDismissRequest = { menuOpen = false },
                 offset = IntOffset(0, anchorHeightPx + gapPx),
             ) {
-                if (showVerifyFiles) {
+                if (menuEnabled && showVerifyFiles) {
                     LaunchSourceMenuItem(
                         icon = Icons.AutoMirrored.Outlined.FactCheck,
                         label = stringResource(R.string.store_game_verify_files),
                         enabled = areSteamActionsEnabled,
                     ) { menuOpen = false; onVerifyFiles() }
                 }
-                if (showCheckForUpdate) {
+                if (menuEnabled && showCheckForUpdate) {
                     LaunchSourceMenuItem(
                         icon = Icons.Outlined.Refresh,
                         label = stringResource(R.string.store_game_check_for_update),
                         enabled = areSteamActionsEnabled,
                     ) { menuOpen = false; onCheckForUpdate() }
                 }
-                if (showWorkshop) {
+                if (menuEnabled && showWorkshop) {
                     LaunchSourceMenuItem(
                         icon = Icons.Outlined.Construction,
                         label = stringResource(R.string.store_game_workshop),

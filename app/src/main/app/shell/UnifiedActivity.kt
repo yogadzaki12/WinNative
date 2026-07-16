@@ -5739,6 +5739,7 @@ class UnifiedActivity :
         val epicId = if (isEpic) app.id - 2000000000 else 0
 
         var retroSystemId by remember(app.id) { mutableStateOf<String?>(null) }
+        var retroRomPath by remember(app.id) { mutableStateOf<String?>(null) }
         LaunchedEffect(app.id, isCustom) {
             if (isCustom) {
                 withContext(Dispatchers.IO) {
@@ -5747,9 +5748,19 @@ class UnifiedActivity :
                         sc
                             ?.getExtra(com.winlator.cmod.feature.retro.RetroShortcuts.KEY_SYSTEM)
                             ?.takeIf { it.isNotEmpty() }
+                    retroRomPath =
+                        sc
+                            ?.getExtra(com.winlator.cmod.feature.retro.RetroShortcuts.KEY_ROM)
+                            ?.takeIf { it.isNotEmpty() }
+                }
+                val sid = retroSystemId
+                val rp = retroRomPath
+                if (sid != null && rp != null) {
+                    com.winlator.cmod.feature.retro.RetroAchievementsManager.prefetch(context, sid, rp)
                 }
             } else {
                 retroSystemId = null
+                retroRomPath = null
             }
         }
         val isRetro = retroSystemId != null
@@ -6441,9 +6452,35 @@ class UnifiedActivity :
                                             )
                                         }
                                     },
-                                    onAchievements = if (!isCustom && !isEpic && !isGog) {
-                                        { showAchievements = true }
-                                    } else null,
+                                    onAchievements = when {
+                                        isRetro -> {
+                                            val sysId = retroSystemId
+                                            val rom = retroRomPath
+                                            if (sysId != null && rom != null &&
+                                                com.winlator.cmod.feature.retro.RetroAchievementsManager.consoleId(sysId) != 0
+                                            ) {
+                                                {
+                                                    context.startActivity(
+                                                        android.content.Intent(
+                                                            context,
+                                                            com.winlator.cmod.feature.retro.RetroAchievementsActivity::class.java,
+                                                        ).apply {
+                                                            putExtra(com.winlator.cmod.feature.retro.RetroAchievementsActivity.EXTRA_SYSTEM_ID, sysId)
+                                                            putExtra(com.winlator.cmod.feature.retro.RetroAchievementsActivity.EXTRA_ROM_PATH, rom)
+                                                            putExtra(com.winlator.cmod.feature.retro.RetroAchievementsActivity.EXTRA_GAME_NAME, app.name)
+                                                            putExtra(com.winlator.cmod.feature.retro.RetroAchievementsActivity.EXTRA_IN_SESSION, false)
+                                                        },
+                                                    )
+                                                }
+                                            } else {
+                                                null
+                                            }
+                                        }
+                                        !isCustom && !isEpic && !isGog -> {
+                                            { showAchievements = true }
+                                        }
+                                        else -> null
+                                    },
                                     onShortcut = {
                                         if (hasPinnedShortcut) {
                                             heroPopup = HeroLaunchPopup.RemoveShortcut

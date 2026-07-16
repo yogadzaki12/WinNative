@@ -319,6 +319,9 @@ class GLRetroView(
         override fun onDrawFrame(gl: GL10) = catchExceptions {
             if (isEmulationReady) {
                 val newFrame = LibretroDroid.step(this@GLRetroView)
+                if (RetroAchievements.active) {
+                    RetroAchievements.INSTANCE.nativeDoFrame()
+                }
                 if (newFrame) {
                     lifecycle?.coroutineScope?.launch {
                         retroGLEventsSubject.emit(GLRetroEvents.FrameRendered)

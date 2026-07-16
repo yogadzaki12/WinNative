@@ -102,40 +102,63 @@ private val UPSCALE_LABELS = listOf("2x", "4x", "Native")
 
 class RetroSettingsState(
     val shortcut: Shortcut,
+    private val context: android.content.Context? = null,
 ) {
     val system: RetroSystem? = RetroShortcuts.systemForShortcut(shortcut)
     val coreOptions: List<RetroCoreOption> = RetroCoreOptions.forSystem(system)
     val name: String = shortcut.getExtra("custom_name", shortcut.name)
     val romPath: String = shortcut.getExtra(RetroShortcuts.KEY_ROM)
 
+    private val sysId: String? = system?.id
+
     var shader by mutableStateOf(
-        shortcut.getExtra(RetroShortcuts.KEY_SHADER, "default").lowercase().let {
-            if (it in SHADER_KEYS) it else "default"
-        },
+        shortcut.getExtra(RetroShortcuts.KEY_SHADER)
+            .ifEmpty { if (context != null && sysId != null) RetroDefaults.shader(context, sysId) else "default" }
+            .lowercase().let { if (it in SHADER_KEYS) it else "default" },
     )
     var sgsr by mutableStateOf(
-        shortcut.getExtra(RetroShortcuts.KEY_SGSR, "0") == "1" ||
-            shortcut.getExtra(RetroShortcuts.KEY_SHADER, "default").lowercase() == "sgsr",
-    )
-    var upscale by mutableStateOf(
-        shortcut.getExtra(RetroShortcuts.KEY_UPSCALE, "native").lowercase().let {
-            if (it in UPSCALE_KEYS) it else "native"
+        when {
+            shortcut.getExtra(RetroShortcuts.KEY_SGSR).isNotEmpty() -> shortcut.getExtra(RetroShortcuts.KEY_SGSR) == "1"
+            shortcut.getExtra(RetroShortcuts.KEY_SHADER, "default").lowercase() == "sgsr" -> true
+            context != null && sysId != null -> RetroDefaults.sgsr(context, sysId)
+            else -> false
         },
     )
-    var touchControls by mutableStateOf(shortcut.getExtra(RetroShortcuts.KEY_TOUCH_CONTROLS, "1") != "0")
-    var audio by mutableStateOf(shortcut.getExtra(RetroShortcuts.KEY_AUDIO, "1") != "0")
-    var hud by mutableStateOf(shortcut.getExtra(RetroShortcuts.KEY_HUD, "0") == "1")
+    var upscale by mutableStateOf(
+        shortcut.getExtra(RetroShortcuts.KEY_UPSCALE)
+            .ifEmpty { if (context != null && sysId != null) RetroDefaults.upscale(context, sysId) else "native" }
+            .lowercase().let { if (it in UPSCALE_KEYS) it else "native" },
+    )
+    var touchControls by mutableStateOf(
+        shortcut.getExtra(RetroShortcuts.KEY_TOUCH_CONTROLS)
+            .ifEmpty { if (context != null && sysId != null) (if (RetroDefaults.touchControls(context, sysId)) "1" else "0") else "1" } != "0",
+    )
+    var audio by mutableStateOf(
+        shortcut.getExtra(RetroShortcuts.KEY_AUDIO)
+            .ifEmpty { if (context != null && sysId != null) (if (RetroDefaults.audio(context, sysId)) "1" else "0") else "1" } != "0",
+    )
+    var hud by mutableStateOf(
+        shortcut.getExtra(RetroShortcuts.KEY_HUD)
+            .ifEmpty { if (context != null && sysId != null) (if (RetroDefaults.hud(context, sysId)) "1" else "0") else "0" } == "1",
+    )
     val optionValues =
         mutableStateMapOf<String, String>().apply {
             coreOptions.forEach { option ->
                 put(
                     option.key,
-                    shortcut.getExtra(RetroShortcuts.VAR_PREFIX + option.key).ifEmpty { option.defaultValue },
+                    shortcut.getExtra(RetroShortcuts.VAR_PREFIX + option.key).ifEmpty {
+                        if (context != null && sysId != null) {
+                            RetroDefaults.coreOption(context, sysId, option.key, option.defaultValue)
+                        } else {
+                            option.defaultValue
+                        }
+                    },
                 )
             }
         }
     val artworkSelected = mutableStateMapOf<LibraryShortcutArtwork.LibraryArtworkSlot, Boolean>()
     var currentSection by mutableIntStateOf(0)
+    var biosRefresh by mutableIntStateOf(0)
 
     init {
         syncArtwork()
@@ -185,6 +208,7 @@ fun RetroGameSettingsContent(
     nav: GameSettingsNav? = null,
     onPickArtwork: ((LibraryShortcutArtwork.LibraryArtworkSlot) -> Unit)? = null,
     onRemoveArtwork: ((LibraryShortcutArtwork.LibraryArtworkSlot) -> Unit)? = null,
+    onImportBios: (() -> Unit)? = null,
     onSave: () -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -233,6 +257,7 @@ fun RetroGameSettingsContent(
                     nav = nav,
                     onPickArtwork = onPickArtwork,
                     onRemoveArtwork = onRemoveArtwork,
+                    onImportBios = onImportBios,
                 )
             }
         }
@@ -246,6 +271,7 @@ private fun RetroSectionContent(
     nav: GameSettingsNav? = null,
     onPickArtwork: ((LibraryShortcutArtwork.LibraryArtworkSlot) -> Unit)? = null,
     onRemoveArtwork: ((LibraryShortcutArtwork.LibraryArtworkSlot) -> Unit)? = null,
+    onImportBios: (() -> Unit)? = null,
 ) {
     AnimatedContent(
         targetState = sectionIndex,
@@ -292,7 +318,7 @@ private fun RetroSectionContent(
                         .padding(horizontal = 20.dp, vertical = 14.dp),
             ) {
                 when (idx) {
-                    0 -> RetroGeneralSection(state, onPickArtwork, onRemoveArtwork)
+                    0 -> RetroGeneralSection(state, onPickArtwork, onRemoveArtwork, onImportBios)
                     1 -> RetroGraphicsSection(state)
                     2 -> RetroInputSection(state)
                     else -> RetroAudioSection(state)
@@ -488,7 +514,7 @@ private fun RetroSidebarItem(
 }
 
 @Composable
-private fun RetroSettingGroup(content: @Composable () -> Unit) {
+internal fun RetroSettingGroup(content: @Composable () -> Unit) {
     Column(
         modifier =
             Modifier
@@ -503,7 +529,7 @@ private fun RetroSettingGroup(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun RetroGroupTitle(text: String) {
+internal fun RetroGroupTitle(text: String) {
     Text(
         text = text,
         color = TextSecondary,
@@ -515,7 +541,7 @@ private fun RetroGroupTitle(text: String) {
 }
 
 @Composable
-private fun RetroInfoRow(
+internal fun RetroInfoRow(
     label: String,
     value: String,
 ) {
@@ -539,7 +565,7 @@ private fun RetroInfoRow(
 }
 
 @Composable
-private fun RetroSettingDropdown(
+internal fun RetroSettingDropdown(
     label: String,
     entries: List<String>,
     selectedIndex: Int,
@@ -648,7 +674,7 @@ private fun RetroSettingDropdown(
 }
 
 @Composable
-private fun RetroSettingSwitch(
+internal fun RetroSettingSwitch(
     label: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
@@ -690,6 +716,7 @@ private fun RetroGeneralSection(
     state: RetroSettingsState,
     onPickArtwork: ((LibraryShortcutArtwork.LibraryArtworkSlot) -> Unit)? = null,
     onRemoveArtwork: ((LibraryShortcutArtwork.LibraryArtworkSlot) -> Unit)? = null,
+    onImportBios: (() -> Unit)? = null,
 ) {
     RetroSettingGroup {
         RetroGroupTitle("GAME")
@@ -697,6 +724,26 @@ private fun RetroGeneralSection(
         RetroInfoRow("System", state.system?.displayName ?: "")
         RetroInfoRow("Emulator Core", state.system?.coreFileName ?: "")
         RetroInfoRow("ROM Path", state.romPath)
+    }
+    if (state.system?.needsBios == true && onImportBios != null) {
+        val context = androidx.compose.ui.platform.LocalContext.current
+        Spacer(Modifier.height(ItemGap))
+        RetroSettingGroup {
+            RetroGroupTitle("${state.system.shortName.uppercase()} BIOS")
+            state.biosRefresh
+            val dir = RetroCoreManager.systemDir(context)
+            val installed = state.system.biosFiles.filter { java.io.File(dir, it).isFile }
+            RetroInfoRow(
+                "Installed",
+                if (installed.isEmpty()) "None — required to run ${state.system.shortName} games" else installed.joinToString(", "),
+            )
+            androidx.compose.material3.Button(
+                onClick = { onImportBios() },
+                modifier = Modifier.fillMaxWidth().padding(top = ItemGap),
+            ) {
+                androidx.compose.material3.Text("Import BIOS…")
+            }
+        }
     }
     if (onPickArtwork != null && onRemoveArtwork != null) {
         Spacer(Modifier.height(ItemGap))

@@ -48,6 +48,10 @@ void Environment::deinitialize() {
 
     retro_disk_control_callback = nullptr;
 
+    memoryDescriptors.clear();
+    memoryMap = {};
+    hasMemoryMap = false;
+
     savesDirectory = std::string();
     systemDirectory = std::string();
     language = RETRO_LANGUAGE_ENGLISH;
@@ -303,6 +307,15 @@ bool Environment::handle_callback_environment(unsigned cmd, void *data) {
             LOGD("Called RETRO_ENVIRONMENT_GET_PERF_INTERFACE");
             return false;
 
+        case RETRO_ENVIRONMENT_SET_MEMORY_MAPS: {
+            auto *received = static_cast<const struct retro_memory_map *>(data);
+            memoryDescriptors.assign(received->descriptors, received->descriptors + received->num_descriptors);
+            memoryMap.descriptors = memoryDescriptors.data();
+            memoryMap.num_descriptors = static_cast<unsigned>(memoryDescriptors.size());
+            hasMemoryMap = !memoryDescriptors.empty();
+            return true;
+        }
+
             // TODO... RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO can also change frame-rate
         case RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO:
         case RETRO_ENVIRONMENT_SET_GEOMETRY: {
@@ -377,6 +390,10 @@ retro_hw_context_reset_t Environment::getHwContextDestroy() const {
 
 struct retro_disk_control_callback* Environment::getRetroDiskControlCallback() const {
     return retro_disk_control_callback;
+}
+
+const struct retro_memory_map* Environment::getMemoryMap() const {
+    return hasMemoryMap ? &memoryMap : nullptr;
 }
 
 int Environment::getPixelFormat() const {
