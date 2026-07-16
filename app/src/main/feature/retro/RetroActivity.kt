@@ -95,6 +95,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
     private var rootLayout: FrameLayout? = null
     private var menuComposeView: ComposeView? = null
     private var surfaceReady = false
+    private var customColors = RetroCustomColors()
 
     private val isPortrait: Boolean
         get() = resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
@@ -107,37 +108,44 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 else -> 4f / 3f
             }
 
-    private fun applyDisplayGeometry() {
-        if (!surfaceReady || !retroReady) return
-        retroView.viewportAlignment = if (isPortrait) ViewportAlignment.TOP else ViewportAlignment.CENTER
+    private fun overlayPush(): Float {
         val rating = frameRating
+        val rootHeight = rootLayout?.height ?: 0
+        return if (isPortrait && hudVisible && rating != null &&
+            rating.visibility == View.VISIBLE && rating.height > 0 && rootHeight > 0
+        ) {
+            ((rating.y + rating.height + rating.height * 0.15f) / rootHeight).coerceIn(0f, 0.3f)
+        } else {
+            0f
+        }
+    }
+
+    private fun updateOverlayArea() {
         val rootWidth = rootLayout?.width ?: 0
         val rootHeight = rootLayout?.height ?: 0
-        val push =
-            if (isPortrait && hudVisible && rating != null &&
-                rating.visibility == View.VISIBLE && rating.height > 0 && rootHeight > 0
-            ) {
-                ((rating.y + rating.height + rating.height * 0.15f) / rootHeight).coerceIn(0f, 0.3f)
+        if (rootWidth <= 0 || rootHeight <= 0) return
+        val push = overlayPush()
+        val area =
+            if (isPortrait) {
+                val top = push * rootHeight
+                val gameHeight = rootWidth / gameAspect
+                RectF(0f, top, rootWidth.toFloat(), (top + gameHeight).coerceAtMost(rootHeight.toFloat()))
             } else {
-                0f
+                val availHeight = rootHeight * (1f - push)
+                val gameWidth = (availHeight * gameAspect).coerceAtMost(rootWidth.toFloat())
+                val left = (rootWidth - gameWidth) * 0.5f
+                val gameHeight = gameWidth / gameAspect
+                val top = push * rootHeight + (availHeight - gameHeight) * 0.5f
+                RectF(left, top, left + gameWidth, top + gameHeight)
             }
-        retroView.viewport = RectF(0f, push, 1f, 1f)
-        if (rootWidth > 0 && rootHeight > 0) {
-            val area =
-                if (isPortrait) {
-                    val top = push * rootHeight
-                    val gameHeight = rootWidth / gameAspect
-                    RectF(0f, top, rootWidth.toFloat(), (top + gameHeight).coerceAtMost(rootHeight.toFloat()))
-                } else {
-                    val availHeight = rootHeight * (1f - push)
-                    val gameWidth = (availHeight * gameAspect).coerceAtMost(rootWidth.toFloat())
-                    val left = (rootWidth - gameWidth) * 0.5f
-                    val gameHeight = gameWidth / gameAspect
-                    val top = push * rootHeight + (availHeight - gameHeight) * 0.5f
-                    RectF(left, top, left + gameWidth, top + gameHeight)
-                }
-            overlay?.setGameArea(area)
-        }
+        overlay?.setGameArea(area)
+    }
+
+    private fun applyDisplayGeometry() {
+        updateOverlayArea()
+        if (!surfaceReady || !retroReady) return
+        retroView.viewportAlignment = if (isPortrait) ViewportAlignment.TOP else ViewportAlignment.CENTER
+        retroView.viewport = RectF(0f, overlayPush(), 1f, 1f)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -173,7 +181,11 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
 
     private fun updateOverlayVisibility() {
         overlay?.visibility =
-            if (touchControlsSetting && !controllerConnected) View.VISIBLE else View.GONE
+            if (overlay?.editMode == true || (touchControlsSetting && !controllerConnected)) {
+                View.VISIBLE
+            } else {
+                View.GONE
+            }
     }
 
     private fun pauseEmulation() {
@@ -260,6 +272,16 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             androidx.preference.PreferenceManager
                 .getDefaultSharedPreferences(this)
                 .getFloat("retro_haptic_strength", 0.4f)
+        customColors = RetroControlLayouts.loadColors(this, resolvedSystem.id)
+        inputView.setCustomColors(customColors)
+        inputView.onEditStateChanged = { editing ->
+            runOnUiThread {
+                frameRating?.visibility =
+                    if (!editing && hudVisible) View.VISIBLE else View.GONE
+                updateOverlayVisibility()
+                menu.rebuild()
+            }
+        }
         overlay = inputView
         root.addView(
             inputView,
@@ -268,6 +290,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 FrameLayout.LayoutParams.MATCH_PARENT,
             ),
         )
+        root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateOverlayArea() }
 
         menu.entriesProvider = { pane -> buildEntriesFor(pane) }
         menu.bottomProvider = { buildBottomEntries() }
@@ -305,7 +328,9 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             this,
             object : androidx.activity.OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
-                    if (menu.visible) {
+                    if (overlay?.editMode == true) {
+                        overlay?.finishEdit()
+                    } else if (menu.visible) {
                         menu.handleKey(KeyEvent.KEYCODE_BACK, KeyEvent.ACTION_UP)
                     } else {
                         openMenu()
@@ -671,33 +696,93 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                         menu.rebuild()
                     },
                 )
-            RetroPane.CONTROLS ->
-                listOf(
-                    RetroMenuEntry.Toggle("On-screen Controls", checked = touchControlsSetting) { value ->
-                        touchControlsSetting = value
-                        updateOverlayVisibility()
-                        persistExtra(RetroShortcuts.KEY_TOUCH_CONTROLS, if (value) "1" else "0")
-                        menu.rebuild()
-                    },
-                    RetroMenuEntry.Slider(
-                        label = "Haptic Feedback",
-                        valueText =
-                            overlay?.hapticStrength?.let { "${(it * 100).toInt()}%" } ?: "0%",
-                        value = overlay?.hapticStrength ?: 0f,
-                        min = 0f,
-                        max = 1f,
-                        step = 0.05f,
-                    ) { value ->
-                        overlay?.hapticStrength = value
-                        androidx.preference.PreferenceManager
-                            .getDefaultSharedPreferences(this)
-                            .edit()
-                            .putFloat("retro_haptic_strength", value)
-                            .apply()
-                        menu.rebuild()
-                    },
-                )
+            RetroPane.CONTROLS -> buildControlsEntries()
             RetroPane.HUD -> buildHudEntries()
+        }
+
+    private fun persistColors() {
+        RetroControlLayouts.saveColors(this, system?.id, customColors)
+        overlay?.setCustomColors(customColors)
+        menu.rebuild()
+    }
+
+    private fun buildControlsEntries(): List<RetroMenuEntry> =
+        buildList {
+            add(
+                RetroMenuEntry.Toggle("On-screen Controls", checked = touchControlsSetting) { value ->
+                    touchControlsSetting = value
+                    updateOverlayVisibility()
+                    persistExtra(RetroShortcuts.KEY_TOUCH_CONTROLS, if (value) "1" else "0")
+                    menu.rebuild()
+                },
+            )
+            add(
+                RetroMenuEntry.Slider(
+                    label = "Haptic Feedback",
+                    valueText =
+                        overlay?.hapticStrength?.let { "${(it * 100).toInt()}%" } ?: "0%",
+                    value = overlay?.hapticStrength ?: 0f,
+                    min = 0f,
+                    max = 1f,
+                    step = 0.05f,
+                ) { value ->
+                    overlay?.hapticStrength = value
+                    androidx.preference.PreferenceManager
+                        .getDefaultSharedPreferences(this@RetroActivity)
+                        .edit()
+                        .putFloat("retro_haptic_strength", value)
+                        .apply()
+                    menu.rebuild()
+                },
+            )
+            val orientationLabel =
+                if ((rootLayout?.height ?: 0) > (rootLayout?.width ?: 0)) "Portrait" else "Landscape"
+            add(
+                RetroMenuEntry.Action("Edit Layout ($orientationLabel)", RetroDrawerIcons.EditLayout) {
+                    menu.close()
+                    overlay?.let {
+                        it.visibility = View.VISIBLE
+                        it.enterEdit()
+                    }
+                },
+            )
+            add(
+                RetroMenuEntry.Action("Reset $orientationLabel Layout", RetroDrawerIcons.Reset) {
+                    overlay?.resetLayout()
+                    Toast.makeText(this@RetroActivity, "$orientationLabel layout reset", Toast.LENGTH_SHORT).show()
+                },
+            )
+            add(
+                RetroMenuEntry.ColorPick("Button Color", customColors.button) { value ->
+                    customColors.button = value
+                    persistColors()
+                },
+            )
+            add(
+                RetroMenuEntry.ColorPick("Letter Color", customColors.text) { value ->
+                    customColors.text = value
+                    persistColors()
+                },
+            )
+            add(
+                RetroMenuEntry.ColorPick("Shadow Color", customColors.shadow) { value ->
+                    customColors.shadow = value
+                    persistColors()
+                },
+            )
+            add(
+                RetroMenuEntry.ColorPick("Background Color", customColors.body) { value ->
+                    customColors.body = value
+                    persistColors()
+                },
+            )
+            add(
+                RetroMenuEntry.Action("Reset Colors", RetroDrawerIcons.Reset) {
+                    customColors = RetroCustomColors()
+                    persistColors()
+                    Toast.makeText(this@RetroActivity, "Colors reset", Toast.LENGTH_SHORT).show()
+                },
+            )
         }
 
     private fun setHudVisible(value: Boolean) {

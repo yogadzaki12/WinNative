@@ -3,6 +3,7 @@ package com.winlator.cmod.feature.retro
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.DashPathEffect
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
@@ -254,6 +255,74 @@ class RetroInputView(
     var hapticStrength = 0f
     private val vibrator: Vibrator? = context.getSystemService(Vibrator::class.java)
 
+    var editMode = false
+        private set
+    var onEditStateChanged: ((Boolean) -> Unit)? = null
+    private var customColors = RetroCustomColors()
+    private var overrides: MutableMap<String, RetroControlOverride> = mutableMapOf()
+    private var overridesLoaded = false
+    private var overridesPortrait = false
+    private var selectedId: String? = null
+    private var dragId: String? = null
+    private var dragPointerId = -1
+    private var dragOffsetX = 0f
+    private var dragOffsetY = 0f
+    private var dragActive = false
+    private var dragDownX = 0f
+    private var dragDownY = 0f
+    private var swallowInput = false
+    private var dpadVisible = true
+    private var stickVisible = true
+    private val hiddenControls = mutableListOf<Pair<String, String>>()
+    private val toolbarPills = mutableListOf<Triple<String, String, RectF>>()
+    private val trayPills = mutableListOf<Triple<String, String, RectF>>()
+
+    private val editUnit: Float
+        get() = snap * (if (height > width) 2f else 1f)
+
+    fun setCustomColors(colors: RetroCustomColors) {
+        customColors = colors
+        invalidate()
+    }
+
+    private fun cancelDrag() {
+        dragId = null
+        dragPointerId = -1
+        dragActive = false
+    }
+
+    fun enterEdit() {
+        if (editMode) return
+        releaseAll()
+        editMode = true
+        selectedId = null
+        cancelDrag()
+        onEditStateChanged?.invoke(true)
+        relayout()
+    }
+
+    fun finishEdit() {
+        if (!editMode) return
+        editMode = false
+        selectedId = null
+        cancelDrag()
+        swallowInput = true
+        saveOverrides()
+        onEditStateChanged?.invoke(false)
+        relayout()
+    }
+
+    fun resetLayout() {
+        overrides.clear()
+        RetroControlLayouts.reset(context, system?.id, height > width)
+        selectedId = null
+        relayout()
+    }
+
+    private fun saveOverrides() {
+        RetroControlLayouts.save(context, system?.id, height > width, overrides)
+    }
+
     fun setGameArea(area: RectF?) {
         if (area == gameArea) return
         gameArea = area
@@ -331,14 +400,198 @@ class RetroInputView(
         val width = width.toFloat()
         val height = height.toFloat()
         if (width <= 0f || height <= 0f) return
+        val portrait = height > width
+        if (!overridesLoaded || overridesPortrait != portrait) {
+            overrides = RetroControlLayouts.load(context, system?.id, portrait)
+            overridesLoaded = true
+            overridesPortrait = portrait
+            cancelDrag()
+        }
         buttons.clear()
         cButtons.clear()
-        if (height > width) {
+        if (portrait) {
             layoutPortrait(width, height)
         } else {
             layoutLandscape(width, height)
         }
+        applyOverrides(width, height)
+        if (editMode) layoutEditChrome(width, height)
         invalidate()
+    }
+
+    private fun idFor(button: GlassButton): String =
+        if (button === menuButton) {
+            "menu"
+        } else {
+            when (button.keyCode) {
+                KeyEvent.KEYCODE_BUTTON_A -> "btn_a"
+                KeyEvent.KEYCODE_BUTTON_B -> "btn_b"
+                KeyEvent.KEYCODE_BUTTON_X -> "btn_x"
+                KeyEvent.KEYCODE_BUTTON_Y -> "btn_y"
+                KeyEvent.KEYCODE_BUTTON_L1 -> "l1"
+                KeyEvent.KEYCODE_BUTTON_R1 -> "r1"
+                KeyEvent.KEYCODE_BUTTON_L2 -> "l2"
+                KeyEvent.KEYCODE_BUTTON_R2 -> "r2"
+                KeyEvent.KEYCODE_BUTTON_START -> "start"
+                KeyEvent.KEYCODE_BUTTON_SELECT -> "select"
+                else -> "btn_${button.keyCode}"
+            }
+        }
+
+    private fun reposition(
+        button: GlassButton,
+        o: RetroControlOverride,
+        w: Float,
+        h: Float,
+    ) {
+        val hw = button.bounds.width() * 0.5f * o.scale
+        val hh = button.bounds.height() * 0.5f * o.scale
+        button.bounds.set(o.x * w - hw, o.y * h - hh, o.x * w + hw, o.y * h + hh)
+    }
+
+    private fun applyOverrides(
+        w: Float,
+        h: Float,
+    ) {
+        dpadVisible = true
+        stickVisible = true
+        hiddenControls.clear()
+        var hideCpad = false
+        overrides.forEach { (id, o) ->
+            when (id) {
+                "dpad" ->
+                    if (!o.visible) {
+                        dpadVisible = false
+                        hiddenControls += id to "DPAD"
+                    } else {
+                        dpadCx = o.x * w
+                        dpadCy = o.y * h
+                        dpadRadius *= o.scale
+                    }
+                "stick" ->
+                    if (config.hasStick) {
+                        if (!o.visible) {
+                            stickVisible = false
+                            hiddenControls += id to "STICK"
+                        } else {
+                            stickCx = o.x * w
+                            stickCy = o.y * h
+                            stickRadius *= o.scale
+                        }
+                    }
+                "cpad" ->
+                    if (cButtons.isNotEmpty()) {
+                        if (!o.visible) {
+                            hideCpad = true
+                            hiddenControls += id to "C-PAD"
+                        } else {
+                            val cx = cButtons.map { it.bounds.centerX() }.average().toFloat()
+                            val cy = cButtons.map { it.bounds.centerY() }.average().toFloat()
+                            val nx = o.x * w
+                            val ny = o.y * h
+                            cButtons.forEach { c ->
+                                val rx = (c.bounds.centerX() - cx) * o.scale
+                                val ry = (c.bounds.centerY() - cy) * o.scale
+                                val half = c.bounds.width() * 0.5f * o.scale
+                                c.bounds.set(nx + rx - half, ny + ry - half, nx + rx + half, ny + ry + half)
+                            }
+                        }
+                    }
+                "menu" -> reposition(menuButton, o, w, h)
+                else -> {
+                    val target = buttons.firstOrNull { idFor(it) == id } ?: return@forEach
+                    if (!o.visible) {
+                        buttons.remove(target)
+                        hiddenControls += id to target.label
+                    } else {
+                        reposition(target, o, w, h)
+                    }
+                }
+            }
+        }
+        if (hideCpad) cButtons.clear()
+        if (selectedId != null && controlRect(selectedId!!) == null) selectedId = null
+    }
+
+    private fun controlRect(id: String): RectF? =
+        when (id) {
+            "dpad" ->
+                if (dpadVisible && dpadRadius > 0f) {
+                    RectF(dpadCx - dpadRadius, dpadCy - dpadRadius, dpadCx + dpadRadius, dpadCy + dpadRadius)
+                } else {
+                    null
+                }
+            "stick" ->
+                if (config.hasStick && stickVisible && stickRadius > 0f) {
+                    RectF(stickCx - stickRadius, stickCy - stickRadius, stickCx + stickRadius, stickCy + stickRadius)
+                } else {
+                    null
+                }
+            "cpad" ->
+                if (cButtons.isNotEmpty()) {
+                    RectF(
+                        cButtons.minOf { it.bounds.left },
+                        cButtons.minOf { it.bounds.top },
+                        cButtons.maxOf { it.bounds.right },
+                        cButtons.maxOf { it.bounds.bottom },
+                    )
+                } else {
+                    null
+                }
+            "menu" -> menuButton.bounds
+            else -> buttons.firstOrNull { idFor(it) == id }?.bounds
+        }
+
+    private fun allControlIds(): List<String> =
+        buildList {
+            addAll(buttons.map { idFor(it) })
+            add("menu")
+            add("dpad")
+            if (config.hasStick) add("stick")
+            add("cpad")
+        }
+
+    private fun ensureOverride(id: String): RetroControlOverride {
+        overrides[id]?.let { return it }
+        val r = controlRect(id)
+        val o =
+            RetroControlOverride(
+                (r?.centerX() ?: width * 0.5f) / width,
+                (r?.centerY() ?: height * 0.5f) / height,
+            )
+        overrides[id] = o
+        return o
+    }
+
+    private fun moveControl(
+        id: String,
+        cx: Float,
+        cy: Float,
+    ) {
+        val o = ensureOverride(id)
+        o.x = (cx / width).coerceIn(0.02f, 0.98f)
+        o.y = (cy / height).coerceIn(0.02f, 0.98f)
+        relayout()
+    }
+
+    private fun scaleControl(
+        id: String,
+        delta: Float,
+    ) {
+        val o = ensureOverride(id)
+        o.scale = (o.scale + delta).coerceIn(0.6f, 1.8f)
+        saveOverrides()
+        relayout()
+    }
+
+    private fun setControlVisible(
+        id: String,
+        visible: Boolean,
+    ) {
+        val o = ensureOverride(id)
+        o.visible = visible
+        saveOverrides()
+        relayout()
     }
 
     private fun layoutLandscape(
@@ -381,10 +634,12 @@ class RetroInputView(
             }
         }
         if (config.hasShoulders) {
-            val lb = GlassButton(KeyEvent.KEYCODE_BUTTON_L1, "L", GlassShape.TRIGGER_LB, textScale = 1.3f)
+            val leftShape = if (config.hasTriggers) GlassShape.TRIGGER_LB else GlassShape.TRIGGER_LT
+            val rightShape = if (config.hasTriggers) GlassShape.TRIGGER_RB else GlassShape.TRIGGER_RT
+            val lb = GlassButton(KeyEvent.KEYCODE_BUTTON_L1, "L", leftShape, textScale = 1.3f)
             lb.bounds.set(margin, leftCursor, margin + trigW, leftCursor + trigH)
             buttons += lb
-            val rb = GlassButton(KeyEvent.KEYCODE_BUTTON_R1, "R", GlassShape.TRIGGER_RB, textScale = 1.3f)
+            val rb = GlassButton(KeyEvent.KEYCODE_BUTTON_R1, "R", rightShape, textScale = 1.3f)
             rb.bounds.set(width - margin - trigW, rightCursor, width - margin, rightCursor + trigH)
             buttons += rb
             leftCursor += trigH + trigGap
@@ -491,21 +746,21 @@ class RetroInputView(
         val trigH = snap * 5.2f
         val trigGap = snap * 1.5f
 
-        val lb = GlassButton(KeyEvent.KEYCODE_BUTTON_L1, "L", GlassShape.TRIGGER_LB, textScale = 1.3f)
+        val lb = GlassButton(KeyEvent.KEYCODE_BUTTON_L1, "L", GlassShape.TRIGGER_LT, textScale = 1.3f)
         lb.bounds.set(margin, margin, margin + trigW, margin + trigH)
         buttons += lb
+        val rb = GlassButton(KeyEvent.KEYCODE_BUTTON_R1, "R", GlassShape.TRIGGER_RT, textScale = 1.3f)
+        rb.bounds.set(width - margin - trigW, margin, width - margin, margin + trigH)
+        buttons += rb
         val z =
-            GlassButton(KeyEvent.KEYCODE_BUTTON_L2, config.leftTriggerLabel, GlassShape.TRIGGER_RT, textScale = 1.3f)
-        z.bounds.set(width - margin - trigW, margin, width - margin, margin + trigH)
-        buttons += z
-        val rb = GlassButton(KeyEvent.KEYCODE_BUTTON_R1, "R", GlassShape.TRIGGER_RB, textScale = 1.3f)
-        rb.bounds.set(
+            GlassButton(KeyEvent.KEYCODE_BUTTON_L2, config.leftTriggerLabel, GlassShape.TRIGGER_RB, textScale = 1.3f)
+        z.bounds.set(
             width - margin - trigW,
             margin + trigH + trigGap,
             width - margin,
             margin + trigH * 2 + trigGap,
         )
-        buttons += rb
+        buttons += z
 
         val faceRadius = snap * 3f
         val spread = snap * 5.5f
@@ -629,10 +884,12 @@ class RetroInputView(
             sideCursor += trigH + trigGap
         }
         if (config.hasShoulders) {
-            val lb = GlassButton(KeyEvent.KEYCODE_BUTTON_L1, "L", GlassShape.TRIGGER_LB, textScale = 1.3f)
+            val leftShape = if (config.hasTriggers) GlassShape.TRIGGER_LB else GlassShape.TRIGGER_LT
+            val rightShape = if (config.hasTriggers) GlassShape.TRIGGER_RB else GlassShape.TRIGGER_RT
+            val lb = GlassButton(KeyEvent.KEYCODE_BUTTON_L1, "L", leftShape, textScale = 1.3f)
             lb.bounds.set(margin, sideCursor, margin + trigW, sideCursor + trigH)
             buttons += lb
-            val rb = GlassButton(KeyEvent.KEYCODE_BUTTON_R1, "R", GlassShape.TRIGGER_RB, textScale = 1.3f)
+            val rb = GlassButton(KeyEvent.KEYCODE_BUTTON_R1, "R", rightShape, textScale = 1.3f)
             rb.bounds.set(width - margin - trigW, sideCursor, width - margin, sideCursor + trigH)
             buttons += rb
             sideCursor += trigH + trigGap
@@ -716,20 +973,20 @@ class RetroInputView(
         val trigH = snap * 8f
         val trigGap = snap * 1.5f
 
-        val lb = GlassButton(KeyEvent.KEYCODE_BUTTON_L1, "L", GlassShape.TRIGGER_LB, textScale = 1.3f)
+        val lb = GlassButton(KeyEvent.KEYCODE_BUTTON_L1, "L", GlassShape.TRIGGER_LT, textScale = 1.3f)
         lb.bounds.set(margin, zoneTop + snap * 2f, margin + trigW, zoneTop + snap * 2f + trigH)
         buttons += lb
-        val z = GlassButton(KeyEvent.KEYCODE_BUTTON_L2, config.leftTriggerLabel, GlassShape.TRIGGER_RT, textScale = 1.3f)
-        z.bounds.set(width - margin - trigW, zoneTop + snap * 2f, width - margin, zoneTop + snap * 2f + trigH)
-        buttons += z
-        val rb = GlassButton(KeyEvent.KEYCODE_BUTTON_R1, "R", GlassShape.TRIGGER_RB, textScale = 1.3f)
-        rb.bounds.set(
+        val rb = GlassButton(KeyEvent.KEYCODE_BUTTON_R1, "R", GlassShape.TRIGGER_RT, textScale = 1.3f)
+        rb.bounds.set(width - margin - trigW, zoneTop + snap * 2f, width - margin, zoneTop + snap * 2f + trigH)
+        buttons += rb
+        val z = GlassButton(KeyEvent.KEYCODE_BUTTON_L2, config.leftTriggerLabel, GlassShape.TRIGGER_RB, textScale = 1.3f)
+        z.bounds.set(
             width - margin - trigW,
             zoneTop + snap * 2f + trigH + trigGap,
             width - margin,
             zoneTop + snap * 2f + trigH * 2 + trigGap,
         )
-        buttons += rb
+        buttons += z
 
         val pillW = snap * 13f
         val pillH = snap * 5.5f
@@ -795,17 +1052,28 @@ class RetroInputView(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        if (gameArea == null && !editMode) return
         paint.strokeJoin = Paint.Join.ROUND
         paint.strokeCap = Paint.Cap.ROUND
         drawShellBackground(canvas)
+        if (editMode) canvas.drawColor(0x2E000000)
         drawClusterPlate(canvas)
         drawFacePlate(canvas)
-        drawDpad(canvas)
-        if (config.hasStick) drawStick(canvas)
+        if (dpadVisible) drawDpad(canvas)
+        if (config.hasStick && stickVisible) drawStick(canvas)
         buttons.forEach { drawThemedButton(canvas, it, pressedButtons.contains(it.keyCode)) }
         cButtons.forEach { drawCButton(canvas, it) }
         drawThemedButton(canvas, menuButton, menuLatched)
+        if (editMode) drawEditChrome(canvas)
     }
+
+    private fun shadowTint(alpha: Int): Int {
+        val c = customColors.shadow ?: return Color.argb(alpha, 0, 0, 0)
+        return Color.argb(alpha, Color.red(c), Color.green(c), Color.blue(c))
+    }
+
+    private fun luminance(color: Int): Float =
+        (0.299f * Color.red(color) + 0.587f * Color.green(color) + 0.114f * Color.blue(color)) / 255f
 
     private fun drawShellBackground(canvas: Canvas) {
         val area = gameArea ?: return
@@ -813,7 +1081,7 @@ class RetroInputView(
         val h = height.toFloat()
         paint.shader = null
         paint.style = Paint.Style.FILL
-        paint.color = theme.body
+        paint.color = customColors.body ?: theme.body
         if (area.top > 0f) canvas.drawRect(0f, 0f, w, area.top, paint)
         if (area.bottom < h) canvas.drawRect(0f, area.bottom, w, h, paint)
         if (area.left > 0f) canvas.drawRect(0f, area.top, area.left, area.bottom, paint)
@@ -829,6 +1097,11 @@ class RetroInputView(
         val top = faces.minOf { it.bounds.top } - pad
         val right = faces.maxOf { it.bounds.right } + pad
         val bottom = faces.maxOf { it.bounds.bottom } + pad
+        if (right - left > faces.first().bounds.width() * 3.6f ||
+            bottom - top > faces.first().bounds.height() * 3.6f
+        ) {
+            return
+        }
         val corner = (bottom - top) * 0.24f
         paint.shader = null
         paint.style = Paint.Style.FILL
@@ -843,13 +1116,14 @@ class RetroInputView(
     private fun drawClusterPlate(canvas: Canvas) {
         if (theme.clusterPlate == 0 || !config.hasXY) return
         val faces = buttons.filter { it.shape == GlassShape.CIRCLE }
-        if (faces.size < 4) return
+        if (faces.size < 3) return
         val cx = faces.map { it.bounds.centerX() }.average().toFloat()
         val cy = faces.map { it.bounds.centerY() }.average().toFloat()
         val reach =
             faces.maxOf {
                 hypot(it.bounds.centerX() - cx, it.bounds.centerY() - cy) + it.bounds.width() * 0.5f
             }
+        if (reach > faces.first().bounds.width() * 2.2f) return
         val radius = reach + snap * 1.4f
         paint.shader =
             RadialGradient(
@@ -870,11 +1144,13 @@ class RetroInputView(
     }
 
     private fun buttonFill(button: GlassButton): Int =
-        theme.buttonColors[button.label]
+        customColors.button
+            ?: theme.buttonColors[button.label]
             ?: if (button.shape == GlassShape.CIRCLE) theme.button else theme.pill
 
     private fun buttonTextColor(button: GlassButton): Int =
-        theme.buttonTextColors[button.label]
+        customColors.text
+            ?: theme.buttonTextColors[button.label]
             ?: if (button.shape == GlassShape.CIRCLE) theme.buttonText else theme.pillText
 
     private fun drawThemedButton(
@@ -904,7 +1180,7 @@ class RetroInputView(
         path.offset(0f, depth)
         paint.shader = null
         paint.style = Paint.Style.FILL
-        paint.color = Color.argb(if (pressed) 40 else 70, 0, 0, 0)
+        paint.color = shadowTint(if (pressed) 40 else 70)
         canvas.drawPath(path, paint)
         buildShapePath(button)
         path.offset(0f, dy)
@@ -963,7 +1239,7 @@ class RetroInputView(
                 cx,
                 cy + depth,
                 radius * 1.18f,
-                Color.argb(if (pressed) 55 else 95, 0, 0, 0),
+                shadowTint(if (pressed) 55 else 95),
                 Color.TRANSPARENT,
                 Shader.TileMode.CLAMP,
             )
@@ -1033,8 +1309,8 @@ class RetroInputView(
             b.centerX(),
             b.centerY(),
             b.width() * 0.5f,
-            theme.cButton,
-            theme.cText,
+            customColors.button ?: theme.cButton,
+            customColors.text ?: theme.cText,
             button.glyph,
             pressed,
             0.8f,
@@ -1065,7 +1341,7 @@ class RetroInputView(
     }
 
     private fun drawDpad(canvas: Canvas) {
-        val color = theme.dpad
+        val color = customColors.button ?: theme.dpad
         val arm = dpadRadius * 0.36f
         val corner = arm * 0.5f
         val cx = dpadCx
@@ -1082,7 +1358,7 @@ class RetroInputView(
         path.addRoundRect(cx - arm, cy - r + depth, cx + arm, cy + r + depth, corner, corner, Path.Direction.CW)
         paint.shader = null
         paint.style = Paint.Style.FILL
-        paint.color = Color.argb(80, 0, 0, 0)
+        paint.color = shadowTint(80)
         canvas.drawPath(path, paint)
 
         path.reset()
@@ -1139,7 +1415,22 @@ class RetroInputView(
         canvas.drawCircle(cx, cy, arm * 0.85f, paint)
         paint.shader = null
 
-        val tip = arm * 0.42f
+        val tip = arm * 0.5f
+        val arrowBase =
+            customColors.text
+                ?: if (luminance(color) < 0.55f) 0xFFF3F4F7.toInt() else 0xFF17181C.toInt()
+        fun arrowPath(
+            tx: Float,
+            ty: Float,
+            dxu: Float,
+            dyu: Float,
+        ) {
+            path.reset()
+            path.moveTo(tx + dxu * tip, ty + dyu * tip)
+            path.lineTo(tx - dyu * tip * 0.8f - dxu * tip * 0.5f, ty + dxu * tip * 0.8f - dyu * tip * 0.5f)
+            path.lineTo(tx + dyu * tip * 0.8f - dxu * tip * 0.5f, ty - dxu * tip * 0.8f - dyu * tip * 0.5f)
+            path.close()
+        }
         fun arrow(
             tx: Float,
             ty: Float,
@@ -1147,12 +1438,11 @@ class RetroInputView(
             dyu: Float,
             engaged: Boolean,
         ) {
-            path.reset()
-            path.moveTo(tx + dxu * tip, ty + dyu * tip)
-            path.lineTo(tx - dyu * tip * 0.8f - dxu * tip * 0.5f, ty + dxu * tip * 0.8f - dyu * tip * 0.5f)
-            path.lineTo(tx + dyu * tip * 0.8f - dxu * tip * 0.5f, ty - dxu * tip * 0.8f - dyu * tip * 0.5f)
-            path.close()
-            paint.color = if (engaged) lighten(color, 0.5f) else lighten(color, 0.16f)
+            arrowPath(tx, ty + tip * 0.14f, dxu, dyu)
+            paint.color = shadowTint(120)
+            canvas.drawPath(path, paint)
+            arrowPath(tx, ty, dxu, dyu)
+            paint.color = if (engaged) 0xFF53C7FF.toInt() else arrowBase
             canvas.drawPath(path, paint)
         }
         val inset = arm * 0.62f
@@ -1164,7 +1454,7 @@ class RetroInputView(
 
     private fun drawStick(canvas: Canvas) {
         val engaged = stickPointerId != -1
-        val wellColor = darken(theme.dpad, 0.1f)
+        val wellColor = darken(customColors.button ?: theme.dpad, 0.1f)
         paint.shader = null
         paint.style = Paint.Style.FILL
 
@@ -1195,14 +1485,14 @@ class RetroInputView(
         val thumbX = stickCx + stickX * stickRadius * 0.5f
         val thumbY = stickCy + stickY * stickRadius * 0.5f
         val thumbRadius = stickRadius * 0.5f
-        val capColor = theme.stickCap
+        val capColor = customColors.button ?: theme.stickCap
         paint.style = Paint.Style.FILL
         paint.shader =
             RadialGradient(
                 thumbX,
                 thumbY + thumbRadius * 0.18f,
                 thumbRadius * 1.25f,
-                Color.argb(90, 0, 0, 0),
+                shadowTint(90),
                 Color.TRANSPARENT,
                 Shader.TileMode.CLAMP,
             )
@@ -1227,6 +1517,218 @@ class RetroInputView(
         paint.color = darken(capColor, 0.35f)
         canvas.drawCircle(thumbX, thumbY, thumbRadius - strokeWidth * 0.5f, paint)
         canvas.drawCircle(thumbX, thumbY, thumbRadius * 0.55f, paint)
+    }
+
+    private fun layoutEditChrome(
+        width: Float,
+        height: Float,
+    ) {
+        toolbarPills.clear()
+        trayPills.clear()
+        val u = editUnit
+        val pillH = u * 3.4f
+        val gap = u * 0.9f
+        val textPaint = paint
+        textPaint.textSize = pillH * 0.42f
+        textPaint.isFakeBoldText = true
+        val actions =
+            listOf(
+                "done" to "DONE",
+                "reset" to "RESET",
+                "minus" to "−",
+                "plus" to "+",
+                "hide" to "HIDE",
+            )
+        val widths =
+            actions.map { (_, label) ->
+                max(textPaint.measureText(label) + pillH * 1.1f, pillH * 1.4f)
+            }
+        textPaint.isFakeBoldText = false
+        val totalW = widths.sum() + gap * (actions.size - 1)
+        var x = (width - totalW) * 0.5f
+        val y = u * 1.2f
+        actions.forEachIndexed { index, (action, label) ->
+            toolbarPills += Triple(action, label, RectF(x, y, x + widths[index], y + pillH))
+            x += widths[index] + gap
+        }
+        if (hiddenControls.isNotEmpty()) {
+            textPaint.textSize = pillH * 0.38f
+            val trayY = y + pillH + gap
+            val trayWidths =
+                hiddenControls.map { (_, label) ->
+                    max(textPaint.measureText("+ $label") + pillH * 1.0f, pillH * 1.3f)
+                }
+            var trayX = (width - trayWidths.sum() - gap * (hiddenControls.size - 1)) * 0.5f
+            hiddenControls.forEachIndexed { index, (id, label) ->
+                trayPills += Triple(id, "+ $label", RectF(trayX, trayY, trayX + trayWidths[index], trayY + pillH))
+                trayX += trayWidths[index] + gap
+            }
+        }
+    }
+
+    private fun drawChromePill(
+        canvas: Canvas,
+        rect: RectF,
+        label: String,
+        accent: Boolean,
+        enabled: Boolean = true,
+    ) {
+        val r = rect.height() * 0.5f
+        paint.shader = null
+        paint.style = Paint.Style.FILL
+        paint.color = if (accent) 0xF22196F3.toInt() else 0xF21C222C.toInt()
+        canvas.drawRoundRect(rect, r, r, paint)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = strokeWidth
+        paint.color = if (accent) 0xFF64B5F6.toInt() else 0xFF3A4354.toInt()
+        canvas.drawRoundRect(rect, r, r, paint)
+        paint.style = Paint.Style.FILL
+        paint.color = if (enabled) 0xFFF2F5FA.toInt() else 0x66F2F5FA
+        paint.textAlign = Paint.Align.CENTER
+        paint.isFakeBoldText = true
+        paint.textSize = rect.height() * (if (label.startsWith("+ ")) 0.38f else 0.42f)
+        val textY = rect.centerY() - (paint.descent() + paint.ascent()) * 0.5f
+        canvas.drawText(label, rect.centerX(), textY, paint)
+        paint.isFakeBoldText = false
+    }
+
+    private fun drawEditChrome(canvas: Canvas) {
+        val u = editUnit
+        selectedId?.let { id ->
+            controlRect(id)?.let { rect ->
+                val pad = u * 0.7f
+                paint.shader = null
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = max(2f, u * 0.22f)
+                paint.color = 0xFF29B6F6.toInt()
+                paint.pathEffect = DashPathEffect(floatArrayOf(u * 0.9f, u * 0.6f), 0f)
+                canvas.drawRoundRect(
+                    rect.left - pad,
+                    rect.top - pad,
+                    rect.right + pad,
+                    rect.bottom + pad,
+                    u,
+                    u,
+                    paint,
+                )
+                paint.pathEffect = null
+            }
+        }
+        val hideEnabled = selectedId != null && selectedId != "menu"
+        val sizeEnabled = selectedId != null
+        toolbarPills.forEach { (action, label, rect) ->
+            val enabled =
+                when (action) {
+                    "hide" -> hideEnabled
+                    "minus", "plus" -> sizeEnabled
+                    else -> true
+                }
+            drawChromePill(canvas, rect, label, accent = action == "done", enabled = enabled)
+        }
+        trayPills.forEach { (_, label, rect) ->
+            drawChromePill(canvas, rect, label, accent = false)
+        }
+        val hintY = (toolbarPills.firstOrNull()?.third?.bottom ?: 0f) +
+            (if (trayPills.isEmpty()) u * 2.2f else u * 6.2f)
+        paint.style = Paint.Style.FILL
+        paint.color = 0xCCFFFFFF.toInt()
+        paint.textAlign = Paint.Align.CENTER
+        paint.textSize = u * 1.4f
+        canvas.drawText(
+            if (selectedId == null) "Tap a control to select, drag to move" else "Drag to move · +/− to resize",
+            width * 0.5f,
+            hintY,
+            paint,
+        )
+    }
+
+    private fun controlAt(
+        x: Float,
+        y: Float,
+    ): String? {
+        val u = editUnit
+        var best: String? = null
+        var bestArea = Float.MAX_VALUE
+        allControlIds().forEach { id ->
+            val rect = controlRect(id) ?: return@forEach
+            if (x >= rect.left - u && x <= rect.right + u && y >= rect.top - u && y <= rect.bottom + u) {
+                val area = rect.width() * rect.height()
+                if (area < bestArea) {
+                    bestArea = area
+                    best = id
+                }
+            }
+        }
+        return best
+    }
+
+    private fun editTouch(event: MotionEvent) {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                val index = event.actionIndex
+                val x = event.getX(index)
+                val y = event.getY(index)
+                toolbarPills.firstOrNull { it.third.contains(x, y) }?.let { (action, _, _) ->
+                    hapticTick()
+                    cancelDrag()
+                    when (action) {
+                        "done" -> finishEdit()
+                        "reset" -> resetLayout()
+                        "minus" -> selectedId?.let { scaleControl(it, -0.1f) }
+                        "plus" -> selectedId?.let { scaleControl(it, 0.1f) }
+                        "hide" ->
+                            selectedId?.takeIf { it != "menu" }?.let {
+                                setControlVisible(it, false)
+                                selectedId = null
+                            }
+                    }
+                    return
+                }
+                trayPills.firstOrNull { it.third.contains(x, y) }?.let { (id, _, _) ->
+                    hapticTick()
+                    cancelDrag()
+                    setControlVisible(id, true)
+                    selectedId = id
+                    return
+                }
+                if (dragId == null) {
+                    val hit = controlAt(x, y)
+                    selectedId = hit
+                    if (hit != null) {
+                        val rect = controlRect(hit)
+                        dragId = hit
+                        dragPointerId = event.getPointerId(index)
+                        dragActive = false
+                        dragDownX = x
+                        dragDownY = y
+                        dragOffsetX = (rect?.centerX() ?: x) - x
+                        dragOffsetY = (rect?.centerY() ?: y) - y
+                        hapticTick()
+                    }
+                }
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val id = dragId ?: return
+                val pointerIndex = event.findPointerIndex(dragPointerId)
+                if (pointerIndex < 0) return
+                val x = event.getX(pointerIndex)
+                val y = event.getY(pointerIndex)
+                if (!dragActive && hypot(x - dragDownX, y - dragDownY) < editUnit * 0.6f) return
+                dragActive = true
+                moveControl(id, x + dragOffsetX, y + dragOffsetY)
+            }
+            MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                val ended =
+                    event.actionMasked == MotionEvent.ACTION_UP ||
+                        event.actionMasked == MotionEvent.ACTION_CANCEL ||
+                        event.getPointerId(event.actionIndex) == dragPointerId
+                if (ended && dragId != null) {
+                    val moved = dragActive
+                    cancelDrag()
+                    if (moved) saveOverrides()
+                }
+            }
+        }
     }
 
     fun releaseAll() {
@@ -1260,7 +1762,18 @@ class RetroInputView(
             MotionEvent.ACTION_POINTER_UP,
             MotionEvent.ACTION_UP,
             MotionEvent.ACTION_CANCEL,
-            -> recompute(event)
+            ->
+                if (editMode) {
+                    editTouch(event)
+                } else if (swallowInput) {
+                    if (event.actionMasked == MotionEvent.ACTION_UP ||
+                        event.actionMasked == MotionEvent.ACTION_CANCEL
+                    ) {
+                        swallowInput = false
+                    }
+                } else {
+                    recompute(event)
+                }
             else -> return false
         }
         invalidate()
@@ -1306,7 +1819,7 @@ class RetroInputView(
                 val y = event.getY(i)
                 val pointerId = event.getPointerId(i)
 
-                if (config.hasStick) {
+                if (config.hasStick && stickVisible) {
                     if (pointerId == stickPointerId) {
                         stickSeen = true
                         newStickX = ((x - stickCx) / stickRadius).coerceIn(-1f, 1f)
@@ -1354,7 +1867,7 @@ class RetroInputView(
 
                 val dxToPad = x - dpadCx
                 val dyToPad = y - dpadCy
-                if (hypot(dxToPad, dyToPad) <= dpadRadius * 1.4f) {
+                if (dpadVisible && hypot(dxToPad, dyToPad) <= dpadRadius * 1.4f) {
                     val dz = dpadRadius * 0.24f
                     if (dxToPad > dz) newDpadX = 1f else if (dxToPad < -dz) newDpadX = -1f
                     if (dyToPad > dz) newDpadY = 1f else if (dyToPad < -dz) newDpadY = -1f

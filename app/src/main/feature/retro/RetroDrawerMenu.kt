@@ -174,7 +174,21 @@ sealed class RetroMenuEntry {
         val states: List<Boolean>,
         val onToggle: (Int) -> Unit,
     ) : RetroMenuEntry()
+
+    class ColorPick(
+        val label: String,
+        val color: Int?,
+        val onPick: (Int?) -> Unit,
+    ) : RetroMenuEntry()
 }
+
+val RetroColorPalette: List<Int> =
+    listOf(
+        0xFFFFFFFF, 0xFFB0B4BC, 0xFF6B7280, 0xFF2A2A30, 0xFF000000,
+        0xFFE53935, 0xFFFF7043, 0xFFFFB300, 0xFFFFF176, 0xFF7CB342,
+        0xFF2F9E44, 0xFF26A69A, 0xFF29B6F6, 0xFF2E63C9, 0xFF5E35B1,
+        0xFF8E24AA, 0xFFD81B60, 0xFF8D6E63,
+    ).map { it.toInt() }
 
 class RetroMenuController {
     var visible by mutableStateOf(false)
@@ -255,6 +269,14 @@ class RetroMenuController {
                 } else {
                     chipIndex = (chipIndex + direction + entry.items.size) % entry.items.size
                 }
+            is RetroMenuEntry.ColorPick -> {
+                val step = if (direction < 0) -1 else 1
+                val palette = RetroColorPalette
+                val current = entry.color?.let { palette.indexOf(it) } ?: -1
+                val span = palette.size + 1
+                val next = ((current + 1 + step + span) % span) - 1
+                entry.onPick(if (next < 0) null else palette[next])
+            }
             else -> {}
         }
     }
@@ -804,6 +826,13 @@ private fun RetroPaneList(
                                         entry.onToggle(chip)
                                     },
                                 )
+                            is RetroMenuEntry.ColorPick ->
+                                RetroColorRow(
+                                    entry = entry,
+                                    highlighted = highlighted,
+                                    paneScale = paneScale,
+                                    onFocus = { controller.contentIndex = index },
+                                )
                         }
                     }
                 }
@@ -1082,6 +1111,127 @@ private fun RetroHudChip(
 }
 
 @Composable
+private fun RetroColorRow(
+    entry: RetroMenuEntry.ColorPick,
+    highlighted: Boolean,
+    paneScale: Float,
+    onFocus: () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Column {
+        RetroRowShell(
+            highlighted = highlighted,
+            activeBorder = entry.color != null,
+            paneScale = paneScale,
+            onClick = {
+                onFocus()
+                expanded = !expanded
+            },
+        ) {
+            Text(
+                text = entry.label,
+                color = DrawerTextPrimary,
+                fontSize = (14f * paneScale).sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f),
+            )
+            Box(
+                modifier =
+                    Modifier
+                        .size((20f * paneScale).dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(entry.color?.let { Color(it) } ?: Color(0x14FFFFFF))
+                        .border(
+                            1.dp,
+                            if (entry.color != null) DrawerAccent else RestingCardBorder,
+                            androidx.compose.foundation.shape.CircleShape,
+                        ),
+            ) {
+                if (entry.color == null) {
+                    Text(
+                        text = "A",
+                        color = DrawerTextSecondary,
+                        fontSize = (10f * paneScale).sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.align(Alignment.Center),
+                    )
+                }
+            }
+            Spacer(Modifier.width((8f * paneScale).dp))
+            Text(
+                text = if (expanded) "▴" else "▾",
+                color = DrawerTextSecondary,
+                fontSize = (16f * paneScale).sp,
+            )
+        }
+        AnimatedVisibility(visible = expanded) {
+            FlowRow(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = (6f * paneScale).dp, vertical = (8f * paneScale).dp),
+                horizontalArrangement = Arrangement.spacedBy((7f * paneScale).dp),
+                verticalArrangement = Arrangement.spacedBy((7f * paneScale).dp),
+            ) {
+                RetroColorSwatch(
+                    color = null,
+                    selected = entry.color == null,
+                    paneScale = paneScale,
+                ) {
+                    entry.onPick(null)
+                }
+                RetroColorPalette.forEach { swatch ->
+                    RetroColorSwatch(
+                        color = swatch,
+                        selected = entry.color == swatch,
+                        paneScale = paneScale,
+                    ) {
+                        entry.onPick(swatch)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RetroColorSwatch(
+    color: Int?,
+    selected: Boolean,
+    paneScale: Float,
+    onClick: () -> Unit,
+) {
+    val shape = androidx.compose.foundation.shape.CircleShape
+    Box(
+        modifier =
+            Modifier
+                .size((26f * paneScale).dp)
+                .clip(shape)
+                .background(color?.let { Color(it) } ?: Color(0x14FFFFFF))
+                .border(
+                    if (selected) 2.dp else 1.dp,
+                    if (selected) DrawerActiveAccent else RestingCardBorder,
+                    shape,
+                )
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClick,
+                ),
+    ) {
+        if (color == null) {
+            Text(
+                text = "A",
+                color = DrawerTextSecondary,
+                fontSize = (11f * paneScale).sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.align(Alignment.Center),
+            )
+        }
+    }
+}
+
+@Composable
 private fun RetroSliderRow(
     entry: RetroMenuEntry.Slider,
     highlighted: Boolean,
@@ -1263,6 +1413,7 @@ object RetroDrawerTabs {
 }
 
 object RetroDrawerIcons {
+    val EditLayout = Icons.Outlined.Tune
     val Resume = Icons.Outlined.PlayArrow
     val Pause = Icons.Outlined.Pause
     val Save = Icons.Outlined.Save
