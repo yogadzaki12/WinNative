@@ -195,6 +195,69 @@ fun RetroDefaultsScreen() {
             }
         }
 
+        RetroSettingGroup {
+            RetroGroupTitle("ROMS FOLDER")
+            val romsDir = RetroDefaults.romsDir(context)
+            RetroInfoRow(
+                "Folder",
+                romsDir ?: "Not set — pick a folder to auto-import games",
+            )
+            RetroInfoRow(
+                "Auto-import",
+                "New games in this folder are added to your library automatically with the right console detected.",
+            )
+            Button(
+                onClick = {
+                    val activity = context as? android.app.Activity ?: return@Button
+                    com.winlator.cmod.shared.android.DirectoryPickerDialog.show(
+                        activity = activity,
+                        initialPath = romsDir
+                            ?: android.os.Environment.getExternalStoragePublicDirectory(
+                                android.os.Environment.DIRECTORY_DOWNLOADS,
+                            ).absolutePath,
+                        title = "Select ROMs Folder",
+                    ) { path ->
+                        RetroDefaults.setRomsDir(context, path)
+                        Thread {
+                            val count = RetroRomScanner.scan(context, File(path))
+                            activity.runOnUiThread {
+                                Toast.makeText(
+                                    context,
+                                    if (count > 0) "Imported $count game(s)" else "No new games found",
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                                refresh++
+                            }
+                        }.start()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            ) {
+                Text(if (romsDir == null) "Select ROMs Folder…" else "Change ROMs Folder…")
+            }
+            if (romsDir != null) {
+                OutlinedButton(
+                    onClick = {
+                        val activity = context as? android.app.Activity
+                        Thread {
+                            val count = RetroRomScanner.scanConfiguredFolder(context)
+                            activity?.runOnUiThread {
+                                Toast.makeText(
+                                    context,
+                                    if (count > 0) "Imported $count game(s)" else "No new games found",
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                                refresh++
+                            }
+                        }.start()
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                ) {
+                    Text("Scan Now")
+                }
+            }
+        }
+
         Text(
             "CONSOLE DEFAULTS",
             color = PageSub,

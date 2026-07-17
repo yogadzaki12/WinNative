@@ -103,10 +103,22 @@ object RetroShortcuts {
     ) {
         val system = systemForShortcut(shortcut)
         if (system != null && system.isExternal) {
+            recordLaunchStats(context, shortcut.getExtra("custom_name", shortcut.name))
             launchEmbeddedPs2(context, romPath(shortcut))
             return
         }
         context.startActivity(launchIntent(context, shortcut))
+    }
+
+    private fun recordLaunchStats(
+        context: Context,
+        gameName: String,
+    ) {
+        val prefs = context.getSharedPreferences("playtime_stats", Context.MODE_PRIVATE)
+        prefs.edit()
+            .putInt("${gameName}_play_count", prefs.getInt("${gameName}_play_count", 0) + 1)
+            .putLong("${gameName}_last_played", System.currentTimeMillis())
+            .apply()
     }
 
     private fun launchEmbeddedPs2(
