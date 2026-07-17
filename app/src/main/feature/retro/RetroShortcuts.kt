@@ -119,9 +119,10 @@ object RetroShortcuts {
             return
         }
         val biosPath = ensurePs2Bios(context)
-        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+        val prefs = context.getSharedPreferences("ARMSX2", Context.MODE_PRIVATE)
         prefs.edit().apply {
             putBoolean("setupComplete", true)
+            putBoolean("wn.controls", true)
             putString("romsDirs", org.json.JSONArray().put(rom.parent ?: "").toString())
             if (biosPath != null) putString("bios", biosPath)
             apply()

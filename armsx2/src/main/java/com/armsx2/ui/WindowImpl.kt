@@ -77,7 +77,11 @@ object WindowImpl {
             content()
 
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                com.armsx2.ui.touch.TouchControlsOverlay()
+                if (MainActivityRuntime.prefs.getBoolean("wn.controls", false)) {
+                    com.armsx2.ui.touch.WinNativeControls(onMenu = { overlayVisible.value = true })
+                } else {
+                    com.armsx2.ui.touch.TouchControlsOverlay()
+                }
             }
 
             if (showLibrary.value && MainActivityRuntime.eState.value == EmuState.RUNNING && !overlayVisible.value) {
