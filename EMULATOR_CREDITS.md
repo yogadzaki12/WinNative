@@ -8,12 +8,14 @@ and their copyright and license notices are preserved.
 
 ## PlayStation 2
 
-PS2 games are played through the **ARMSX2** application, launched externally.
-WinNative does not bundle or modify ARMSX2; it hands the selected game to the installed app.
+PS2 support embeds the Android front-end of **ARMSX2** (GPL-3.0) as the `:armsx2`
+module, reusing its official prebuilt native core. The vendored source, its exact
+upstream commit, and the license terms are recorded in [armsx2/UPSTREAM.md](armsx2/UPSTREAM.md).
+All upstream copyright and license headers are preserved; this module remains GPL-3.0.
 
 | Component | Role | License | Source |
 | --- | --- | --- | --- |
-| ARMSX2 | PS2 emulation + RetroAchievements | GPL-3.0 | https://github.com/ARMSX2/ARMSX2 |
+| ARMSX2 | PS2 emulation + RetroAchievements (embedded `:armsx2`) | GPL-3.0 | https://github.com/ARMSX2/ARMSX2 |
 | PCSX2 | Upstream project ARMSX2 is derived from | GPL-3.0 | https://github.com/pcsx2/pcsx2 |
 
 ## Bundled libretro cores
