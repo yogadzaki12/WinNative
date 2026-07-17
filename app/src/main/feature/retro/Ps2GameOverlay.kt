@@ -60,7 +60,8 @@ object Ps2GameOverlay {
         var pad: RetroInputView? = null
         val touchVisible = mutableStateOf(RetroDefaults.touchControls(activity, RetroSystems.PS2.id))
         var customColors = RetroControlLayouts.loadColors(activity, RetroSystems.PS2.id)
-        val paused = { MainActivityRuntime.eState.value == EmuState.PAUSED }
+        var wnPaused = false
+        val paused = { wnPaused || MainActivityRuntime.eState.value == EmuState.PAUSED }
 
         fun persistColors() {
             RetroControlLayouts.saveColors(activity, RetroSystems.PS2.id, customColors)
@@ -165,7 +166,7 @@ object Ps2GameOverlay {
                             menu.close()
                             val ok = runCatching { NativeApp.loadStateFromSlot(slot) }.getOrDefault(false)
                             Toast.makeText(activity, if (ok) "Loaded slot $ui" else "Slot $ui is empty", Toast.LENGTH_SHORT).show()
-                            if (ok) MainActivityRuntime.resume()
+                            if (ok) { wnPaused = false; MainActivityRuntime.resume() }
                         } else {
                             val ok = runCatching { NativeApp.saveStateToSlot(slot) }.getOrDefault(false)
                             Toast.makeText(activity, if (ok) "Saved to slot $ui" else "Save failed", Toast.LENGTH_SHORT).show()
@@ -418,13 +419,15 @@ object Ps2GameOverlay {
             listOf(
                 if (paused()) {
                     RetroMenuEntry.Action("Resume", RetroDrawerIcons.Resume, active = true) {
+                        wnPaused = false
                         MainActivityRuntime.resume()
                         menu.close()
                     }
                 } else {
                     RetroMenuEntry.Action("Pause", RetroDrawerIcons.Pause) {
+                        wnPaused = true
                         MainActivityRuntime.pauseForOverlay()
-                        menu.close()
+                        activity.runOnUiThread { menu.rebuild() }
                     }
                 },
                 RetroMenuEntry.Action("Exit", RetroDrawerIcons.Exit, danger = true) {
@@ -475,6 +478,7 @@ object Ps2GameOverlay {
                         if (screen != null) {
                             val dismiss = {
                                 ps2Screen.value = null
+                                wnPaused = false
                                 MainActivityRuntime.resume()
                             }
                             BackHandler(enabled = true) { dismiss() }
