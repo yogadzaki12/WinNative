@@ -94,6 +94,13 @@ object RetroCoreOptions {
                 valueLabels = listOf("High", "Very High", "Medium", "Low"),
                 defaultValue = "high",
             ),
+            RetroCoreOption(
+                key = "parallel-n64-aspectratiohint",
+                label = "Aspect Ratio",
+                values = listOf("normal", "widescreen"),
+                valueLabels = listOf("4:3 (Normal)", "16:9 (Widescreen)"),
+                defaultValue = "normal",
+            ),
         )
 
     private val PSX_OPTIONS =
@@ -121,6 +128,7 @@ object RetroCoreOptions {
                     "parallel-n64-gfxplugin" to "glide64",
                     "parallel-n64-screensize" to "640x480",
                     "parallel-n64-gfxplugin-accuracy" to "high",
+                    "parallel-n64-aspectratiohint" to "normal",
                 )
             RetroSystems.PSX.id ->
                 mapOf(
