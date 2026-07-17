@@ -1062,7 +1062,11 @@ private fun RetroPs2GraphicsSection() {
     Spacer(Modifier.height(12.dp))
     RetroSettingGroup {
         RetroGroupTitle("PERFORMANCE HUD")
-        RetroSettingSwitch("Show FPS", prefs.getBoolean("wn.osd.fps", false)) { putBool("wn.osd.fps", it) }
+        RetroSettingSwitch("FPS", prefs.getBoolean("wn.osd.fps", false)) { putBool("wn.osd.fps", it) }
+        RetroSettingSwitch("Emulation Speed", prefs.getBoolean("wn.osd.speed", false)) { putBool("wn.osd.speed", it) }
+        RetroSettingSwitch("CPU Usage", prefs.getBoolean("wn.osd.cpu", false)) { putBool("wn.osd.cpu", it) }
+        RetroSettingSwitch("GPU Usage", prefs.getBoolean("wn.osd.gpu", false)) { putBool("wn.osd.gpu", it) }
+        RetroSettingSwitch("Internal Resolution", prefs.getBoolean("wn.osd.res", false)) { putBool("wn.osd.res", it) }
     }
     Spacer(Modifier.height(12.dp))
     RetroSettingGroup {
@@ -1137,8 +1141,23 @@ private fun RetroAudioSection(state: RetroSettingsState) {
         val prefs = remember(context) { context.getSharedPreferences("ARMSX2", android.content.Context.MODE_PRIVATE) }
         var version by remember { androidx.compose.runtime.mutableIntStateOf(0) }
         @Suppress("UNUSED_EXPRESSION") version
+        var vol by remember { mutableStateOf(prefs.getInt("wn.ps2.volume", 100)) }
         RetroSettingGroup {
             RetroGroupTitle("AUDIO")
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = TightGap),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Volume", color = TextPrimary, fontSize = ValueSize, modifier = Modifier.weight(1f))
+                Text("$vol%", color = TextSecondary, fontSize = ValueSize)
+            }
+            androidx.compose.material3.Slider(
+                value = vol.toFloat(),
+                onValueChange = { vol = it.toInt() },
+                onValueChangeFinished = { prefs.edit().putInt("wn.ps2.volume", vol).apply() },
+                valueRange = 0f..200f,
+                modifier = Modifier.fillMaxWidth().height(26.dp),
+            )
             RetroSettingSwitch("Mute", prefs.getBoolean("wn.ps2.muted", false)) {
                 prefs.edit().putBoolean("wn.ps2.muted", it).apply(); version++
             }

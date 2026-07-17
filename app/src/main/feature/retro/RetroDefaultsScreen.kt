@@ -341,6 +341,67 @@ fun RetroDefaultsScreen() {
                         selectedIndex = ps2Scales.indexOfFirst { kotlin.math.abs(it - curScale) < 0.01f }.coerceAtLeast(0),
                         onSelected = { ps2Prefs.edit().putFloat("wn.ps2.upscale", ps2Scales[it]).apply(); refresh++ },
                     )
+                    RetroSettingDropdown(
+                        label = "Aspect Ratio",
+                        entries = listOf("Stretch", "Auto (Standard)", "4:3", "16:9"),
+                        selectedIndex = ps2Prefs.getInt("wn.ps2.aspect", 1).coerceIn(0, 3),
+                        onSelected = { ps2Prefs.edit().putInt("wn.ps2.aspect", it).apply(); refresh++ },
+                    )
+                    RetroSettingDropdown(
+                        label = "Display Filter",
+                        entries = listOf("Nearest", "Bilinear (Smooth)", "Bilinear (Sharp)"),
+                        selectedIndex = ps2Prefs.getInt("wn.ps2.displayfilter", 1).coerceIn(0, 2),
+                        onSelected = { ps2Prefs.edit().putInt("wn.ps2.displayfilter", it).apply(); refresh++ },
+                    )
+                    RetroSettingDropdown(
+                        label = "Texture Filter",
+                        entries = listOf("Nearest", "Bilinear (Forced)", "Bilinear (PS2)", "Bilinear (Sprites)"),
+                        selectedIndex = ps2Prefs.getInt("wn.ps2.filter", 2).coerceIn(0, 3),
+                        onSelected = { ps2Prefs.edit().putInt("wn.ps2.filter", it).apply(); refresh++ },
+                    )
+                    RetroSettingDropdown(
+                        label = "Blending Accuracy",
+                        entries = listOf("Minimum", "Basic", "Medium", "High", "Full", "Maximum"),
+                        selectedIndex = ps2Prefs.getInt("wn.ps2.blend", 1).coerceIn(0, 5),
+                        onSelected = { ps2Prefs.edit().putInt("wn.ps2.blend", it).apply(); refresh++ },
+                    )
+                    RetroSettingDropdown(
+                        label = "CRT / TV Shader",
+                        entries = listOf("Off", "Scanline", "Diagonal", "Triangular", "Wave", "Lottes", "4xRGSS", "NxAGSS"),
+                        selectedIndex = ps2Prefs.getInt("wn.ps2.tvshader", 0).coerceIn(0, 7),
+                        onSelected = { ps2Prefs.edit().putInt("wn.ps2.tvshader", it).apply(); refresh++ },
+                    )
+                    RetroSettingDropdown(
+                        label = "Frame Skip",
+                        entries = listOf("Off", "Skip 1", "Skip 2", "Skip 3"),
+                        selectedIndex = ps2Prefs.getInt("wn.ps2.frameskip", 0).coerceIn(0, 3),
+                        onSelected = { ps2Prefs.edit().putInt("wn.ps2.frameskip", it).apply(); refresh++ },
+                    )
+                    RetroSettingSwitch("Mipmapping", ps2Prefs.getBoolean("wn.ps2.mipmap", true)) {
+                        ps2Prefs.edit().putBoolean("wn.ps2.mipmap", it).apply(); refresh++
+                    }
+                    val eeRates = listOf(-3, -2, -1, 0, 1, 2, 3)
+                    RetroSettingDropdown(
+                        label = "EE Cycle Rate",
+                        entries = listOf("50%", "60%", "75%", "100% (Default)", "130%", "180%", "300%"),
+                        selectedIndex = eeRates.indexOf(ps2Prefs.getInt("wn.ps2.eeRate", 0).coerceIn(-3, 3)).coerceAtLeast(0),
+                        onSelected = { ps2Prefs.edit().putInt("wn.ps2.eeRate", eeRates[it]).apply(); refresh++ },
+                    )
+                    RetroSettingDropdown(
+                        label = "EE Cycle Skip",
+                        entries = listOf("Off", "1", "2", "3"),
+                        selectedIndex = ps2Prefs.getInt("wn.ps2.eeSkip", 0).coerceIn(0, 3),
+                        onSelected = { ps2Prefs.edit().putInt("wn.ps2.eeSkip", it).apply(); refresh++ },
+                    )
+                    RetroSettingSwitch("Instant VU1", ps2Prefs.getBoolean("wn.ps2.instantVu1", true)) {
+                        ps2Prefs.edit().putBoolean("wn.ps2.instantVu1", it).apply(); refresh++
+                    }
+                    RetroSettingSwitch("Multi-Threaded VU (MTVU)", ps2Prefs.getBoolean("wn.ps2.mtvu", true)) {
+                        ps2Prefs.edit().putBoolean("wn.ps2.mtvu", it).apply(); refresh++
+                    }
+                    RetroSettingSwitch("Fast CDVD", ps2Prefs.getBoolean("wn.ps2.fastCdvd", false)) {
+                        ps2Prefs.edit().putBoolean("wn.ps2.fastCdvd", it).apply(); refresh++
+                    }
                     RetroSettingSwitch(
                         "On-screen touch controls",
                         RetroDefaults.touchControls(context, sys),
@@ -350,9 +411,29 @@ fun RetroDefaultsScreen() {
                         !ps2Prefs.getBoolean("wn.ps2.muted", false),
                     ) { ps2Prefs.edit().putBoolean("wn.ps2.muted", !it).apply(); refresh++ }
                     RetroSettingSwitch(
-                        "Performance HUD (FPS)",
+                        "Swap Stereo Channels",
+                        ps2Prefs.getBoolean("wn.ps2.swap", false),
+                    ) { ps2Prefs.edit().putBoolean("wn.ps2.swap", it).apply(); refresh++ }
+                    RetroSettingSwitch(
+                        "HUD: FPS",
                         ps2Prefs.getBoolean("wn.osd.fps", false),
                     ) { ps2Prefs.edit().putBoolean("wn.osd.fps", it).apply(); refresh++ }
+                    RetroSettingSwitch(
+                        "HUD: Emulation Speed",
+                        ps2Prefs.getBoolean("wn.osd.speed", false),
+                    ) { ps2Prefs.edit().putBoolean("wn.osd.speed", it).apply(); refresh++ }
+                    RetroSettingSwitch(
+                        "HUD: CPU Usage",
+                        ps2Prefs.getBoolean("wn.osd.cpu", false),
+                    ) { ps2Prefs.edit().putBoolean("wn.osd.cpu", it).apply(); refresh++ }
+                    RetroSettingSwitch(
+                        "HUD: GPU Usage",
+                        ps2Prefs.getBoolean("wn.osd.gpu", false),
+                    ) { ps2Prefs.edit().putBoolean("wn.osd.gpu", it).apply(); refresh++ }
+                    RetroSettingSwitch(
+                        "HUD: Internal Resolution",
+                        ps2Prefs.getBoolean("wn.osd.res", false),
+                    ) { ps2Prefs.edit().putBoolean("wn.osd.res", it).apply(); refresh++ }
                     RetroSettingSwitch(
                         "Enable Online (DEV9)",
                         ps2Prefs.getBoolean("wn.ps2.net.enable", false),
