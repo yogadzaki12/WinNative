@@ -59,7 +59,7 @@ Supported systems (bundled cores):
 | PlayStation 2 | ARMSX2 (PCSX2 fork) | `.iso` `.chd` `.cso` `.bin` |
 
 Cores are compiled **from source** as part of `assembleDebug` (see `cores/` for the
-libretro cores and `armsx2/build-emucore.sh` for the PS2 core); the ParaLLEl N64
+libretro cores and `armsx2/build-emucore.sh` for the PS2 core); the Mupen64Plus-Next N64
 core ships prebuilt for now. PlayStation 2 online play is supported through the
 emulated DEV9 network adapter (see the in-game **Online** tab).
 
