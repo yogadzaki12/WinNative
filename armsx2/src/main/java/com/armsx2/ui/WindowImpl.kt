@@ -78,7 +78,7 @@ object WindowImpl {
 
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                 if (MainActivityRuntime.prefs.getBoolean("wn.controls", false)) {
-                    com.armsx2.ui.touch.WinNativeControls(onMenu = { overlayVisible.value = true })
+                    com.armsx2.ui.touch.WinNativeControls(onMenu = { WinNativeMenu.open() })
                 } else {
                     com.armsx2.ui.touch.TouchControlsOverlay()
                 }
@@ -105,6 +105,8 @@ object WindowImpl {
             if (overlayVisible.value) {
                 com.armsx2.ui.emulation.EmulationMenuScreen()
             }
+
+            WinNativeMenu.Render()
 
             // Full manager screen over the paused game; dismiss (back or the screen's
             // own back arrow) resumes it. Same overlay pattern as All Settings.
