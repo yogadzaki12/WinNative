@@ -3,7 +3,6 @@ package com.winlator.cmod.feature.retro
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
-import com.winlator.cmod.feature.setup.SetupWizardActivity
 import com.winlator.cmod.runtime.container.ContainerManager
 import com.winlator.cmod.runtime.container.Shortcut
 import com.winlator.cmod.shared.io.FileUtils
@@ -63,8 +62,7 @@ object RetroShortcuts {
         romPath: String,
         system: RetroSystem,
     ): Boolean {
-        val containerManager = ContainerManager(context)
-        val container = SetupWizardActivity.getPreferredGameContainer(context, containerManager) ?: return false
+        val container = ContainerManager(context).retroContainer
 
         val desktopDir = container.desktopDir
         if (!desktopDir.exists()) desktopDir.mkdirs()
@@ -92,7 +90,6 @@ object RetroShortcuts {
             }
 
         FileUtils.writeString(shortcutFile, content)
-        container.saveData()
         return true
     }
 

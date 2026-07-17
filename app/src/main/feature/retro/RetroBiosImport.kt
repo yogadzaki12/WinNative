@@ -77,6 +77,8 @@ object RetroBiosImport {
                 target.writeBytes(bytes)
                 tmp.delete()
             }
+            context.getSharedPreferences("ARMSX2", Context.MODE_PRIVATE)
+                .edit().putString("bios", target.absolutePath).apply()
             safe
         }
 }
