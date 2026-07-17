@@ -75,6 +75,7 @@ class RetroInputView(
         val rightTriggerLabel: String = "R2",
         val showRightTrigger: Boolean = true,
         val flatFaces: Boolean = false,
+        val hasDualSticks: Boolean = false,
         val faceTop: String = "X",
         val faceBottom: String = "B",
         val faceLeft: String = "Y",
@@ -103,7 +104,19 @@ class RetroInputView(
                     leftTriggerLabel = "Z",
                     showRightTrigger = false,
                 )
-            RetroSystems.PSX.id, RetroSystems.PS2.id ->
+            RetroSystems.PS2.id ->
+                OverlayConfig(
+                    hasXY = true,
+                    hasShoulders = true,
+                    hasTriggers = true,
+                    hasStick = false,
+                    hasDualSticks = true,
+                    faceTop = "\u25b3",
+                    faceBottom = "\u2715",
+                    faceLeft = "\u25a1",
+                    faceRight = "\u25cb",
+                )
+            RetroSystems.PSX.id ->
                 OverlayConfig(
                     hasXY = true,
                     hasShoulders = true,
@@ -378,6 +391,12 @@ class RetroInputView(
     private var stickPointerId = -1
     private var stickX = 0f
     private var stickY = 0f
+    private var stick2Cx = 0f
+    private var stick2Cy = 0f
+    private var stick2Radius = 0f
+    private var stick2PointerId = -1
+    private var stick2X = 0f
+    private var stick2Y = 0f
 
     private val pressedButtons = HashSet<Int>()
     private var dpadX = 0f
@@ -706,6 +725,16 @@ class RetroInputView(
             dpadCx = leftBarWidth * 0.5f
         }
         dpadCy = height - bottomGap - dpadRadius
+
+        if (config.hasDualSticks) {
+            stickRadius = snap * 5.5f
+            stick2Radius = stickRadius
+            dpadCy -= stickRadius * 0.9f
+            stickCx = dpadCx + dpadRadius + snap * 2f + stickRadius
+            stickCy = height - snap * 2.5f - stickRadius
+            stick2Cx = width - stickCx
+            stick2Cy = stickCy
+        }
 
         if (config.hasTriggers && config.hasXY) {
             val rowY = height - snap * 2.5f - pillH
@@ -1069,7 +1098,8 @@ class RetroInputView(
         drawClusterPlate(canvas)
         drawFacePlate(canvas)
         if (dpadVisible) drawDpad(canvas)
-        if (config.hasStick && stickVisible) drawStick(canvas)
+        if ((config.hasStick || config.hasDualSticks) && stickVisible) drawStick(canvas)
+        if (config.hasDualSticks && stickVisible) drawStick2(canvas)
         buttons.forEach { drawThemedButton(canvas, it, pressedButtons.contains(it.keyCode)) }
         cButtons.forEach { drawCButton(canvas, it) }
         drawThemedButton(canvas, menuButton, menuLatched)
@@ -1461,6 +1491,28 @@ class RetroInputView(
         arrow(cx + r - inset, cy, 1f, 0f, pressedRight)
     }
 
+    private fun drawStick2(canvas: Canvas) {
+        val ocx = stickCx
+        val ocy = stickCy
+        val orad = stickRadius
+        val ox = stickX
+        val oy = stickY
+        val op = stickPointerId
+        stickCx = stick2Cx
+        stickCy = stick2Cy
+        stickRadius = stick2Radius
+        stickX = stick2X
+        stickY = stick2Y
+        stickPointerId = stick2PointerId
+        drawStick(canvas)
+        stickCx = ocx
+        stickCy = ocy
+        stickRadius = orad
+        stickX = ox
+        stickY = oy
+        stickPointerId = op
+    }
+
     private fun drawStick(canvas: Canvas) {
         val engaged = stickPointerId != -1
         val wellColor = darken(customColors.button ?: theme.dpad, 0.1f)
@@ -1759,6 +1811,12 @@ class RetroInputView(
             cStickY = 0f
             listener.onRightStick(0f, 0f)
         }
+        if (stick2PointerId != -1 || stick2X != 0f || stick2Y != 0f) {
+            stick2PointerId = -1
+            stick2X = 0f
+            stick2Y = 0f
+            listener.onRightStick(0f, 0f)
+        }
         menuLatched = false
         invalidate()
     }
@@ -1820,6 +1878,9 @@ class RetroInputView(
         var stickSeen = false
         var newStickX = stickX
         var newStickY = stickY
+        var stick2Seen = false
+        var newStick2X = stick2X
+        var newStick2Y = stick2Y
 
         if (!released) {
             for (i in 0 until event.pointerCount) {
@@ -1828,7 +1889,26 @@ class RetroInputView(
                 val y = event.getY(i)
                 val pointerId = event.getPointerId(i)
 
-                if (config.hasStick && stickVisible) {
+                if (config.hasDualSticks && stickVisible) {
+                    if (pointerId == stick2PointerId) {
+                        stick2Seen = true
+                        newStick2X = ((x - stick2Cx) / stick2Radius).coerceIn(-1f, 1f)
+                        newStick2Y = ((y - stick2Cy) / stick2Radius).coerceIn(-1f, 1f)
+                        continue
+                    }
+                    if (stick2PointerId == -1 &&
+                        hypot(x - stick2Cx, y - stick2Cy) <= stick2Radius * 1.3f
+                    ) {
+                        stick2PointerId = pointerId
+                        stick2Seen = true
+                        hapticTick()
+                        newStick2X = ((x - stick2Cx) / stick2Radius).coerceIn(-1f, 1f)
+                        newStick2Y = ((y - stick2Cy) / stick2Radius).coerceIn(-1f, 1f)
+                        continue
+                    }
+                }
+
+                if ((config.hasStick || config.hasDualSticks) && stickVisible) {
                     if (pointerId == stickPointerId) {
                         stickSeen = true
                         newStickX = ((x - stickCx) / stickRadius).coerceIn(-1f, 1f)
@@ -1900,6 +1980,17 @@ class RetroInputView(
             stickX = newStickX
             stickY = newStickY
             listener.onStick(stickX, stickY)
+        }
+
+        if (!stick2Seen && stick2PointerId != -1) {
+            stick2PointerId = -1
+            newStick2X = 0f
+            newStick2Y = 0f
+        }
+        if (newStick2X != stick2X || newStick2Y != stick2Y) {
+            stick2X = newStick2X
+            stick2Y = newStick2Y
+            listener.onRightStick(stick2X, stick2Y)
         }
 
         for (keyCode in pressedButtons) {
