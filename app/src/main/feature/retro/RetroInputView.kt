@@ -132,10 +132,10 @@ class RetroInputView(
 
     private fun faceGlyphScale(label: String): Float =
         when (label) {
-            "\u25cb" -> 1.3f
-            "\u25b3" -> 1.16f
-            "\u25a1" -> 1.16f
-            "\u2715" -> 1.06f
+            "\u25cb" -> 1.85f
+            "\u25b3" -> 1.55f
+            "\u25a1" -> 1.45f
+            "\u2715" -> 1f
             else -> 1f
         }
 
@@ -1214,7 +1214,7 @@ class RetroInputView(
                 buttonTextColor(button),
                 button.label,
                 pressed,
-                if (button.label.length > 1) 0.62f else 0.92f,
+                if (button.label.length > 1) 0.62f else 0.92f * button.textScale,
             )
             return
         }
@@ -1331,7 +1331,7 @@ class RetroInputView(
             paint.textAlign = Paint.Align.CENTER
             paint.isFakeBoldText = true
             paint.textSize = radius * textScale * 1.05f
-            val maxTextWidth = radius * 1.7f
+            val maxTextWidth = radius * (if (label.length == 1) 2.4f else 1.7f)
             if (paint.measureText(label) > maxTextWidth) {
                 paint.textSize = paint.textSize * maxTextWidth / paint.measureText(label)
             }
