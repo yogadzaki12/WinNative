@@ -2428,6 +2428,7 @@ internal fun UnifiedActivity.LibraryGameDetailDialog(
                                 lastPlayedMillis = lastPlayed,
                                 installSizeText = installSizeText,
                                 isCustom = isCustom,
+                                isRetro = isRetro,
                                 hasPinnedShortcut = hasPinnedShortcut,
                                 playEnabled = playEnabled,
                                 playDisabledLabel = playDisabledLabel,

@@ -60,6 +60,30 @@ private fun humanSize(bytes: Long): String =
         else -> "$bytes B"
     }
 
+private fun sharedRaCreds(context: Context): Pair<String, String>? {
+    val ra = context.getSharedPreferences("retro_achievements", Context.MODE_PRIVATE)
+    val u = ra.getString("username", null)
+    val t = ra.getString("token", null)
+    return if (!u.isNullOrBlank() && !t.isNullOrBlank()) u to t else null
+}
+
+/** Log ARMSX2's RetroAchievements client in using WinNative's shared account
+ *  (the username + API token stored by RetroAchievementsManager for the other
+ *  consoles), so PS2 uses the same login rather than a separate one. PCSX2
+ *  persists [Achievements] Username/Token and auto-logs-in when the client is
+ *  rebuilt. Returns true if shared creds existed and were pushed. */
+private fun pushSharedRaToArmsx2(context: Context): Boolean {
+    val (u, t) = sharedRaCreds(context) ?: return false
+    runCatching {
+        NativeApp.setSetting("Achievements", "Enabled", "bool", "true")
+        NativeApp.setSetting("Achievements", "Username", "string", u)
+        NativeApp.setSetting("Achievements", "Token", "string", t)
+        NativeApp.commitSettings()
+        NativeApp.clearAchievementsHostOverride()
+    }
+    return true
+}
+
 private fun queryName(context: Context, uri: android.net.Uri): String? =
     runCatching {
         context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
@@ -368,7 +392,16 @@ fun Ps2AchievementsScreen(
         items = com.armsx2.ui.achievements.parseAchievementItems(json)
     }
 
-    androidx.compose.runtime.LaunchedEffect(Unit) { refresh() }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        refresh()
+        if (!loggedIn && pushSharedRaToArmsx2(context)) {
+            repeat(6) {
+                kotlinx.coroutines.delay(500)
+                refresh()
+                if (loggedIn) return@LaunchedEffect
+            }
+        }
+    }
 
     Ps2OverlayScaffold(title = "Achievements", onBack = onBack) {
         if (!loggedIn) {
@@ -391,12 +424,21 @@ fun Ps2AchievementsScreen(
                     enabled = !busy && user.isNotBlank() && pass.isNotBlank(),
                     onClick = {
                         busy = true; error = ""
-                        scope.launch {
-                            val err = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                runCatching { NativeApp.loginAchievements(user.trim(), pass) }.getOrDefault("Login failed")
+                        RetroAchievementsManager.login(context, user.trim(), pass) { ok, msg ->
+                            if (ok) {
+                                pushSharedRaToArmsx2(context)
+                                scope.launch {
+                                    repeat(6) {
+                                        kotlinx.coroutines.delay(500)
+                                        refresh()
+                                        if (loggedIn) return@launch
+                                    }
+                                    busy = false
+                                }
+                            } else {
+                                busy = false
+                                error = msg ?: "Login failed"
                             }
-                            busy = false
-                            if (err.isNullOrBlank()) refresh() else error = err
                         }
                     },
                 ) { Text(if (busy) "Signing in…" else "Sign In") }

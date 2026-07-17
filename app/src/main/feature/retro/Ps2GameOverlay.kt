@@ -72,6 +72,13 @@ object Ps2GameOverlay {
             NativeApp.setAudioVolume(prefs.getInt("wn.ps2.volume", 100))
             NativeApp.setAudioMuted(prefs.getBoolean("wn.ps2.muted", false))
             NativeApp.setAudioSwapChannels(prefs.getBoolean("wn.ps2.swap", false))
+            when (prefs.getString("wn.ps2.renderer", "vulkan")) {
+                "opengl" -> NativeApp.renderOpenGL()
+                "software" -> NativeApp.renderSoftware()
+                else -> NativeApp.renderVulkan()
+            }
+            NativeApp.renderUpscalemultiplier(prefs.getFloat("wn.ps2.upscale", 1f))
+            NativeApp.osdShowFPS(prefs.getBoolean("wn.osd.fps", false))
         }
         fun osd(key: String) = prefs.getBoolean("wn.osd.$key", false)
         fun setOsd(key: String, value: Boolean, apply: (Boolean) -> Unit) {

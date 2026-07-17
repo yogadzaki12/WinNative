@@ -80,6 +80,20 @@ fun RetroDefaultsScreen() {
             }
         }
 
+    val ps2BiosPicker =
+        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) {
+                RetroBiosImport.importPs2FromUri(context, uri)
+                    .onSuccess {
+                        Toast.makeText(context, "PS2 BIOS imported: $it", Toast.LENGTH_SHORT).show()
+                    }
+                    .onFailure {
+                        Toast.makeText(context, it.message ?: "Invalid PS2 BIOS file", Toast.LENGTH_LONG).show()
+                    }
+                refresh++
+            }
+        }
+
     @Suppress("UNUSED_EXPRESSION") refresh
 
     Column(
@@ -162,6 +176,25 @@ fun RetroDefaultsScreen() {
             }
         }
 
+        RetroSettingGroup {
+            RetroGroupTitle("PLAYSTATION 2 BIOS")
+            val ps2Installed = RetroBiosImport.installedPs2Bios(context)
+            RetroInfoRow(
+                "Installed",
+                if (ps2Installed.isEmpty()) "None — PS2 games require a BIOS" else ps2Installed.joinToString(", "),
+            )
+            RetroInfoRow(
+                "Format",
+                "Merged single-file dump (region-tagged .bin, ~4MB). Split ROM0/MEC/NVM sets are not accepted.",
+            )
+            Button(
+                onClick = { runCatching { ps2BiosPicker.launch(arrayOf("*/*")) } },
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            ) {
+                Text("Import PS2 BIOS…")
+            }
+        }
+
         Text(
             "CONSOLE DEFAULTS",
             color = PageSub,
@@ -201,10 +234,36 @@ fun RetroDefaultsScreen() {
                     )
                 }
                 if (expanded && console.isExternal) {
-                    RetroInfoRow(
-                        "Emulator",
-                        "PlayStation 2 emulation is in development and will be available in a future update.",
+                    val ps2Prefs = context.getSharedPreferences("ARMSX2", android.content.Context.MODE_PRIVATE)
+                    val rendererKeys = listOf("vulkan", "opengl", "software")
+                    val rendererLabels = listOf("Vulkan", "OpenGL", "Software")
+                    RetroSettingDropdown(
+                        label = "Renderer",
+                        entries = rendererLabels,
+                        selectedIndex = rendererKeys.indexOf(ps2Prefs.getString("wn.ps2.renderer", "vulkan")).coerceAtLeast(0),
+                        onSelected = { ps2Prefs.edit().putString("wn.ps2.renderer", rendererKeys[it]).apply(); refresh++ },
                     )
+                    val ps2Scales = listOf(1f, 1.5f, 2f, 3f, 4f)
+                    val ps2ScaleLabels = listOf("1x (Native)", "1.5x", "2x", "3x", "4x")
+                    val curScale = ps2Prefs.getFloat("wn.ps2.upscale", 1f)
+                    RetroSettingDropdown(
+                        label = "Upscale resolution",
+                        entries = ps2ScaleLabels,
+                        selectedIndex = ps2Scales.indexOfFirst { kotlin.math.abs(it - curScale) < 0.01f }.coerceAtLeast(0),
+                        onSelected = { ps2Prefs.edit().putFloat("wn.ps2.upscale", ps2Scales[it]).apply(); refresh++ },
+                    )
+                    RetroSettingSwitch(
+                        "On-screen touch controls",
+                        RetroDefaults.touchControls(context, sys),
+                    ) { RetroDefaults.setTouchControls(context, sys, it); refresh++ }
+                    RetroSettingSwitch(
+                        "Sound",
+                        !ps2Prefs.getBoolean("wn.ps2.muted", false),
+                    ) { ps2Prefs.edit().putBoolean("wn.ps2.muted", !it).apply(); refresh++ }
+                    RetroSettingSwitch(
+                        "Performance HUD (FPS)",
+                        ps2Prefs.getBoolean("wn.osd.fps", false),
+                    ) { ps2Prefs.edit().putBoolean("wn.osd.fps", it).apply(); refresh++ }
                 }
                 if (expanded && !console.isExternal) {
                     RetroSettingDropdown(

@@ -37,4 +37,46 @@ object RetroBiosImport {
             }
             canonical
         }
+
+    fun ps2BiosDir(context: Context): File =
+        File(context.getExternalFilesDir(null) ?: context.filesDir, "bios").apply { mkdirs() }
+
+    fun installedPs2Bios(context: Context): List<String> =
+        ps2BiosDir(context).listFiles().orEmpty()
+            .filter { it.isFile && it.length() >= 3L * 1024 * 1024 }
+            .map { it.name }
+            .sorted()
+
+    /** Import a merged single-file PS2 BIOS dump (region-tagged .bin, ~4MB).
+     *  ARMSX2 rejects the split .ROM0/.MEC/.NVM dumps, so require a single file
+     *  in the 3–8MB range that carries a PS2 region marker. */
+    fun importPs2FromUri(
+        context: Context,
+        uri: Uri,
+    ): Result<String> =
+        runCatching {
+            val name =
+                context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                    if (it.moveToFirst()) it.getString(0) else null
+                } ?: "ps2-bios.bin"
+            val bytes =
+                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    ?: throw IllegalStateException("Could not read file")
+            if (bytes.size !in (3 * 1024 * 1024)..(8 * 1024 * 1024)) {
+                throw IllegalArgumentException("Not a PS2 BIOS — expected a single merged .bin dump (3–8MB), not a split ROM0/MEC/NVM set.")
+            }
+            val head = String(bytes, 0, minOf(bytes.size, 4096), Charsets.ISO_8859_1)
+            if (!head.contains("PS2", true) && !head.contains("Sony", true) && !head.contains("ROMDIR", true)) {
+                throw IllegalArgumentException("This file doesn't look like a PS2 BIOS dump.")
+            }
+            val safe = name.ifBlank { "ps2-bios.bin" }.let { if (it.endsWith(".bin", true)) it else "$it.bin" }
+            val target = File(ps2BiosDir(context), safe)
+            val tmp = File(ps2BiosDir(context), "$safe.tmp")
+            tmp.writeBytes(bytes)
+            if (!tmp.renameTo(target)) {
+                target.writeBytes(bytes)
+                tmp.delete()
+            }
+            safe
+        }
 }
