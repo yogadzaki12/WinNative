@@ -68,6 +68,15 @@ object Ps2GameOverlay {
         }
 
         val prefs = activity.getSharedPreferences("ARMSX2", android.content.Context.MODE_PRIVATE)
+
+        fun gsSet(key: String, type: String, value: String) {
+            runCatching {
+                NativeApp.setSetting("EmuCore/GS", key, type, value)
+                NativeApp.commitSettings()
+                NativeApp.applyGSSettingsLive()
+            }
+        }
+
         runCatching {
             NativeApp.setAudioVolume(prefs.getInt("wn.ps2.volume", 100))
             NativeApp.setAudioMuted(prefs.getBoolean("wn.ps2.muted", false))
@@ -79,6 +88,8 @@ object Ps2GameOverlay {
             }
             NativeApp.renderUpscalemultiplier(prefs.getFloat("wn.ps2.upscale", 1f))
             NativeApp.osdShowFPS(prefs.getBoolean("wn.osd.fps", false))
+            NativeApp.setAspectRatio(prefs.getInt("wn.ps2.aspect", 1).coerceIn(0, 3))
+            NativeApp.setFrameSkip(prefs.getInt("wn.ps2.frameskip", 0).coerceIn(0, 3))
         }
         fun osd(key: String) = prefs.getBoolean("wn.osd.$key", false)
         fun setOsd(key: String, value: Boolean, apply: (Boolean) -> Unit) {
@@ -216,6 +227,45 @@ object Ps2GameOverlay {
                     RetroMenuEntry.Choice("Upscale", labels, idx) { next ->
                         prefs.edit().putFloat("wn.ps2.upscale", scales[next]).apply()
                         runCatching { NativeApp.renderUpscalemultiplier(scales[next]) }
+                        menu.rebuild()
+                    },
+                )
+                val aspectLabels = listOf("Stretch", "Auto (Standard)", "4:3", "16:9")
+                add(
+                    RetroMenuEntry.Choice("Aspect Ratio", aspectLabels, prefs.getInt("wn.ps2.aspect", 1).coerceIn(0, 3)) { next ->
+                        prefs.edit().putInt("wn.ps2.aspect", next).apply()
+                        runCatching { NativeApp.setAspectRatio(next) }
+                        menu.rebuild()
+                    },
+                )
+                val blendLabels = listOf("Minimum", "Basic", "Medium", "High", "Full", "Maximum")
+                add(
+                    RetroMenuEntry.Choice("Blending Accuracy", blendLabels, prefs.getInt("wn.ps2.blend", 1).coerceIn(0, 5)) { next ->
+                        prefs.edit().putInt("wn.ps2.blend", next).apply()
+                        gsSet("accurate_blending_unit", "int", next.toString())
+                        menu.rebuild()
+                    },
+                )
+                val filterLabels = listOf("Nearest", "Bilinear (Forced)", "Bilinear (PS2)", "Bilinear (Sprites)")
+                add(
+                    RetroMenuEntry.Choice("Texture Filtering", filterLabels, prefs.getInt("wn.ps2.filter", 2).coerceIn(0, 3)) { next ->
+                        prefs.edit().putInt("wn.ps2.filter", next).apply()
+                        gsSet("filter", "int", next.toString())
+                        menu.rebuild()
+                    },
+                )
+                add(
+                    RetroMenuEntry.Toggle("Mipmapping", checked = prefs.getBoolean("wn.ps2.mipmap", true)) { value ->
+                        prefs.edit().putBoolean("wn.ps2.mipmap", value).apply()
+                        gsSet("hw_mipmap", "bool", value.toString())
+                        menu.rebuild()
+                    },
+                )
+                val skipLabels = listOf("Off", "Skip 1", "Skip 2", "Skip 3")
+                add(
+                    RetroMenuEntry.Choice("Frame Skip", skipLabels, prefs.getInt("wn.ps2.frameskip", 0).coerceIn(0, 3)) { next ->
+                        prefs.edit().putInt("wn.ps2.frameskip", next).apply()
+                        runCatching { NativeApp.setFrameSkip(next) }
                         menu.rebuild()
                     },
                 )

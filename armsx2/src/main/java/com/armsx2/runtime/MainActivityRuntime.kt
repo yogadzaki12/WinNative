@@ -2091,7 +2091,9 @@ open class MainActivityRuntime : ComponentActivity() {
                 !WindowImpl.overlayVisible.value && !WindowImpl.showLibrary.value
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0)
                 println("@@ANDROID_HOLDBACK@@ back_down source=0x${Integer.toHexString(event.source)} inGame=$inGame backBound=$backBoundToHotkey pref=${prefs.getBoolean("ui.holdBackToExit", true)}")
-            if (!backBoundToHotkey && inGame && prefs.getBoolean("ui.holdBackToExit", true)) {
+            if (!backBoundToHotkey && inGame && !com.armsx2.WinNativeHost.enabled() &&
+                prefs.getBoolean("ui.holdBackToExit", true)
+            ) {
                 when (event.action) {
                     KeyEvent.ACTION_DOWN -> if (event.repeatCount == 0) {
                         backHoldRunnable?.let { backHoldHandler.removeCallbacks(it) }
