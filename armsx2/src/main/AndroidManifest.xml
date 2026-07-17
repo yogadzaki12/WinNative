@@ -9,15 +9,6 @@
         <meta-data android:name="android.app.game_mode" android:value="performance" />
 
         <activity
-            android:name="com.armsx2.BootSplashActivity"
-            android:process=":ps2"
-            android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|uiMode|screenSize|smallestScreenSize"
-            android:hardwareAccelerated="true"
-            android:exported="false"
-            android:resizeableActivity="false"
-            android:theme="@style/Theme.ARMSX2.Boot" />
-
-        <activity
             android:name="com.armsx2.Main"
             android:process=":ps2"
             android:launchMode="singleTop"

@@ -34,10 +34,6 @@ object ThemePreferences {
 
 }
 
-/** Whether the animated intro video plays on cold boot. Read by
- *  [com.armsx2.BootSplashActivity] straight from the "ARMSX2" prefs (key
- *  "ui.bootLogo") before Compose is up; this holder just backs the App-tab
- *  toggle and keeps that same key in sync. */
 object BootLogoPreferences {
     private const val PreferenceKey = "ui.bootLogo"
 
