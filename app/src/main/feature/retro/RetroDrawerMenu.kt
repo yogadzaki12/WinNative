@@ -244,7 +244,6 @@ class RetroMenuController {
         get() =
             when (pane) {
                 null -> 3
-                RetroPane.DISPLAY -> 2
                 else -> 1
             }
 

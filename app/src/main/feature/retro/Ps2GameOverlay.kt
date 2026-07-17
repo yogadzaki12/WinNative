@@ -18,7 +18,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.viewinterop.AndroidView
-import com.armsx2.EmuState
 import com.armsx2.WinNativeHost
 import com.armsx2.runtime.MainActivityRuntime
 import com.armsx2.ui.WindowImpl
@@ -61,7 +60,6 @@ object Ps2GameOverlay {
         val touchVisible = mutableStateOf(RetroDefaults.touchControls(activity, RetroSystems.PS2.id))
         var customColors = RetroControlLayouts.loadColors(activity, RetroSystems.PS2.id)
         var wnPaused = false
-        val paused = { wnPaused || MainActivityRuntime.eState.value == EmuState.PAUSED }
 
         fun persistColors() {
             RetroControlLayouts.saveColors(activity, RetroSystems.PS2.id, customColors)
@@ -108,6 +106,7 @@ object Ps2GameOverlay {
             NativeApp.speedhackEecyclerate(prefs.getInt("wn.ps2.eeRate", 0).coerceIn(-3, 3))
             NativeApp.speedhackEecycleskip(prefs.getInt("wn.ps2.eeSkip", 0).coerceIn(0, 3))
             NativeApp.setInstantVU1(prefs.getBoolean("wn.ps2.instantVu1", true))
+            NativeApp.renderTvShader(prefs.getInt("wn.ps2.tvshader", 0).coerceIn(0, 7))
         }
         fun osd(key: String) = prefs.getBoolean("wn.osd.$key", false)
         fun setOsd(key: String, value: Boolean, apply: (Boolean) -> Unit) {
@@ -304,54 +303,98 @@ object Ps2GameOverlay {
 
         fun displayEntries(): List<RetroMenuEntry> =
             buildList {
-                val renderer = prefs.getString("wn.ps2.renderer", "vulkan")
-                listOf("vulkan" to "Vulkan", "opengl" to "OpenGL", "software" to "Software").forEach { (key, label) ->
-                    add(
-                        RetroMenuEntry.Radio(label, selected = renderer == key) {
-                            prefs.edit().putString("wn.ps2.renderer", key).apply()
-                            bg {
-                                when (key) {
-                                    "vulkan" -> NativeApp.renderVulkan()
-                                    "opengl" -> NativeApp.renderOpenGL()
-                                    else -> NativeApp.renderSoftware()
-                                }
-                            }
-                            menu.rebuild()
-                        },
-                    )
-                }
-                val scales = listOf(1f, 1.5f, 2f, 3f, 4f)
-                val labels = listOf("1x (Native)", "1.5x", "2x", "3x", "4x")
-                val current = prefs.getFloat("wn.ps2.upscale", 1f)
-                val idx = scales.indexOfFirst { kotlin.math.abs(it - current) < 0.01f }.coerceAtLeast(0)
+                val rendererKeys = listOf("vulkan", "opengl", "software")
+                val rendererLabels = listOf("Vulkan", "OpenGL", "Software")
                 add(
-                    RetroMenuEntry.Choice("Upscale", labels, idx) { next ->
+                    RetroMenuEntry.Choice(
+                        "Renderer",
+                        rendererLabels,
+                        rendererKeys.indexOf(prefs.getString("wn.ps2.renderer", "vulkan")).coerceAtLeast(0),
+                    ) { next ->
+                        prefs.edit().putString("wn.ps2.renderer", rendererKeys[next]).apply()
+                        bg {
+                            when (rendererKeys[next]) {
+                                "opengl" -> NativeApp.renderOpenGL()
+                                "software" -> NativeApp.renderSoftware()
+                                else -> NativeApp.renderVulkan()
+                            }
+                        }
+                        menu.rebuild()
+                    },
+                )
+                val scales = listOf(1f, 1.5f, 2f, 3f, 4f)
+                val scaleLabels = listOf("1x (Native)", "1.5x", "2x", "3x", "4x")
+                val scaleIdx = scales.indexOfFirst { kotlin.math.abs(it - prefs.getFloat("wn.ps2.upscale", 1f)) < 0.01f }.coerceAtLeast(0)
+                add(
+                    RetroMenuEntry.Choice("Resolution Scale", scaleLabels, scaleIdx) { next ->
                         prefs.edit().putFloat("wn.ps2.upscale", scales[next]).apply()
                         bg { NativeApp.renderUpscalemultiplier(scales[next]) }
                         menu.rebuild()
                     },
                 )
-                val aspectLabels = listOf("Stretch", "Auto (Standard)", "4:3", "16:9")
                 add(
-                    RetroMenuEntry.Choice("Aspect Ratio", aspectLabels, prefs.getInt("wn.ps2.aspect", 1).coerceIn(0, 3)) { next ->
+                    RetroMenuEntry.Choice(
+                        "Aspect Ratio",
+                        listOf("Stretch", "Auto (Standard)", "4:3", "16:9"),
+                        prefs.getInt("wn.ps2.aspect", 1).coerceIn(0, 3),
+                    ) { next ->
                         prefs.edit().putInt("wn.ps2.aspect", next).apply()
                         bg { NativeApp.setAspectRatio(next) }
                         menu.rebuild()
                     },
                 )
-                val blendLabels = listOf("Minimum", "Basic", "Medium", "High", "Full", "Maximum")
                 add(
-                    RetroMenuEntry.Choice("Blending Accuracy", blendLabels, prefs.getInt("wn.ps2.blend", 1).coerceIn(0, 5)) { next ->
+                    RetroMenuEntry.Choice(
+                        "Display Filter",
+                        listOf("Nearest", "Bilinear (Smooth)", "Bilinear (Sharp)"),
+                        prefs.getInt("wn.ps2.displayfilter", 1).coerceIn(0, 2),
+                    ) { next ->
+                        prefs.edit().putInt("wn.ps2.displayfilter", next).apply()
+                        gsSetAsync("linear_present_mode", "int", next.toString())
+                        menu.rebuild()
+                    },
+                )
+                add(
+                    RetroMenuEntry.Choice(
+                        "Texture Filter",
+                        listOf("Nearest", "Bilinear (Forced)", "Bilinear (PS2)", "Bilinear (Sprites)"),
+                        prefs.getInt("wn.ps2.filter", 2).coerceIn(0, 3),
+                    ) { next ->
+                        prefs.edit().putInt("wn.ps2.filter", next).apply()
+                        gsSetAsync("filter", "int", next.toString())
+                        menu.rebuild()
+                    },
+                )
+                add(
+                    RetroMenuEntry.Choice(
+                        "Blending Accuracy",
+                        listOf("Minimum", "Basic", "Medium", "High", "Full", "Maximum"),
+                        prefs.getInt("wn.ps2.blend", 1).coerceIn(0, 5),
+                    ) { next ->
                         prefs.edit().putInt("wn.ps2.blend", next).apply()
                         gsSetAsync("accurate_blending_unit", "int", next.toString())
                         menu.rebuild()
                     },
                 )
-                val filterLabels = listOf("Nearest", "Bilinear (Forced)", "Bilinear (PS2)", "Bilinear (Sprites)")
                 add(
-                    RetroMenuEntry.Choice("Texture Filtering", filterLabels, prefs.getInt("wn.ps2.filter", 2).coerceIn(0, 3)) { next ->
-                        prefs.edit().putInt("wn.ps2.filter", next).apply()
-                        gsSetAsync("filter", "int", next.toString())
+                    RetroMenuEntry.Choice(
+                        "CRT / TV Shader",
+                        listOf("Off", "Scanline", "Diagonal", "Triangular", "Wave", "Lottes", "4xRGSS", "NxAGSS"),
+                        prefs.getInt("wn.ps2.tvshader", 0).coerceIn(0, 7),
+                    ) { next ->
+                        prefs.edit().putInt("wn.ps2.tvshader", next).apply()
+                        bg { NativeApp.renderTvShader(next) }
+                        menu.rebuild()
+                    },
+                )
+                add(
+                    RetroMenuEntry.Choice(
+                        "Frame Skip",
+                        listOf("Off", "Skip 1", "Skip 2", "Skip 3"),
+                        prefs.getInt("wn.ps2.frameskip", 0).coerceIn(0, 3),
+                    ) { next ->
+                        prefs.edit().putInt("wn.ps2.frameskip", next).apply()
+                        bg { NativeApp.setFrameSkip(next) }
                         menu.rebuild()
                     },
                 )
@@ -359,14 +402,6 @@ object Ps2GameOverlay {
                     RetroMenuEntry.Toggle("Mipmapping", checked = prefs.getBoolean("wn.ps2.mipmap", true)) { value ->
                         prefs.edit().putBoolean("wn.ps2.mipmap", value).apply()
                         gsSetAsync("hw_mipmap", "bool", value.toString())
-                        menu.rebuild()
-                    },
-                )
-                val skipLabels = listOf("Off", "Skip 1", "Skip 2", "Skip 3")
-                add(
-                    RetroMenuEntry.Choice("Frame Skip", skipLabels, prefs.getInt("wn.ps2.frameskip", 0).coerceIn(0, 3)) { next ->
-                        prefs.edit().putInt("wn.ps2.frameskip", next).apply()
-                        bg { NativeApp.setFrameSkip(next) }
                         menu.rebuild()
                     },
                 )
@@ -489,7 +524,7 @@ object Ps2GameOverlay {
         }
         menu.bottomProvider = {
             listOf(
-                if (paused()) {
+                if (wnPaused) {
                     RetroMenuEntry.Action("Resume", RetroDrawerIcons.Resume, active = true) {
                         wnPaused = false
                         MainActivityRuntime.resume()
@@ -498,8 +533,7 @@ object Ps2GameOverlay {
                 } else {
                     RetroMenuEntry.Action("Pause", RetroDrawerIcons.Pause) {
                         wnPaused = true
-                        MainActivityRuntime.pauseForOverlay()
-                        activity.runOnUiThread { menu.rebuild() }
+                        menu.rebuild()
                     }
                 },
                 RetroMenuEntry.Action("Exit", RetroDrawerIcons.Exit, danger = true) {
@@ -563,6 +597,14 @@ object Ps2GameOverlay {
                         }
                         androidx.compose.runtime.LaunchedEffect(Unit) {
                             launchMemcardImport = { memImport.launch(arrayOf("*/*")) }
+                        }
+                        val menuVisible = menu.visible
+                        androidx.compose.runtime.LaunchedEffect(menuVisible) {
+                            if (menuVisible) {
+                                MainActivityRuntime.pauseForOverlay()
+                            } else if (!wnPaused && ps2Screen.value == null) {
+                                MainActivityRuntime.resume()
+                            }
                         }
                         val screen by ps2Screen
                         if (screen != null) {
