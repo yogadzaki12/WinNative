@@ -138,7 +138,7 @@ object Ps2GameOverlay {
                 )
                 add(RetroMenuEntry.Action("Achievements", RetroDrawerIcons.Achievements) { openWinNativeScreen("achievements") })
                 add(RetroMenuEntry.Action("Cheats", RetroDrawerIcons.Cheats) { openWinNativeScreen("cheats") })
-                add(RetroMenuEntry.Action("Memory Cards", RetroDrawerIcons.Save) { openWinNativeScreen("memcards") })
+                add(RetroMenuEntry.Action("Memory Cards", RetroDrawerIcons.Save) { menu.showPane(RetroPane.MEMCARDS) })
                 add(
                     RetroMenuEntry.Toggle("Fast Forward", checked = MainActivityRuntime.fastForwardToggleActive) {
                         (activity as? MainActivityRuntime)?.toggleFastForward()
@@ -189,6 +189,63 @@ object Ps2GameOverlay {
                     },
                     onRename = {},
                 )
+            }
+
+        var launchMemcardImport: (() -> Unit)? = null
+
+        fun applyMemSlot(slot: Int, name: String?) {
+            prefs.edit().apply {
+                if (name == null) remove("wn.ps2.mc.slot$slot") else putString("wn.ps2.mc.slot$slot", name)
+            }.apply()
+            bg {
+                NativeApp.setSetting("MemoryCards", "Slot${slot}_Enable", "bool", "false")
+                if (name != null) {
+                    NativeApp.setSetting("MemoryCards", "Slot${slot}_Filename", "string", name)
+                    NativeApp.setSetting("MemoryCards", "Slot${slot}_Enable", "bool", "true")
+                }
+                NativeApp.commitSettings()
+            }
+        }
+
+        fun memcardEntries(): List<RetroMenuEntry> =
+            buildList {
+                val cards = runCatching { listMemcards(activity) }.getOrDefault(emptyList())
+                val slot1 = prefs.getString("wn.ps2.mc.slot1", "").orEmpty()
+                val slot2 = prefs.getString("wn.ps2.mc.slot2", "").orEmpty()
+                cards.forEach { card ->
+                    val assigned = when (card.name) { slot1 -> 1; slot2 -> 2; else -> 0 }
+                    add(
+                        RetroMenuEntry.SaveSlot(
+                            slot = assigned,
+                            title = card.name.removeSuffix(".ps2"),
+                            subtitle = humanSize(card.length()) +
+                                when (assigned) { 1 -> "  •  Slot 1"; 2 -> "  •  Slot 2"; else -> "  •  Tap to use" },
+                            filled = assigned != 0,
+                            onClick = {
+                                when (assigned) {
+                                    0 -> applyMemSlot(1, card.name)
+                                    1 -> { applyMemSlot(1, null); applyMemSlot(2, card.name) }
+                                    else -> applyMemSlot(2, null)
+                                }
+                                menu.rebuild()
+                            },
+                            onRename = {},
+                        ),
+                    )
+                }
+                add(
+                    RetroMenuEntry.Action("New Memory Card", RetroDrawerIcons.Save) {
+                        bg {
+                            val existing = runCatching { listMemcards(activity).map { it.name }.toHashSet() }.getOrDefault(hashSetOf())
+                            var n = 1
+                            var name = "Mcd%03d.ps2".format(n)
+                            while (name in existing) { n++; name = "Mcd%03d.ps2".format(n) }
+                            runCatching { NativeApp.createMemoryCard(name, 1, 1) }
+                            activity.runOnUiThread { menu.rebuild() }
+                        }
+                    },
+                )
+                add(RetroMenuEntry.Action("Import Card", RetroDrawerIcons.Load) { launchMemcardImport?.invoke() })
             }
 
         fun controlsEntries(): List<RetroMenuEntry> =
@@ -425,6 +482,7 @@ object Ps2GameOverlay {
                 RetroPane.PERFORMANCE -> performanceEntries()
                 RetroPane.SOUND -> soundEntries()
                 RetroPane.SAVES -> saveSlotEntries()
+                RetroPane.MEMCARDS -> memcardEntries()
                 RetroPane.CONTROLS -> controlsEntries()
                 RetroPane.HUD -> hudEntries()
             }
@@ -488,6 +546,24 @@ object Ps2GameOverlay {
             ComposeView(activity).apply {
                 setContent {
                     WinNativeTheme {
+                        val memImport = androidx.activity.compose.rememberLauncherForActivityResult(
+                            androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+                        ) { uri ->
+                            if (uri != null) {
+                                Thread {
+                                    runCatching {
+                                        val name = queryName(activity, uri) ?: "Imported.ps2"
+                                        val fileName = if (name.endsWith(".ps2", true)) name else "$name.ps2"
+                                        val target = uniqueMemcard(memcardDir(activity), fileName)
+                                        activity.contentResolver.openInputStream(uri)?.use { input -> target.outputStream().use(input::copyTo) }
+                                    }
+                                    activity.runOnUiThread { menu.rebuild() }
+                                }.start()
+                            }
+                        }
+                        androidx.compose.runtime.LaunchedEffect(Unit) {
+                            launchMemcardImport = { memImport.launch(arrayOf("*/*")) }
+                        }
                         val screen by ps2Screen
                         if (screen != null) {
                             val dismiss = {
@@ -497,7 +573,6 @@ object Ps2GameOverlay {
                             }
                             BackHandler(enabled = true) { dismiss() }
                             when (screen) {
-                                "memcards" -> Ps2MemoryCardsScreen(activity, dismiss)
                                 "cheats" -> Ps2CheatsScreen(activity, dismiss)
                                 "achievements" -> Ps2AchievementsScreen(activity, dismiss)
                             }

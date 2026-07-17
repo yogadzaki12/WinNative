@@ -17,11 +17,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.FileDownload
-import androidx.compose.material.icons.outlined.FileUpload
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -49,15 +44,15 @@ import java.io.File
 import kotlinx.coroutines.launch
 import kr.co.iefriends.pcsx2.NativeApp
 
-private fun memcardDir(context: Context): File =
+internal fun memcardDir(context: Context): File =
     File(MainActivityRuntime.assetCopyRoot(context), "memcards").apply { mkdirs() }
 
-private fun listMemcards(context: Context): List<File> =
+internal fun listMemcards(context: Context): List<File> =
     memcardDir(context).listFiles().orEmpty()
         .filter { it.isFile && it.extension.equals("ps2", true) }
         .sortedBy { it.name.lowercase() }
 
-private fun humanSize(bytes: Long): String =
+internal fun humanSize(bytes: Long): String =
     when {
         bytes >= 1_048_576 -> "${bytes / 1_048_576} MB"
         bytes >= 1024 -> "${bytes / 1024} KB"
@@ -96,14 +91,14 @@ private fun pushSharedRaToArmsx2(context: Context): Boolean {
     return true
 }
 
-private fun queryName(context: Context, uri: android.net.Uri): String? =
+internal fun queryName(context: Context, uri: android.net.Uri): String? =
     runCatching {
         context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
             if (it.moveToFirst()) it.getString(0) else null
         }
     }.getOrNull()
 
-private fun uniqueMemcard(dir: File, name: String): File {
+internal fun uniqueMemcard(dir: File, name: String): File {
     dir.mkdirs()
     val base = name.substringBeforeLast('.', name)
     val ext = name.substringAfterLast('.', "").let { if (it.isEmpty()) "" else ".$it" }
@@ -111,180 +106,6 @@ private fun uniqueMemcard(dir: File, name: String): File {
     var i = 2
     while (target.exists()) target = File(dir, "$base-$i$ext").also { i++ }
     return target
-}
-
-private fun assignSlot(context: Context, slot: Int, name: String) {
-    runCatching {
-        NativeApp.setSetting("MemoryCards", "Slot${slot}_Enable", "bool", "false")
-        NativeApp.setSetting("MemoryCards", "Slot${slot}_Filename", "string", name)
-        NativeApp.setSetting("MemoryCards", "Slot${slot}_Enable", "bool", "true")
-        NativeApp.commitSettings()
-    }
-    context.getSharedPreferences("ARMSX2", Context.MODE_PRIVATE)
-        .edit().putString("wn.ps2.mc.slot$slot", name).apply()
-}
-
-@Composable
-fun Ps2MemoryCardsScreen(
-    context: Context,
-    onBack: () -> Unit,
-) {
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-    var cards by remember { mutableStateOf<List<File>>(emptyList()) }
-    val prefs = context.getSharedPreferences("ARMSX2", Context.MODE_PRIVATE)
-    var slot1 by remember { mutableStateOf(prefs.getString("wn.ps2.mc.slot1", "").orEmpty()) }
-    var slot2 by remember { mutableStateOf(prefs.getString("wn.ps2.mc.slot2", "").orEmpty()) }
-    var showCreate by remember { mutableStateOf(false) }
-    var exportTarget by remember { mutableStateOf<File?>(null) }
-
-    fun reload() {
-        scope.launch {
-            val loaded = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { listMemcards(context) }
-            cards = loaded
-            slot1 = prefs.getString("wn.ps2.mc.slot1", "").orEmpty()
-            slot2 = prefs.getString("wn.ps2.mc.slot2", "").orEmpty()
-        }
-    }
-
-    androidx.compose.runtime.LaunchedEffect(Unit) { reload() }
-
-    val importLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        if (uri != null) {
-            scope.launch {
-                val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    runCatching {
-                        val name = queryName(context, uri) ?: "Imported.ps2"
-                        val fileName = if (name.endsWith(".ps2", true)) name else "$name.ps2"
-                        val target = uniqueMemcard(memcardDir(context), fileName)
-                        context.contentResolver.openInputStream(uri)?.use { input -> target.outputStream().use(input::copyTo) }
-                        target.length() > 0L && NativeApp.isMemoryCard(target.name)
-                    }.getOrDefault(false)
-                }
-                android.widget.Toast.makeText(context, if (ok) "Imported memory card" else "Import failed", android.widget.Toast.LENGTH_SHORT).show()
-                reload()
-            }
-        }
-    }
-    val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream"),
-    ) { uri ->
-        val src = exportTarget
-        if (uri != null && src != null) {
-            scope.launch {
-                val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    runCatching {
-                        context.contentResolver.openOutputStream(uri)?.use { it.write(src.readBytes()) }
-                        true
-                    }.getOrDefault(false)
-                }
-                android.widget.Toast.makeText(context, if (ok) "Exported ${src.name}" else "Export failed", android.widget.Toast.LENGTH_SHORT).show()
-            }
-        }
-        exportTarget = null
-    }
-
-    Ps2OverlayScaffold(title = "Memory Cards", onBack = onBack, action = {
-        val importCard = { importLauncher.launch(arrayOf("*/*")) }
-        IconButton(onClick = importCard, modifier = Modifier.paneNavItem(onActivate = { importCard() })) {
-            Icon(Icons.Outlined.FileDownload, contentDescription = "Import", tint = MaterialTheme.colorScheme.onSurface)
-        }
-        IconButton(onClick = { showCreate = true }, modifier = Modifier.paneNavItem(onActivate = { showCreate = true })) {
-            Icon(Icons.Outlined.Add, contentDescription = "Create", tint = MaterialTheme.colorScheme.onSurface)
-        }
-    }) {
-        if (cards.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No memory cards yet. Tap + to create one.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        } else {
-            LazyColumn(
-                Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                items(cards) { card ->
-                    Card(
-                        Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                        shape = RoundedCornerShape(12.dp),
-                    ) {
-                        Column(Modifier.padding(14.dp)) {
-                            Text(card.name, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-                            Text(
-                                humanSize(card.length()) +
-                                    (if (card.name == slot1) "  •  Slot 1" else "") +
-                                    (if (card.name == slot2) "  •  Slot 2" else ""),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Spacer(Modifier.height(10.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                val assign1 = { scope.launch { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { assignSlot(context, 1, card.name) }; reload() }; Unit }
-                                val assign2 = { scope.launch { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { assignSlot(context, 2, card.name) }; reload() }; Unit }
-                                val export = { exportTarget = card; exportLauncher.launch(card.name); Unit }
-                                OutlinedButton(onClick = assign1, modifier = Modifier.paneNavItem(onActivate = assign1)) { Text("Slot 1") }
-                                OutlinedButton(onClick = assign2, modifier = Modifier.paneNavItem(onActivate = assign2)) { Text("Slot 2") }
-                                Spacer(Modifier.width(4.dp))
-                                IconButton(onClick = export, modifier = Modifier.paneNavItem(onActivate = export)) {
-                                    Icon(Icons.Outlined.FileUpload, contentDescription = "Export", tint = MaterialTheme.colorScheme.onSurface)
-                                }
-                                if (card.name != slot1 && card.name != slot2) {
-                                    val del = { scope.launch { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { card.delete() }; reload() }; Unit }
-                                    IconButton(onClick = del, modifier = Modifier.paneNavItem(onActivate = del)) {
-                                        Icon(Icons.Outlined.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if (showCreate) {
-        var name by remember { mutableStateOf("MemoryCard") }
-        var sizeType by remember { mutableStateOf(1) }
-        val sizeLabels = listOf("8 MB", "16 MB", "32 MB", "64 MB")
-        AlertDialog(
-            onDismissRequest = { showCreate = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    val safe = name.trim().replace(Regex("[\\\\/:*?\"<>|]"), "_").ifBlank { "MemoryCard" }
-                    val fileName = if (safe.endsWith(".ps2", true)) safe else "$safe.ps2"
-                    showCreate = false
-                    scope.launch {
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            runCatching { NativeApp.createMemoryCard(fileName, 1, sizeType.coerceIn(1, 4)) }
-                        }
-                        reload()
-                    }
-                }) { Text("Create") }
-            },
-            dismissButton = { TextButton(onClick = { showCreate = false }) { Text("Cancel") } },
-            title = { Text("New Memory Card") },
-            text = {
-                Column {
-                    OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true, label = { Text("Name") })
-                    Spacer(Modifier.height(12.dp))
-                    Text("Size", style = MaterialTheme.typography.labelMedium)
-                    Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        sizeLabels.forEachIndexed { idx, label ->
-                            OutlinedButton(
-                                onClick = { sizeType = idx + 1 },
-                                colors = if (sizeType == idx + 1) {
-                                    androidx.compose.material3.ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
-                                } else {
-                                    androidx.compose.material3.ButtonDefaults.outlinedButtonColors()
-                                },
-                            ) { Text(label, style = MaterialTheme.typography.labelSmall) }
-                        }
-                    }
-                }
-            },
-        )
-    }
 }
 
 @Composable

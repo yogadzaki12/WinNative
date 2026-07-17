@@ -936,6 +936,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             RetroPane.HUD -> buildHudEntries()
             RetroPane.SAVES -> buildSaveSlotEntries()
             RetroPane.PERFORMANCE -> emptyList()
+            RetroPane.MEMCARDS -> emptyList()
         }
 
     private fun persistColors() {

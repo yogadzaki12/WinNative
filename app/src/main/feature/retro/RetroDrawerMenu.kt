@@ -127,7 +127,7 @@ private val DrawerWidth = 300.dp
 private val DrawerStartPadding = 6.dp
 private val DrawerVerticalPadding = 6.dp
 
-enum class RetroPane { DISPLAY, SOUND, CONTROLS, HUD, SAVES, PERFORMANCE }
+enum class RetroPane { DISPLAY, SOUND, CONTROLS, HUD, SAVES, PERFORMANCE, MEMCARDS }
 
 class RetroRenamePrompt(
     val title: String,
