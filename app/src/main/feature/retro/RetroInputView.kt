@@ -686,7 +686,12 @@ class RetroInputView(
             }
             clusterCx = width - rightBarWidth * 0.5f
         }
-        val clusterCy = height - bottomGap - faceRadius - spread
+        val clusterCy =
+            if (config.hasDualSticks) {
+                dpadCy - dpadRadius + spread + faceRadius
+            } else {
+                height - bottomGap - faceRadius - spread
+            }
         var clusterTop = height
         fun addFace(
             keyCode: Int,
@@ -730,8 +735,8 @@ class RetroInputView(
             stickRadius = snap * 5.5f
             stick2Radius = stickRadius
             dpadCy -= stickRadius * 0.9f
-            stickCx = dpadCx + dpadRadius + snap * 2f + stickRadius
-            stickCy = height - snap * 2.5f - stickRadius
+            stickCx = dpadCx + dpadRadius + snap * 0.8f + stickRadius
+            stickCy = height - snap * 4.5f - stickRadius
             stick2Cx = width - stickCx
             stick2Cy = stickCy
         }
