@@ -3,5 +3,4 @@ snes9x|https://github.com/libretro/snes9x.git|185488cd83aaf274752a742c94d45561cb
 gambatte|https://github.com/libretro/gambatte-libretro.git|9b3b5e3cc18ec92f460d37dd551eaf90c55bfcea|libgambatte/libretro/jni|gambatte
 mgba|https://github.com/libretro/mgba.git|6dce57eef127dc4cc292644f38196e0e7c58590c|libretro-build/jni|mgba
 genesis_plus_gx|https://github.com/libretro/Genesis-Plus-GX.git|fa4dca561e08d5be9077419f7b255e1da213ed21|libretro/jni|genesis_plus_gx
-parallel_n64|https://github.com/libretro/parallel-n64.git|0d200abf27b0bbac3c63369a9ef4e98b2b40c0da|jni|parallel_n64
 beetle_psx|https://github.com/libretro/beetle-psx-libretro.git|df25987f2e47520c3d65da9300f565032038d9c6|jni|mednafen_psx

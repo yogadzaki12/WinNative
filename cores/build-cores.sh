@@ -36,10 +36,7 @@ while IFS='|' read -r name url sha jni out; do
   if [ -f "$patch" ] && ! git -C "$src" apply --reverse --check "$patch" 2>/dev/null; then
     git -C "$src" apply "$patch"
   fi
-  cflags=""
-  [ "$name" = "parallel_n64" ] && cflags="-Wno-implicit-function-declaration -Wno-error=implicit-function-declaration"
-  "$NDK/ndk-build" -C "$src/$jni" APP_ABI="$ABI" APP_PLATFORM="$PLATFORM" \
-    ${cflags:+APP_CFLAGS="$cflags"} -j"$JOBS" >/dev/null
+  "$NDK/ndk-build" -C "$src/$jni" APP_ABI="$ABI" APP_PLATFORM="$PLATFORM" -j"$JOBS" >/dev/null
   built="$(find "$src" -path "*libs/$ABI/*.so" | head -1)"
   [ -n "$built" ] || { echo "build-cores: $name produced no .so" >&2; exit 1; }
   cp -f "$built" "$target"
