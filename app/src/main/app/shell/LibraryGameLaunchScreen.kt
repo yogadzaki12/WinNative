@@ -421,16 +421,16 @@ internal fun LibraryGameLaunchScreen(
                                 size = actionIconSize,
                                 onClick = onBootToDesktop,
                             )
-                            LaunchIconActionButton(
-                                icon = Icons.Outlined.Home,
-                                contentDescription =
-                                    stringResource(
-                                        if (hasPinnedShortcut) R.string.common_ui_remove else R.string.common_ui_shortcut,
-                                    ),
-                                size = actionIconSize,
-                                onClick = onShortcut,
-                            )
                         }
+                        LaunchIconActionButton(
+                            icon = Icons.Outlined.Home,
+                            contentDescription =
+                                stringResource(
+                                    if (hasPinnedShortcut) R.string.common_ui_remove else R.string.common_ui_shortcut,
+                                ),
+                            size = actionIconSize,
+                            onClick = onShortcut,
+                        )
                         Box {
                             LaunchIconActionButton(
                                 icon = Icons.Outlined.Delete,

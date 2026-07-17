@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Monitor
 import androidx.compose.material.icons.outlined.Speed
@@ -19,7 +20,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.armsx2.EmuState
 import com.armsx2.WinNativeHost
 import com.armsx2.runtime.MainActivityRuntime
-import com.armsx2.ui.InGameScreen
 import com.armsx2.ui.WindowImpl
 import com.winlator.cmod.shared.theme.WinNativeTheme
 import kr.co.iefriends.pcsx2.NativeApp
@@ -54,6 +54,7 @@ object Ps2GameOverlay {
 
     private fun attach(activity: ComponentActivity) {
         val menu = RetroMenuController()
+        val ps2Screen = mutableStateOf<String?>(null)
         var savesLoadMode = false
         var pad: RetroInputView? = null
         val touchVisible = mutableStateOf(RetroDefaults.touchControls(activity, RetroSystems.PS2.id))
@@ -67,6 +68,11 @@ object Ps2GameOverlay {
         }
 
         val prefs = activity.getSharedPreferences("ARMSX2", android.content.Context.MODE_PRIVATE)
+        runCatching {
+            NativeApp.setAudioVolume(prefs.getInt("wn.ps2.volume", 100))
+            NativeApp.setAudioMuted(prefs.getBoolean("wn.ps2.muted", false))
+            NativeApp.setAudioSwapChannels(prefs.getBoolean("wn.ps2.swap", false))
+        }
         fun osd(key: String) = prefs.getBoolean("wn.osd.$key", false)
         fun setOsd(key: String, value: Boolean, apply: (Boolean) -> Unit) {
             prefs.edit().putBoolean("wn.osd.$key", value).apply()
@@ -74,10 +80,10 @@ object Ps2GameOverlay {
             menu.rebuild()
         }
 
-        fun openScreen(screen: InGameScreen) {
+        fun openWinNativeScreen(screen: String) {
             menu.close()
             MainActivityRuntime.pauseForOverlay()
-            WindowImpl.openInGameScreen(screen)
+            ps2Screen.value = screen
         }
 
         fun mainEntries(): List<RetroMenuEntry> =
@@ -94,9 +100,9 @@ object Ps2GameOverlay {
                         menu.showPane(RetroPane.SAVES)
                     },
                 )
-                add(RetroMenuEntry.Action("Achievements", RetroDrawerIcons.Achievements) { openScreen(InGameScreen.Achievements) })
-                add(RetroMenuEntry.Action("Cheats", RetroDrawerIcons.Cheats) { openScreen(InGameScreen.Patches) })
-                add(RetroMenuEntry.Action("Memory Cards", RetroDrawerIcons.Save) { openScreen(InGameScreen.Memcard) })
+                add(RetroMenuEntry.Action("Achievements", RetroDrawerIcons.Achievements) { openWinNativeScreen("achievements") })
+                add(RetroMenuEntry.Action("Cheats", RetroDrawerIcons.Cheats) { openWinNativeScreen("cheats") })
+                add(RetroMenuEntry.Action("Memory Cards", RetroDrawerIcons.Save) { openWinNativeScreen("memcards") })
             }
 
         fun saveSlotEntries(): List<RetroMenuEntry> =
@@ -208,6 +214,42 @@ object Ps2GameOverlay {
                 )
             }
 
+        fun soundEntries(): List<RetroMenuEntry> =
+            buildList {
+                val muted = prefs.getBoolean("wn.ps2.muted", false)
+                val volume = prefs.getInt("wn.ps2.volume", 100)
+                val swap = prefs.getBoolean("wn.ps2.swap", false)
+                add(
+                    RetroMenuEntry.Slider(
+                        label = "Volume",
+                        valueText = "$volume%",
+                        value = volume.toFloat(),
+                        min = 0f,
+                        max = 200f,
+                        step = 5f,
+                    ) { value ->
+                        val v = value.toInt()
+                        prefs.edit().putInt("wn.ps2.volume", v).apply()
+                        runCatching { NativeApp.setAudioVolume(v) }
+                        menu.rebuild()
+                    },
+                )
+                add(
+                    RetroMenuEntry.Toggle("Mute", checked = muted) { value ->
+                        prefs.edit().putBoolean("wn.ps2.muted", value).apply()
+                        runCatching { NativeApp.setAudioMuted(value) }
+                        menu.rebuild()
+                    },
+                )
+                add(
+                    RetroMenuEntry.Toggle("Swap Stereo Channels", checked = swap) { value ->
+                        prefs.edit().putBoolean("wn.ps2.swap", value).apply()
+                        runCatching { NativeApp.setAudioSwapChannels(value) }
+                        menu.rebuild()
+                    },
+                )
+            }
+
         fun hudEntries(): List<RetroMenuEntry> =
             buildList {
                 add(RetroMenuEntry.Toggle("FPS", checked = osd("fps")) { v -> setOsd("fps", v) { NativeApp.osdShowFPS(it) } })
@@ -226,16 +268,17 @@ object Ps2GameOverlay {
                 RetroTabSpec(null, Icons.Outlined.Apps, "Menu"),
                 RetroTabSpec(RetroPane.DISPLAY, Icons.Outlined.Monitor, "Display"),
                 RetroTabSpec(RetroPane.HUD, Icons.Outlined.Speed, "HUD"),
+                RetroTabSpec(RetroPane.SOUND, Icons.AutoMirrored.Outlined.VolumeUp, "Sound"),
                 RetroTabSpec(RetroPane.CONTROLS, Icons.Outlined.SportsEsports, "Controls"),
             )
         menu.entriesProvider = { pane ->
             when (pane) {
                 null -> mainEntries()
                 RetroPane.DISPLAY -> displayEntries()
+                RetroPane.SOUND -> soundEntries()
                 RetroPane.SAVES -> saveSlotEntries()
                 RetroPane.CONTROLS -> controlsEntries()
                 RetroPane.HUD -> hudEntries()
-                else -> emptyList()
             }
         }
         menu.bottomProvider = {
@@ -295,6 +338,20 @@ object Ps2GameOverlay {
             ComposeView(activity).apply {
                 setContent {
                     WinNativeTheme {
+                        val screen by ps2Screen
+                        if (screen != null) {
+                            val dismiss = {
+                                ps2Screen.value = null
+                                MainActivityRuntime.resume()
+                            }
+                            BackHandler(enabled = true) { dismiss() }
+                            when (screen) {
+                                "memcards" -> Ps2MemoryCardsScreen(activity, dismiss)
+                                "cheats" -> Ps2CheatsScreen(activity, dismiss)
+                                "achievements" -> Ps2AchievementsScreen(activity, dismiss)
+                            }
+                            return@WinNativeTheme
+                        }
                         val covered = WindowImpl.frontendCovers
                         if (!covered && touchVisible.value) {
                             AndroidView(
