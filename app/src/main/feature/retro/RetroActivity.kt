@@ -300,12 +300,22 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             return
         }
 
-        val romFile = File(romPath)
-        if (!romFile.isFile) {
+        val sourceFile = File(romPath)
+        if (!sourceFile.isFile) {
             Toast.makeText(this, "ROM not found: $romPath", Toast.LENGTH_LONG).show()
             finish()
             return
         }
+        val romFile =
+            if (RetroRomArchive.isArchive(romPath)) {
+                RetroRomArchive.extractTo(this, romPath) ?: run {
+                    Toast.makeText(this, "Could not read the ROM inside this archive", Toast.LENGTH_LONG).show()
+                    finish()
+                    return
+                }
+            } else {
+                sourceFile
+            }
 
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_USER
 

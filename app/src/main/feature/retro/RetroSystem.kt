@@ -144,6 +144,7 @@ object RetroSystems {
 
     fun detectForFile(path: String): RetroSystem? {
         val ext = path.substringAfterLast('.', "").lowercase(Locale.US)
+        if (RetroRomArchive.isArchive(path)) return RetroRomArchive.detect(path)
         val detected = fromExtension(ext) ?: return null
         if (ext == "bin" && java.io.File(path).length() > 16L * 1024 * 1024) return PSX
         if (detected.id == PSX.id && ext in setOf("iso", "chd", "bin") &&
@@ -157,6 +158,7 @@ object RetroSystems {
     fun isRetroRom(path: String?): Boolean {
         if (path.isNullOrBlank()) return false
         val ext = path.substringAfterLast('.', "").lowercase(Locale.US)
+        if (RetroRomArchive.isArchive(path)) return RetroRomArchive.detect(path) != null
         return ext in allExtensions
     }
 }
