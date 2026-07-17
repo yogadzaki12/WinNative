@@ -2348,22 +2348,25 @@ internal fun UnifiedActivity.LibraryGameDetailDialog(
                             val retroSaveImportLauncher =
                                 rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
                                     if (uri != null) {
-                                        val ok =
+                                        val sourceName =
+                                            context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                                                if (it.moveToFirst()) it.getString(0) else null
+                                            } ?: "save"
+                                        val result =
                                             runCatching {
                                                 val bytes =
                                                     context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                                                        ?: return@runCatching false
-                                                com.winlator.cmod.feature.retro.RetroSaveStates
-                                                    .sramFile(context, app.name).writeBytes(bytes)
-                                                true
-                                            }.getOrDefault(false)
-                                        android.widget.Toast.makeText(
-                                            context,
-                                            context.getString(
-                                                if (ok) R.string.retro_save_transfer_import_ok else R.string.retro_save_transfer_import_failed,
-                                            ),
-                                            android.widget.Toast.LENGTH_SHORT,
-                                        ).show()
+                                                        ?: return@runCatching com.winlator.cmod.feature.retro.RetroSaveImport.Result.Invalid("Could not read the file.")
+                                                com.winlator.cmod.feature.retro.RetroSaveImport.import(context, app.name, sourceName, bytes)
+                                            }.getOrElse { com.winlator.cmod.feature.retro.RetroSaveImport.Result.Invalid("Could not read the file.") }
+                                        val message =
+                                            when (result) {
+                                                is com.winlator.cmod.feature.retro.RetroSaveImport.Result.Success ->
+                                                    "Imported save (${result.name}, ${result.bytes / 1024} KB)"
+                                                is com.winlator.cmod.feature.retro.RetroSaveImport.Result.Invalid ->
+                                                    "Import failed: ${result.reason}"
+                                            }
+                                        android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
                                     }
                                 }
                             val retroSaveExportLauncher =
