@@ -10,6 +10,7 @@
 
         <activity
             android:name="com.armsx2.BootSplashActivity"
+            android:process=":ps2"
             android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|uiMode|screenSize|smallestScreenSize"
             android:hardwareAccelerated="true"
             android:exported="false"
@@ -18,6 +19,7 @@
 
         <activity
             android:name="com.armsx2.Main"
+            android:process=":ps2"
             android:launchMode="singleTop"
             android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|uiMode|screenSize|smallestScreenSize"
             android:hardwareAccelerated="true"

@@ -133,9 +133,10 @@ object RetroShortcuts {
             } catch (e: IllegalArgumentException) {
                 android.net.Uri.fromFile(rom)
             }
+        Ps2GameOverlay.install()
         val intent =
             Intent(Intent.ACTION_VIEW).apply {
-                setClassName(context, "com.armsx2.BootSplashActivity")
+                setClassName(context, "com.armsx2.Main")
                 setDataAndType(uri, "application/octet-stream")
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }

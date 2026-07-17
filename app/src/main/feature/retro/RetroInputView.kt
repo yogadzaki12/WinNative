@@ -103,7 +103,7 @@ class RetroInputView(
                     leftTriggerLabel = "Z",
                     showRightTrigger = false,
                 )
-            RetroSystems.PSX.id ->
+            RetroSystems.PSX.id, RetroSystems.PS2.id ->
                 OverlayConfig(
                     hasXY = true,
                     hasShoulders = true,
@@ -115,6 +115,15 @@ class RetroInputView(
                     faceRight = "○",
                 )
             else -> OverlayConfig(hasXY = false, hasShoulders = false, hasTriggers = false, hasStick = false)
+        }
+
+    private fun faceGlyphScale(label: String): Float =
+        when (label) {
+            "\u25cb" -> 1.3f
+            "\u25b3" -> 1.16f
+            "\u25a1" -> 1.16f
+            "\u2715" -> 1.06f
+            else -> 1f
         }
 
     private val buttons = mutableListOf<GlassButton>()
@@ -224,7 +233,7 @@ class RetroInputView(
                     button = 0xFF303038.toInt(),
                     buttonText = 0xFFB9B9C2.toInt(),
                 )
-            RetroSystems.PSX.id ->
+            RetroSystems.PSX.id, RetroSystems.PS2.id ->
                 RetroTheme(
                     body = 0xFFB7B7C0.toInt(),
                     dpad = 0xFF50505A.toInt(),
@@ -666,7 +675,7 @@ class RetroInputView(
             cx: Float,
             cy: Float,
         ) {
-            val button = GlassButton(keyCode, label, GlassShape.CIRCLE)
+            val button = GlassButton(keyCode, label, GlassShape.CIRCLE, textScale = faceGlyphScale(label))
             button.bounds.set(cx - faceRadius, cy - faceRadius, cx + faceRadius, cy + faceRadius)
             buttons += button
             clusterTop = min(clusterTop, button.bounds.top)
@@ -907,7 +916,7 @@ class RetroInputView(
             cy: Float,
             radius: Float,
         ) {
-            val button = GlassButton(keyCode, label, GlassShape.CIRCLE)
+            val button = GlassButton(keyCode, label, GlassShape.CIRCLE, textScale = faceGlyphScale(label))
             button.bounds.set(cx - radius, cy - radius, cx + radius, cy + radius)
             buttons += button
         }

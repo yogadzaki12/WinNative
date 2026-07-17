@@ -1856,6 +1856,7 @@ internal fun UnifiedActivity.LibraryCarousel(
                         localLibraryRefreshKey++
                     }
                     val allShortcuts = cm.loadShortcuts()
+                    val badges = HashMap<Int, String>()
                     val apps =
                         allShortcuts
                             .mapNotNull { shortcut ->
@@ -1875,6 +1876,13 @@ internal fun UnifiedActivity.LibraryCarousel(
                                     -(displayName.hashCode().and(0x7FFFFFFF) + 1)
                                 }
 
+                                com.winlator.cmod.feature.retro.RetroSystems
+                                    .fromId(
+                                        shortcut.getExtra(
+                                            com.winlator.cmod.feature.retro.RetroShortcuts.KEY_SYSTEM,
+                                        ),
+                                    )?.let { badges[customId] = it.badgeLabel }
+
                                 SteamApp(
                                     id = customId,
                                     name = displayName,
@@ -1887,13 +1895,14 @@ internal fun UnifiedActivity.LibraryCarousel(
                                 )
                             }
 
-                    allShortcuts to apps
+                    Triple(allShortcuts, apps, badges)
                 }
             }.getOrNull()
 
         if (shortcutScanResult != null) {
             cachedShortcuts = shortcutScanResult.first
             customApps = shortcutScanResult.second
+            retroLibraryBadges.value = shortcutScanResult.third
         }
 
         shortcutsLoaded = true

@@ -419,7 +419,9 @@ open class MainActivityRuntime : ComponentActivity() {
         private fun finishToLauncherIfRequested() {
             if (quitAfterStop) {
                 quitAfterStop = false
-                instance?.runOnUiThread { instance?.finishAndRemoveTask() }
+                instance?.runOnUiThread {
+                    if (com.armsx2.WinNativeHost.enabled()) instance?.finish() else instance?.finishAndRemoveTask()
+                }
             }
         }
 
@@ -448,7 +450,9 @@ open class MainActivityRuntime : ComponentActivity() {
         @JvmStatic
         fun exitApp() {
             if (eState.value == EmuState.STOPPED && !vmStopInProgress && !vmRunLoopActive) {
-                instance?.runOnUiThread { instance?.finishAndRemoveTask() }
+                instance?.runOnUiThread {
+                    if (com.armsx2.WinNativeHost.enabled()) instance?.finish() else instance?.finishAndRemoveTask()
+                }
             } else {
                 quitAfterStop = true
                 stop()
@@ -1655,6 +1659,14 @@ open class MainActivityRuntime : ComponentActivity() {
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
         ViewCompat.requestApplyInsets(window.decorView)
+
+        if (com.armsx2.WinNativeHost.enabled()) {
+            window.decorView.post {
+                if (!isFinishing && !isDestroyed) {
+                    com.armsx2.WinNativeHost.attachOverlay?.invoke(this)
+                }
+            }
+        }
 
         // Sustained Performance Mode (API 24+): holds a steady, thermally-
         // sustainable clock instead of boost-then-throttle. GOOD for long sessions
