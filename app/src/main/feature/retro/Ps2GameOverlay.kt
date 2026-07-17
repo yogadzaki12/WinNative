@@ -208,6 +208,14 @@ object Ps2GameOverlay {
             NativeApp.setSetting("EmuCore/GS", "hw_mipmap", "bool", prefs.getBoolean("wn.ps2.mipmap", true).toString())
             NativeApp.setSetting("EmuCore/Speedhacks", "vuThread", "bool", prefs.getBoolean("wn.ps2.mtvu", true).toString())
             NativeApp.setSetting("EmuCore/Speedhacks", "fastCDVD", "bool", prefs.getBoolean("wn.ps2.fastCdvd", false).toString())
+            prefs.getString("wn.ps2.mc.slot1", null)?.takeIf { it.isNotBlank() }?.let { name ->
+                NativeApp.setSetting("MemoryCards", "Slot1_Filename", "string", name)
+                NativeApp.setSetting("MemoryCards", "Slot1_Enable", "bool", "true")
+            }
+            prefs.getString("wn.ps2.mc.slot2", null)?.takeIf { it.isNotBlank() }?.let { name ->
+                NativeApp.setSetting("MemoryCards", "Slot2_Filename", "string", name)
+                NativeApp.setSetting("MemoryCards", "Slot2_Enable", "bool", "true")
+            }
             writeNetworkSettings()
             NativeApp.commitSettings()
         }
@@ -264,21 +272,32 @@ object Ps2GameOverlay {
         fun saveSlotEntries(): List<RetroMenuEntry> =
             (1..8).map { ui ->
                 val slot = ui - 1
+                val filled = runCatching { NativeApp.getGamePathSlot(slot) }.getOrNull()?.isNotBlank() == true
                 RetroMenuEntry.SaveSlot(
                     slot = ui,
                     title = "Slot $ui",
-                    subtitle = if (savesLoadMode) "Tap to load" else "Tap to save",
-                    filled = true,
+                    subtitle =
+                        when {
+                            savesLoadMode && filled -> "Tap to load"
+                            savesLoadMode -> "Empty"
+                            filled -> "Tap to overwrite"
+                            else -> "Empty — tap to save"
+                        },
+                    filled = filled,
                     onClick = {
                         if (savesLoadMode) {
-                            menu.close()
-                            Thread {
-                                val ok = runCatching { NativeApp.loadStateFromSlot(slot) }.getOrDefault(false)
-                                activity.runOnUiThread {
-                                    Toast.makeText(activity, if (ok) "Loaded slot $ui" else "Slot $ui is empty", Toast.LENGTH_SHORT).show()
-                                    if (ok) { wnPaused = false; MainActivityRuntime.resume() }
-                                }
-                            }.start()
+                            if (!filled) {
+                                Toast.makeText(activity, "Slot $ui is empty", Toast.LENGTH_SHORT).show()
+                            } else {
+                                menu.close()
+                                Thread {
+                                    val ok = runCatching { NativeApp.loadStateFromSlot(slot) }.getOrDefault(false)
+                                    activity.runOnUiThread {
+                                        Toast.makeText(activity, if (ok) "Loaded slot $ui" else "Could not load slot $ui", Toast.LENGTH_SHORT).show()
+                                        if (ok) { wnPaused = false; MainActivityRuntime.resume() }
+                                    }
+                                }.start()
+                            }
                         } else {
                             Thread {
                                 val ok = runCatching { NativeApp.saveStateToSlot(slot) }.getOrDefault(false)
