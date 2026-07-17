@@ -60,6 +60,8 @@ private fun Ps2NetEditDialog(state: MutableState<Ps2NetEdit?>) {
     )
 }
 
+const val PS2_DEFAULT_DNS = "45.7.228.197"
+
 data class Ps2NetHost(val url: String, val ip: String)
 
 class Ps2NetEdit(
@@ -159,12 +161,14 @@ object Ps2GameOverlay {
             val on = prefs.getBoolean("wn.ps2.net.enable", false)
             NativeApp.setSetting("DEV9/Eth", "EthEnable", "bool", on.toString())
             NativeApp.setSetting("DEV9/Eth", "EthApi", "string", "Sockets")
-            NativeApp.setSetting("DEV9/Eth", "EthDevice", "string", "Auto")
-            NativeApp.setSetting("DEV9/Eth", "InterceptDHCP", "bool", prefs.getBoolean("wn.ps2.net.dhcp", false).toString())
+            NativeApp.setSetting("DEV9/Eth", "EthDevice", "string", (prefs.getString("wn.ps2.net.ethdevice", "Auto") ?: "Auto").ifBlank { "Auto" })
+            NativeApp.setSetting("DEV9/Eth", "InterceptDHCP", "bool", prefs.getBoolean("wn.ps2.net.dhcp", true).toString())
+            NativeApp.setSetting("DEV9/Eth", "AutoMask", "bool", "true")
+            NativeApp.setSetting("DEV9/Eth", "AutoGateway", "bool", "true")
             val mode = prefs.getString("wn.ps2.net.dnsmode", "Manual") ?: "Manual"
             NativeApp.setSetting("DEV9/Eth", "ModeDNS1", "string", mode)
-            NativeApp.setSetting("DEV9/Eth", "ModeDNS2", "string", mode)
-            NativeApp.setSetting("DEV9/Eth", "DNS1", "string", (prefs.getString("wn.ps2.net.dns1", "") ?: "").ifBlank { "0.0.0.0" })
+            NativeApp.setSetting("DEV9/Eth", "ModeDNS2", "string", "Auto")
+            NativeApp.setSetting("DEV9/Eth", "DNS1", "string", (prefs.getString("wn.ps2.net.dns1", PS2_DEFAULT_DNS) ?: PS2_DEFAULT_DNS).ifBlank { PS2_DEFAULT_DNS })
             NativeApp.setSetting("DEV9/Eth", "DNS2", "string", (prefs.getString("wn.ps2.net.dns2", "") ?: "").ifBlank { "0.0.0.0" })
             val hosts = readHosts()
             NativeApp.setSetting("DEV9/Eth/Hosts", "Count", "int", hosts.size.toString())
@@ -352,15 +356,33 @@ object Ps2GameOverlay {
                 add(
                     RetroMenuEntry.Toggle(
                         "Enable Online (DEV9)",
-                        subtitle = "PS2 network adapter — applies on next launch",
+                        subtitle = "PS2 network adapter — restarts the game to attach it",
                         checked = enabled,
                     ) { value ->
                         prefs.edit().putBoolean("wn.ps2.net.enable", value).apply()
+                        bg {
+                            writeNetworkSettings()
+                            NativeApp.commitSettings()
+                            activity.runOnUiThread {
+                                menu.close()
+                                MainActivityRuntime.restart()
+                            }
+                        }
+                    },
+                )
+                if (!enabled) return@buildList
+                val devices = listOf("Auto", "Wi-Fi")
+                add(
+                    RetroMenuEntry.Choice(
+                        "Ethernet Device",
+                        devices,
+                        devices.indexOf(prefs.getString("wn.ps2.net.ethdevice", "Auto")).coerceAtLeast(0),
+                    ) { next ->
+                        prefs.edit().putString("wn.ps2.net.ethdevice", devices[next]).apply()
                         applyNetwork()
                         menu.rebuild()
                     },
                 )
-                if (!enabled) return@buildList
                 val dnsModes = listOf("Manual", "Auto", "Internal")
                 add(
                     RetroMenuEntry.Choice(
@@ -374,8 +396,8 @@ object Ps2GameOverlay {
                     },
                 )
                 add(
-                    RetroMenuEntry.TextInput("Primary DNS", prefs.getString("wn.ps2.net.dns1", "").orEmpty(), "e.g. 45.33.29.126") {
-                        netEdit.value = Ps2NetEdit("Primary DNS", prefs.getString("wn.ps2.net.dns1", "").orEmpty(), "0.0.0.0") { v ->
+                    RetroMenuEntry.TextInput("Primary DNS", prefs.getString("wn.ps2.net.dns1", PS2_DEFAULT_DNS).orEmpty(), PS2_DEFAULT_DNS) {
+                        netEdit.value = Ps2NetEdit("Primary DNS", prefs.getString("wn.ps2.net.dns1", PS2_DEFAULT_DNS).orEmpty(), PS2_DEFAULT_DNS) { v ->
                             prefs.edit().putString("wn.ps2.net.dns1", v.trim()).apply()
                             applyNetwork()
                             menu.rebuild()
@@ -392,7 +414,7 @@ object Ps2GameOverlay {
                     },
                 )
                 add(
-                    RetroMenuEntry.Toggle("Intercept DHCP", checked = prefs.getBoolean("wn.ps2.net.dhcp", false)) { value ->
+                    RetroMenuEntry.Toggle("Auto IP (DHCP)", checked = prefs.getBoolean("wn.ps2.net.dhcp", true)) { value ->
                         prefs.edit().putBoolean("wn.ps2.net.dhcp", value).apply()
                         applyNetwork()
                         menu.rebuild()

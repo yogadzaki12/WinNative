@@ -329,6 +329,29 @@ fun RetroDefaultsScreen() {
                         "Performance HUD (FPS)",
                         ps2Prefs.getBoolean("wn.osd.fps", false),
                     ) { ps2Prefs.edit().putBoolean("wn.osd.fps", it).apply(); refresh++ }
+                    RetroSettingSwitch(
+                        "Enable Online (DEV9)",
+                        ps2Prefs.getBoolean("wn.ps2.net.enable", false),
+                    ) { ps2Prefs.edit().putBoolean("wn.ps2.net.enable", it).apply(); refresh++ }
+                    if (ps2Prefs.getBoolean("wn.ps2.net.enable", false)) {
+                        val devices = listOf("Auto", "Wi-Fi")
+                        RetroSettingDropdown(
+                            label = "Ethernet Device",
+                            entries = devices,
+                            selectedIndex = devices.indexOf(ps2Prefs.getString("wn.ps2.net.ethdevice", "Auto")).coerceAtLeast(0),
+                            onSelected = { ps2Prefs.edit().putString("wn.ps2.net.ethdevice", devices[it]).apply(); refresh++ },
+                        )
+                        val dnsModes = listOf("Manual", "Auto", "Internal")
+                        RetroSettingDropdown(
+                            label = "DNS Mode",
+                            entries = dnsModes,
+                            selectedIndex = dnsModes.indexOf(ps2Prefs.getString("wn.ps2.net.dnsmode", "Manual")).coerceAtLeast(0),
+                            onSelected = { ps2Prefs.edit().putString("wn.ps2.net.dnsmode", dnsModes[it]).apply(); refresh++ },
+                        )
+                        RetroSettingTextField("Primary DNS", ps2Prefs.getString("wn.ps2.net.dns1", PS2_DEFAULT_DNS).orEmpty(), PS2_DEFAULT_DNS) { ps2Prefs.edit().putString("wn.ps2.net.dns1", it).apply(); refresh++ }
+                        RetroSettingTextField("Secondary DNS", ps2Prefs.getString("wn.ps2.net.dns2", "").orEmpty(), "optional") { ps2Prefs.edit().putString("wn.ps2.net.dns2", it).apply(); refresh++ }
+                        RetroSettingSwitch("Auto IP (DHCP)", ps2Prefs.getBoolean("wn.ps2.net.dhcp", true)) { ps2Prefs.edit().putBoolean("wn.ps2.net.dhcp", it).apply(); refresh++ }
+                    }
                 }
                 if (expanded && !console.isExternal) {
                     RetroSettingDropdown(

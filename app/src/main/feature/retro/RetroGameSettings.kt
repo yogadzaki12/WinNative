@@ -1059,14 +1059,19 @@ private fun RetroPs2GraphicsSection() {
         val onlineEnabled = prefs.getBoolean("wn.ps2.net.enable", false)
         RetroSettingSwitch("Enable Online", onlineEnabled) { putBool("wn.ps2.net.enable", it) }
         if (onlineEnabled) {
+            val devices = listOf("Auto", "Wi-Fi")
+            RetroSettingDropdown(
+                "Ethernet Device", devices,
+                devices.indexOf(prefs.getString("wn.ps2.net.ethdevice", "Auto")).coerceAtLeast(0),
+            ) { putStr("wn.ps2.net.ethdevice", devices[it]) }
             val dnsModes = listOf("Manual", "Auto", "Internal")
             RetroSettingDropdown(
                 "DNS Mode", dnsModes,
                 dnsModes.indexOf(prefs.getString("wn.ps2.net.dnsmode", "Manual")).coerceAtLeast(0),
             ) { putStr("wn.ps2.net.dnsmode", dnsModes[it]) }
-            RetroSettingTextField("Primary DNS", prefs.getString("wn.ps2.net.dns1", "").orEmpty(), "e.g. 45.33.29.126") { putStr("wn.ps2.net.dns1", it) }
+            RetroSettingTextField("Primary DNS", prefs.getString("wn.ps2.net.dns1", PS2_DEFAULT_DNS).orEmpty(), PS2_DEFAULT_DNS) { putStr("wn.ps2.net.dns1", it) }
             RetroSettingTextField("Secondary DNS", prefs.getString("wn.ps2.net.dns2", "").orEmpty(), "optional") { putStr("wn.ps2.net.dns2", it) }
-            RetroSettingSwitch("Intercept DHCP", prefs.getBoolean("wn.ps2.net.dhcp", false)) { putBool("wn.ps2.net.dhcp", it) }
+            RetroSettingSwitch("Auto IP (DHCP)", prefs.getBoolean("wn.ps2.net.dhcp", true)) { putBool("wn.ps2.net.dhcp", it) }
         }
     }
 }
