@@ -1581,5 +1581,7 @@ Percorso installato:
     <string name="retro_save_transfer_none">Non esiste ancora alcun salvataggio per questo gioco</string>
     <string name="retro_cheats_title">Trucchi</string>
     <string name="retro_cheats_hardcore_blocked">I trucchi sono disattivati in modalità Hardcore</string>
+    <string name="retro_rom_missing">File di gioco non trovato</string>
+    <string name="retro_ps2_needs_armsx2">I giochi PS2 richiedono l\'emulatore ARMSX2. Installalo per continuare.</string>
 </resources>
 

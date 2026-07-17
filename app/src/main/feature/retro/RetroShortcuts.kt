@@ -1,7 +1,11 @@
 package com.winlator.cmod.feature.retro
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+import androidx.core.content.FileProvider
 import com.winlator.cmod.feature.setup.SetupWizardActivity
 import com.winlator.cmod.runtime.container.ContainerManager
 import com.winlator.cmod.runtime.container.Shortcut
@@ -93,6 +97,83 @@ object RetroShortcuts {
         FileUtils.writeString(shortcutFile, content)
         container.saveData()
         return true
+    }
+
+    @JvmStatic
+    fun launch(
+        context: Context,
+        shortcut: Shortcut,
+    ) {
+        val system = systemForShortcut(shortcut)
+        if (system != null && system.isExternal) {
+            launchExternal(context, system, romPath(shortcut))
+            return
+        }
+        context.startActivity(launchIntent(context, shortcut))
+    }
+
+    private fun launchExternal(
+        context: Context,
+        system: RetroSystem,
+        romPath: String,
+    ) {
+        val pkg = system.externalPackage ?: return
+        val rom = java.io.File(romPath)
+        if (!rom.isFile) {
+            Toast.makeText(context, context.getString(com.winlator.cmod.R.string.retro_rom_missing), Toast.LENGTH_LONG).show()
+            return
+        }
+        val uri: Uri =
+            try {
+                FileProvider.getUriForFile(context, "${context.packageName}.tileprovider", rom)
+            } catch (e: IllegalArgumentException) {
+                Uri.fromFile(rom)
+            }
+        val intent =
+            Intent(Intent.ACTION_VIEW).apply {
+                system.externalActivity?.let { setClassName(pkg, it) } ?: setPackage(pkg)
+                setDataAndType(uri, "application/octet-stream")
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }
+        context.grantUriPermission(pkg, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        try {
+            context.startActivity(intent)
+        } catch (e: ActivityNotFoundException) {
+            promptInstallExternal(context, system)
+        }
+    }
+
+    private fun promptInstallExternal(
+        context: Context,
+        system: RetroSystem,
+    ) {
+        val pkg = system.externalPackage ?: return
+        Toast.makeText(
+            context,
+            context.getString(com.winlator.cmod.R.string.retro_ps2_needs_armsx2),
+            Toast.LENGTH_LONG,
+        ).show()
+        val market =
+            Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg")).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        try {
+            context.startActivity(market)
+        } catch (e: ActivityNotFoundException) {
+            try {
+                context.startActivity(
+                    Intent(
+                        Intent.ACTION_VIEW,
+                        Uri.parse("https://play.google.com/store/apps/details?id=$pkg"),
+                    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            } catch (ignored: ActivityNotFoundException) {
+            }
+        }
     }
 
     @JvmStatic

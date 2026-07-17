@@ -11,7 +11,11 @@ data class RetroSystem(
     val needsBios: Boolean = false,
     val biosFiles: List<String> = emptyList(),
     val badgeLabel: String = shortName,
-)
+    val externalPackage: String? = null,
+    val externalActivity: String? = null,
+) {
+    val isExternal: Boolean get() = externalPackage != null
+}
 
 object RetroSystems {
     val NES =
@@ -100,10 +104,24 @@ object RetroSystems {
             biosFiles = listOf("scph5501.bin", "scph5500.bin", "scph5502.bin", "scph1001.bin", "scph7001.bin"),
         )
 
+    val PS2 =
+        RetroSystem(
+            id = "ps2",
+            displayName = "Sony PlayStation 2",
+            shortName = "PS2",
+            coreFileName = "",
+            extensions = setOf("iso", "bin", "chd", "cso", "zso", "mdf", "nrg", "img"),
+            badgeLabel = "PS2",
+            externalPackage = "come.nanodata.armsx2",
+            externalActivity = "kr.co.iefriends.pcsx2.MainActivity",
+        )
+
     val ALL =
-        listOf(NES, SNES, GAMEBOY, GAMEBOY_COLOR, GBA, GENESIS, MASTER_SYSTEM, GAME_GEAR, N64, PSX)
+        listOf(NES, SNES, GAMEBOY, GAMEBOY_COLOR, GBA, GENESIS, MASTER_SYSTEM, GAME_GEAR, N64, PSX, PS2)
 
     private val PSX_ONLY_EXTENSIONS = setOf("cue", "chd", "pbp", "m3u")
+    private val PS2_ONLY_EXTENSIONS = setOf("cso", "zso", "mdf", "nrg", "img")
+    private const val PS2_SIZE_THRESHOLD = 900L * 1024 * 1024
 
     val allExtensions: Set<String> = ALL.flatMap { it.extensions }.toSet() - "exe"
 
@@ -117,6 +135,7 @@ object RetroSystems {
         if (extension.isNullOrBlank()) return null
         val ext = extension.trim().lowercase(Locale.US).removePrefix(".")
         if (ext == "exe") return null
+        if (ext in PS2_ONLY_EXTENSIONS) return PS2
         if (ext in PSX_ONLY_EXTENSIONS || ext == "iso") return PSX
         return ALL.firstOrNull { ext in it.extensions }
     }
@@ -131,6 +150,11 @@ object RetroSystems {
         val ext = path.substringAfterLast('.', "").lowercase(Locale.US)
         val detected = fromExtension(ext) ?: return null
         if (ext == "bin" && java.io.File(path).length() > 16L * 1024 * 1024) return PSX
+        if (detected.id == PSX.id && ext in setOf("iso", "chd", "bin") &&
+            java.io.File(path).length() > PS2_SIZE_THRESHOLD
+        ) {
+            return PS2
+        }
         return detected
     }
 

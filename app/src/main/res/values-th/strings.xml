@@ -1578,4 +1578,6 @@
     <string name="retro_save_transfer_none">ยังไม่มีเซฟสำหรับเกมนี้</string>
     <string name="retro_cheats_title">สูตรโกง</string>
     <string name="retro_cheats_hardcore_blocked">สูตรโกงถูกปิดใช้งานในโหมดฮาร์ดคอร์</string>
+    <string name="retro_rom_missing">ไม่พบไฟล์เกม</string>
+    <string name="retro_ps2_needs_armsx2">เกม PS2 ต้องใช้โปรแกรมจำลอง ARMSX2 ติดตั้งเพื่อดำเนินการต่อ</string>
 </resources>

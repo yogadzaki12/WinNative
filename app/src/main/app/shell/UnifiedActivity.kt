@@ -5755,7 +5755,9 @@ class UnifiedActivity :
                 }
                 val sid = retroSystemId
                 val rp = retroRomPath
-                if (sid != null && rp != null) {
+                if (sid != null && rp != null &&
+                    com.winlator.cmod.feature.retro.RetroSystems.fromId(sid)?.isExternal != true
+                ) {
                     com.winlator.cmod.feature.retro.RetroAchievementsManager.prefetch(context, sid, rp)
                 }
             } else {
@@ -5764,6 +5766,8 @@ class UnifiedActivity :
             }
         }
         val isRetro = retroSystemId != null
+        val isExternalRetro =
+            retroSystemId?.let { com.winlator.cmod.feature.retro.RetroSystems.fromId(it)?.isExternal } == true
 
         val libraryDownloadRecords by com.winlator.cmod.app.service.download.DownloadCoordinator.records.collectAsState(
             initial = com.winlator.cmod.app.service.download.DownloadCoordinator.snapshotRecords(),
@@ -6525,7 +6529,7 @@ class UnifiedActivity :
                                         }
                                     },
                                     onAchievements = when {
-                                        isRetro -> {
+                                        isRetro && !isExternalRetro -> {
                                             val sysId = retroSystemId
                                             val rom = retroRomPath
                                             if (sysId != null && rom != null &&
@@ -6587,9 +6591,9 @@ class UnifiedActivity :
                                         }
                                     },
                                     onCloudSaves = { activePopup = LibraryDetailPopup.CloudSaves },
-                                    onSaveTransfer = if (isRetro) ({ showSaveTransfer = true }) else null,
+                                    onSaveTransfer = if (isRetro && !isExternalRetro) ({ showSaveTransfer = true }) else null,
                                     onCheats =
-                                        if (isRetro && retroSystemId != null) {
+                                        if (isRetro && !isExternalRetro && retroSystemId != null) {
                                             {
                                                 context.startActivity(
                                                     android.content.Intent(
@@ -11775,6 +11779,13 @@ class UnifiedActivity :
             }
 
             if (com.winlator.cmod.feature.retro.RetroShortcuts.isRetroShortcut(shortcut)) {
+                val retroSystem = com.winlator.cmod.feature.retro.RetroShortcuts.systemForShortcut(shortcut)
+                if (retroSystem != null && retroSystem.isExternal) {
+                    withContext(Dispatchers.Main) {
+                        com.winlator.cmod.feature.retro.RetroShortcuts.launch(context, shortcut)
+                    }
+                    return@launch
+                }
                 val retroIntent = com.winlator.cmod.feature.retro.RetroShortcuts.launchIntent(context, shortcut)
                 withContext(Dispatchers.Main) { launchGame(context, retroIntent) }
                 return@launch

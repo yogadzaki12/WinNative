@@ -1587,5 +1587,7 @@ Zainstalowana ścieżka:
     <string name="retro_save_transfer_none">Dla tej gry nie ma jeszcze zapisu</string>
     <string name="retro_cheats_title">Kody</string>
     <string name="retro_cheats_hardcore_blocked">Kody są wyłączone w trybie Hardcore</string>
+    <string name="retro_rom_missing">Nie znaleziono pliku gry</string>
+    <string name="retro_ps2_needs_armsx2">Gry PS2 wymagają emulatora ARMSX2. Zainstaluj go, aby kontynuować.</string>
 </resources>
 

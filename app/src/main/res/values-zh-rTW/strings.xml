@@ -1580,5 +1580,7 @@
     <string name="retro_save_transfer_none">此遊戲尚無存檔</string>
     <string name="retro_cheats_title">金手指</string>
     <string name="retro_cheats_hardcore_blocked">硬派模式下已停用金手指</string>
+    <string name="retro_rom_missing">找不到遊戲檔案</string>
+    <string name="retro_ps2_needs_armsx2">PS2 遊戲需要 ARMSX2 模擬器。請安裝後繼續。</string>
 </resources>
 

@@ -200,7 +200,13 @@ fun RetroDefaultsScreen() {
                         color = PageSub,
                     )
                 }
-                if (expanded) {
+                if (expanded && console.isExternal) {
+                    RetroInfoRow(
+                        "Emulator",
+                        "Played through the ARMSX2 app. Graphics, controls, and RetroAchievements are configured inside ARMSX2.",
+                    )
+                }
+                if (expanded && !console.isExternal) {
                     RetroSettingDropdown(
                         label = "Shader",
                         entries = SHADER_LABELS,
@@ -241,8 +247,73 @@ fun RetroDefaultsScreen() {
                 }
             }
         }
+
+        Text(
+            "CREDITS & LICENSES",
+            color = PageSub,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        Text(
+            "WinNative's retro features are built on these open-source projects. Tap to view each source.",
+            color = PageSub,
+            style = MaterialTheme.typography.labelMedium,
+        )
+        RetroSettingGroup {
+            RETRO_CREDITS.forEach { credit ->
+                Row(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                runCatching {
+                                    context.startActivity(
+                                        android.content.Intent(
+                                            android.content.Intent.ACTION_VIEW,
+                                            android.net.Uri.parse(credit.url),
+                                        ),
+                                    )
+                                }
+                            }.padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(credit.name, color = PageText, style = MaterialTheme.typography.bodyMedium)
+                        Text(credit.detail, color = PageSub, fontSize = 11.sp)
+                    }
+                    Text(credit.license, color = PageSub, fontSize = 11.sp)
+                }
+            }
+        }
     }
 }
+
+private data class RetroCredit(
+    val name: String,
+    val detail: String,
+    val license: String,
+    val url: String,
+)
+
+private val RETRO_CREDITS =
+    listOf(
+        RetroCredit("ARMSX2", "PlayStation 2", "GPL-3.0", "https://github.com/ARMSX2/ARMSX2"),
+        RetroCredit("PCSX2", "PS2 upstream of ARMSX2", "GPL-3.0", "https://github.com/pcsx2/pcsx2"),
+        RetroCredit("FCEUmm", "NES", "GPL-2.0", "https://github.com/libretro/libretro-fceumm"),
+        RetroCredit("Snes9x", "SNES", "Snes9x", "https://github.com/libretro/snes9x"),
+        RetroCredit("Gambatte", "Game Boy / Color", "GPL-2.0", "https://github.com/libretro/gambatte-libretro"),
+        RetroCredit("mGBA", "Game Boy Advance", "MPL-2.0", "https://github.com/libretro/mgba"),
+        RetroCredit("Genesis Plus GX", "Genesis / SMS / GG", "GPX", "https://github.com/libretro/Genesis-Plus-GX"),
+        RetroCredit("ParaLLEl N64", "Nintendo 64", "GPL-2.0", "https://github.com/libretro/parallel-n64"),
+        RetroCredit("Beetle PSX", "PlayStation", "GPL-2.0", "https://github.com/libretro/beetle-psx-libretro"),
+        RetroCredit("SwanStation", "PlayStation", "GPL-3.0", "https://github.com/libretro/swanstation"),
+        RetroCredit("LibretroDroid", "libretro frontend", "GPL-3.0", "https://github.com/Swordfish90/LibretroDroid"),
+        RetroCredit("rcheevos", "RetroAchievements", "MIT", "https://github.com/RetroAchievements/rcheevos"),
+        RetroCredit("Snapdragon GSR", "Upscaling", "BSD-3", "https://github.com/quic/snapdragon-gsr"),
+        RetroCredit("Winlator", "Windows-on-Android base", "GPL-3.0", "https://github.com/brunodev85/winlator"),
+    )
 
 @Composable
 fun RetroHardcoreConfirmDialog(

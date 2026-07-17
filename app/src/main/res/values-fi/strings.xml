@@ -1578,4 +1578,6 @@ Asennuspolku:
     <string name="retro_save_transfer_none">Tälle pelille ei ole vielä tallennusta</string>
     <string name="retro_cheats_title">Huijaukset</string>
     <string name="retro_cheats_hardcore_blocked">Huijaukset on poistettu käytöstä Hardcore-tilassa</string>
+    <string name="retro_rom_missing">Pelitiedostoa ei löytynyt</string>
+    <string name="retro_ps2_needs_armsx2">PS2-pelit tarvitsevat ARMSX2-emulaattorin. Asenna se jatkaaksesi.</string>
 </resources>

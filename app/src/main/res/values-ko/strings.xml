@@ -1582,5 +1582,7 @@
     <string name="retro_save_transfer_none">이 게임에는 아직 세이브가 없습니다</string>
     <string name="retro_cheats_title">치트</string>
     <string name="retro_cheats_hardcore_blocked">하드코어 모드에서는 치트를 사용할 수 없습니다</string>
+    <string name="retro_rom_missing">게임 파일을 찾을 수 없습니다</string>
+    <string name="retro_ps2_needs_armsx2">PS2 게임에는 ARMSX2 에뮬레이터가 필요합니다. 계속하려면 설치하세요.</string>
 </resources>
 

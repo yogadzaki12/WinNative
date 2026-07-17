@@ -1487,4 +1487,6 @@
     <string name="retro_save_transfer_none">Для этой игры ещё нет сохранения</string>
     <string name="retro_cheats_title">Читы</string>
     <string name="retro_cheats_hardcore_blocked">Читы отключены в режиме Hardcore</string>
+    <string name="retro_rom_missing">Файл игры не найден</string>
+    <string name="retro_ps2_needs_armsx2">Для игр PS2 нужен эмулятор ARMSX2. Установите его, чтобы продолжить.</string>
 </resources>

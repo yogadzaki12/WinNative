@@ -1581,5 +1581,7 @@ Chemin installé :
     <string name="retro_save_transfer_none">Aucune sauvegarde n\'existe encore pour ce jeu</string>
     <string name="retro_cheats_title">Codes de triche</string>
     <string name="retro_cheats_hardcore_blocked">Les codes de triche sont désactivés en mode Hardcore</string>
+    <string name="retro_rom_missing">Fichier du jeu introuvable</string>
+    <string name="retro_ps2_needs_armsx2">Les jeux PS2 nécessitent l\'émulateur ARMSX2. Installez-le pour continuer.</string>
 </resources>
 

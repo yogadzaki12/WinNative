@@ -1578,4 +1578,6 @@ Installerad sökväg:
     <string name="retro_save_transfer_none">Det finns ännu ingen sparfil för det här spelet</string>
     <string name="retro_cheats_title">Fusk</string>
     <string name="retro_cheats_hardcore_blocked">Fusk är inaktiverat i Hardcore-läge</string>
+    <string name="retro_rom_missing">Spelfilen hittades inte</string>
+    <string name="retro_ps2_needs_armsx2">PS2-spel kräver ARMSX2-emulatorn. Installera den för att fortsätta.</string>
 </resources>

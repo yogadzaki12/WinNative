@@ -1582,4 +1582,6 @@ Installeret sti:
     <string name="retro_save_transfer_none">Der findes endnu ikke et gemt spil til dette spil</string>
     <string name="retro_cheats_title">Snydekoder</string>
     <string name="retro_cheats_hardcore_blocked">Snydekoder er deaktiveret i Hardcore-tilstand</string>
+    <string name="retro_rom_missing">Spilfilen blev ikke fundet</string>
+    <string name="retro_ps2_needs_armsx2">PS2-spil kræver ARMSX2-emulatoren. Installer den for at fortsætte.</string>
 </resources>

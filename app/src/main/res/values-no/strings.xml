@@ -1578,4 +1578,6 @@ Installert bane:
     <string name="retro_save_transfer_none">Det finnes ennå ingen lagring for dette spillet</string>
     <string name="retro_cheats_title">Juksekoder</string>
     <string name="retro_cheats_hardcore_blocked">Juksekoder er deaktivert i Hardcore-modus</string>
+    <string name="retro_rom_missing">Spillfilen ble ikke funnet</string>
+    <string name="retro_ps2_needs_armsx2">PS2-spill krever ARMSX2-emulatoren. Installer den for å fortsette.</string>
 </resources>

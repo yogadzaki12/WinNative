@@ -1517,4 +1517,6 @@
     <string name="retro_save_transfer_none">इस गेम के लिए अभी कोई सेव मौजूद नहीं है</string>
     <string name="retro_cheats_title">चीट</string>
     <string name="retro_cheats_hardcore_blocked">हार्डकोर मोड में चीट अक्षम हैं</string>
+    <string name="retro_rom_missing">गेम फ़ाइल नहीं मिली</string>
+    <string name="retro_ps2_needs_armsx2">PS2 गेम के लिए ARMSX2 एमुलेटर आवश्यक है। जारी रखने के लिए इसे इंस्टॉल करें।</string>
 </resources>

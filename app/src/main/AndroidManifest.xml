@@ -40,6 +40,15 @@
         android:name="android.permission.WRITE_SECURE_SETTINGS"
         tools:ignore="ProtectedPermissions" />
 
+    <queries>
+        <package android:name="come.nanodata.armsx2" />
+        <package android:name="come.nanodata.armsx2.debug" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="market" />
+        </intent>
+    </queries>
+
     <application
         android:name="com.winlator.cmod.app.PluviaApp"
         android:label="@string/common_ui_app_name"

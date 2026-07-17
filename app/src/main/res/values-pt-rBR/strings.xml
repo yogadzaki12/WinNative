@@ -1581,5 +1581,7 @@ Caminho instalado:
     <string name="retro_save_transfer_none">Ainda não existe um save para este jogo</string>
     <string name="retro_cheats_title">Cheats</string>
     <string name="retro_cheats_hardcore_blocked">Os cheats estão desativados no modo Hardcore</string>
+    <string name="retro_rom_missing">Arquivo do jogo não encontrado</string>
+    <string name="retro_ps2_needs_armsx2">Jogos de PS2 precisam do emulador ARMSX2. Instale-o para continuar.</string>
 </resources>
 

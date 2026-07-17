@@ -1578,4 +1578,6 @@ Ruta instalada:
     <string name="retro_save_transfer_none">Aún no existe ninguna partida guardada para este juego</string>
     <string name="retro_cheats_title">Trucos</string>
     <string name="retro_cheats_hardcore_blocked">Los trucos están desactivados en el modo Hardcore</string>
+    <string name="retro_rom_missing">Archivo del juego no encontrado</string>
+    <string name="retro_ps2_needs_armsx2">Los juegos de PS2 necesitan el emulador ARMSX2. Instálalo para continuar.</string>
 </resources>

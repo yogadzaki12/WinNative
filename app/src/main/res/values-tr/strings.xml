@@ -1578,4 +1578,6 @@ Yüklü konum:
     <string name="retro_save_transfer_none">Bu oyun için henüz bir kayıt yok</string>
     <string name="retro_cheats_title">Hileler</string>
     <string name="retro_cheats_hardcore_blocked">Hileler Hardcore modunda devre dışı</string>
+    <string name="retro_rom_missing">Oyun dosyası bulunamadı</string>
+    <string name="retro_ps2_needs_armsx2">PS2 oyunları ARMSX2 emülatörünü gerektirir. Devam etmek için yükleyin.</string>
 </resources>

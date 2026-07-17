@@ -1578,4 +1578,6 @@
     <string name="retro_save_transfer_none">このゲームのセーブはまだありません</string>
     <string name="retro_cheats_title">チート</string>
     <string name="retro_cheats_hardcore_blocked">ハードコアモードではチートは無効です</string>
+    <string name="retro_rom_missing">ゲームファイルが見つかりません</string>
+    <string name="retro_ps2_needs_armsx2">PS2のゲームにはARMSX2エミュレーターが必要です。続行するにはインストールしてください。</string>
 </resources>
