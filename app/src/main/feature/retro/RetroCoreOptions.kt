@@ -74,32 +74,25 @@ object RetroCoreOptions {
     private val N64_OPTIONS =
         listOf(
             RetroCoreOption(
-                key = "parallel-n64-screensize",
+                key = "mupen64plus-43screensize",
                 label = "Resolution",
-                values = listOf("320x240", "640x480", "960x720", "1280x960", "1440x1080"),
-                valueLabels = listOf("320x240 (Native)", "640x480", "960x720", "1280x960", "1440x1080"),
+                values = listOf("320x240", "640x480", "960x720", "1280x960"),
+                valueLabels = listOf("320x240 (Native)", "640x480", "960x720", "1280x960"),
                 defaultValue = "640x480",
             ),
             RetroCoreOption(
-                key = "parallel-n64-gfxplugin",
-                label = "Video Plugin",
-                values = listOf("glide64", "gln64", "rice", "auto"),
-                valueLabels = listOf("Glide64", "GLN64", "Rice", "Auto"),
-                defaultValue = "glide64",
+                key = "mupen64plus-EnableFBEmulation",
+                label = "Framebuffer Emulation",
+                values = listOf("True", "False"),
+                valueLabels = listOf("On", "Off"),
+                defaultValue = "True",
             ),
             RetroCoreOption(
-                key = "parallel-n64-gfxplugin-accuracy",
-                label = "Plugin Accuracy",
-                values = listOf("high", "veryhigh", "medium", "low"),
-                valueLabels = listOf("High", "Very High", "Medium", "Low"),
-                defaultValue = "high",
-            ),
-            RetroCoreOption(
-                key = "parallel-n64-aspectratiohint",
+                key = "mupen64plus-aspect",
                 label = "Aspect Ratio",
-                values = listOf("normal", "widescreen"),
-                valueLabels = listOf("4:3 (Normal)", "16:9 (Widescreen)"),
-                defaultValue = "normal",
+                values = listOf("4:3", "16:9", "16:9 adjusted"),
+                valueLabels = listOf("4:3", "16:9", "16:9 Adjusted"),
+                defaultValue = "4:3",
             ),
         )
 
@@ -125,10 +118,9 @@ object RetroCoreOptions {
         when (system?.id) {
             RetroSystems.N64.id ->
                 mapOf(
-                    "parallel-n64-gfxplugin" to "glide64",
-                    "parallel-n64-screensize" to "640x480",
-                    "parallel-n64-gfxplugin-accuracy" to "high",
-                    "parallel-n64-aspectratiohint" to "normal",
+                    "mupen64plus-43screensize" to "640x480",
+                    "mupen64plus-EnableFBEmulation" to "True",
+                    "mupen64plus-aspect" to "4:3",
                 )
             RetroSystems.PSX.id ->
                 mapOf(

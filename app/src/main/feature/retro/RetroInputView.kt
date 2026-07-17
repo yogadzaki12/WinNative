@@ -1392,6 +1392,8 @@ class RetroInputView(
     }
 
     private fun drawDpad(canvas: Canvas) {
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val path = Path()
         val color = customColors.button ?: theme.dpad
         val arm = dpadRadius * 0.36f
         val corner = arm * 0.5f
@@ -1526,6 +1528,7 @@ class RetroInputView(
     }
 
     private fun drawPsStick(canvas: Canvas) {
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         val engaged = stickPointerId != -1
         val wellColor = darken(customColors.body ?: theme.body, 0.16f)
         paint.shader = null
@@ -1607,6 +1610,7 @@ class RetroInputView(
             return
         }
         val engaged = stickPointerId != -1
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         val wellColor = darken(customColors.button ?: theme.dpad, 0.1f)
         paint.shader = null
         paint.style = Paint.Style.FILL
