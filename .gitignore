@@ -56,3 +56,8 @@ android_sysvshm/build64/
 
 # local build artifacts (FEX/Proton wcp)
 dist/
+
+# Source-built libretro cores: only the manifest, patches, and build script are
+# tracked; fetched sources and build outputs are generated at assemble time.
+/cores/*/
+!/cores/patches/

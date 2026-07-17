@@ -1,0 +1,14 @@
+diff --git a/mupen64plus-rsp-paraLLEl/jit_allocator.cpp b/mupen64plus-rsp-paraLLEl/jit_allocator.cpp
+index ef41dc6..c9c8476 100644
+--- a/mupen64plus-rsp-paraLLEl/jit_allocator.cpp
++++ b/mupen64plus-rsp-paraLLEl/jit_allocator.cpp
+@@ -11,6 +11,9 @@
+ 
+ #ifndef _WIN32
+ #include <unistd.h>
++#ifdef PAGE_SIZE
++#undef PAGE_SIZE
++#endif
+ static int sPageSize = 0;
+ static inline int PAGE_SIZE()
+ {

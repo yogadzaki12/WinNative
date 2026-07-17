@@ -206,8 +206,22 @@ android {
                     'src/main/runtime',
                     'src/main/shared'
             ]
+            jniLibs.srcDirs += "${layout.buildDirectory.get().asFile}/generated/libretroCores"
         }
     }
+
+    def libretroCoresOut = layout.buildDirectory.dir("generated/libretroCores/arm64-v8a")
+    tasks.register('buildLibretroCores', Exec) {
+        inputs.file("$rootDir/cores/cores.manifest")
+        inputs.dir("$rootDir/cores/patches")
+        inputs.file("$rootDir/cores/build-cores.sh")
+        outputs.dir(libretroCoresOut)
+        doFirst { libretroCoresOut.get().asFile.mkdirs() }
+        commandLine 'bash', "$rootDir/cores/build-cores.sh",
+                android.ndkDirectory.absolutePath,
+                libretroCoresOut.get().asFile.absolutePath
+    }
+    tasks.matching { it.name == 'preBuild' }.configureEach { dependsOn 'buildLibretroCores' }
 
     applicationVariants.configureEach { variant ->
         if (variant.buildType.name == "debug") {
