@@ -2466,7 +2466,7 @@ internal fun UnifiedActivity.LibraryGameDetailDialog(
                                     }
                                 },
                                 onAchievements = when {
-                                    isRetro && !isExternalRetro -> {
+                                    isRetro -> {
                                         val sysId = retroSystemId
                                         val rom = retroRomPath
                                         if (sysId != null && rom != null &&

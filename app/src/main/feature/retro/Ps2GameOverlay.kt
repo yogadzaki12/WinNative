@@ -8,6 +8,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.Monitor
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.runtime.getValue
@@ -96,7 +97,6 @@ object Ps2GameOverlay {
                 add(RetroMenuEntry.Action("Achievements", RetroDrawerIcons.Achievements) { openScreen(InGameScreen.Achievements) })
                 add(RetroMenuEntry.Action("Cheats", RetroDrawerIcons.Cheats) { openScreen(InGameScreen.Patches) })
                 add(RetroMenuEntry.Action("Memory Cards", RetroDrawerIcons.Save) { openScreen(InGameScreen.Memcard) })
-                add(RetroMenuEntry.Action("PS2 Settings", RetroDrawerIcons.EditLayout) { openScreen(InGameScreen.Settings) })
             }
 
         fun saveSlotEntries(): List<RetroMenuEntry> =
@@ -177,6 +177,37 @@ object Ps2GameOverlay {
                 )
             }
 
+        fun displayEntries(): List<RetroMenuEntry> =
+            buildList {
+                val renderer = prefs.getString("wn.ps2.renderer", "vulkan")
+                listOf("vulkan" to "Vulkan", "opengl" to "OpenGL", "software" to "Software").forEach { (key, label) ->
+                    add(
+                        RetroMenuEntry.Radio(label, selected = renderer == key) {
+                            prefs.edit().putString("wn.ps2.renderer", key).apply()
+                            runCatching {
+                                when (key) {
+                                    "vulkan" -> NativeApp.renderVulkan()
+                                    "opengl" -> NativeApp.renderOpenGL()
+                                    else -> NativeApp.renderSoftware()
+                                }
+                            }
+                            menu.rebuild()
+                        },
+                    )
+                }
+                val scales = listOf(1f, 1.5f, 2f, 3f, 4f)
+                val labels = listOf("1x (Native)", "1.5x", "2x", "3x", "4x")
+                val current = prefs.getFloat("wn.ps2.upscale", 1f)
+                val idx = scales.indexOfFirst { kotlin.math.abs(it - current) < 0.01f }.coerceAtLeast(0)
+                add(
+                    RetroMenuEntry.Choice("Upscale", labels, idx) { next ->
+                        prefs.edit().putFloat("wn.ps2.upscale", scales[next]).apply()
+                        runCatching { NativeApp.renderUpscalemultiplier(scales[next]) }
+                        menu.rebuild()
+                    },
+                )
+            }
+
         fun hudEntries(): List<RetroMenuEntry> =
             buildList {
                 add(RetroMenuEntry.Toggle("FPS", checked = osd("fps")) { v -> setOsd("fps", v) { NativeApp.osdShowFPS(it) } })
@@ -193,12 +224,14 @@ object Ps2GameOverlay {
         menu.tabs =
             listOf(
                 RetroTabSpec(null, Icons.Outlined.Apps, "Menu"),
+                RetroTabSpec(RetroPane.DISPLAY, Icons.Outlined.Monitor, "Display"),
                 RetroTabSpec(RetroPane.HUD, Icons.Outlined.Speed, "HUD"),
                 RetroTabSpec(RetroPane.CONTROLS, Icons.Outlined.SportsEsports, "Controls"),
             )
         menu.entriesProvider = { pane ->
             when (pane) {
                 null -> mainEntries()
+                RetroPane.DISPLAY -> displayEntries()
                 RetroPane.SAVES -> saveSlotEntries()
                 RetroPane.CONTROLS -> controlsEntries()
                 RetroPane.HUD -> hudEntries()
