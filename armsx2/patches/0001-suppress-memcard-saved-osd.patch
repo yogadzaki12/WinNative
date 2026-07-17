@@ -1,0 +1,31 @@
+diff --git a/pcsx2/SIO/Memcard/MemoryCardFile.cpp b/pcsx2/SIO/Memcard/MemoryCardFile.cpp
+index 32a34ee..857c2ff 100644
+--- a/pcsx2/SIO/Memcard/MemoryCardFile.cpp
++++ b/pcsx2/SIO/Memcard/MemoryCardFile.cpp
+@@ -495,10 +495,6 @@ s32 FileMemoryCard::Save(uint slot, const u8* src, u32 adr, int size)
+ 		std::chrono::duration<float> elapsed = std::chrono::system_clock::now() - last;
+ 		if (elapsed > std::chrono::seconds(5))
+ 		{
+-			Host::AddIconOSDMessage(fmt::format("MemoryCardSave{}", slot), ICON_PF_MEMORY_CARD,
+-				fmt::format(TRANSLATE_FS("MemoryCard", "Memory Card '{}' was saved to storage."),
+-					Path::GetFileName(m_filenames[slot])),
+-				Host::OSD_INFO_DURATION);
+ 			last = std::chrono::system_clock::now();
+ 		}
+ 		return 1;
+diff --git a/pcsx2/SIO/Memcard/MemoryCardFolder.cpp b/pcsx2/SIO/Memcard/MemoryCardFolder.cpp
+index 9cc3250..644f3a6 100644
+--- a/pcsx2/SIO/Memcard/MemoryCardFolder.cpp
++++ b/pcsx2/SIO/Memcard/MemoryCardFolder.cpp
+@@ -2337,11 +2337,6 @@ s32 FolderMemoryCardAggregator::Save(uint slot, const u8* src, u32 adr, int size
+ 		std::chrono::duration<float> elapsed = std::chrono::system_clock::now() - last;
+ 		if (elapsed > std::chrono::seconds(5))
+ 		{
+-			const std::string_view filename = Path::GetFileName(m_cards[slot].GetFolderName());
+-			Host::AddIconOSDMessage(fmt::format("MemoryCardSave{}", slot), ICON_PF_MEMORY_CARD,
+-				fmt::format(TRANSLATE_FS("MemoryCard", "Memory Card '{}' was saved to storage."), filename),
+-				Host::OSD_INFO_DURATION);
+-
+ 			last = std::chrono::system_clock::now();
+ 		}
+ 	}

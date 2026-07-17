@@ -7,6 +7,7 @@ plugins {
 android {
     namespace 'com.armsx2'
     compileSdk 35
+    ndkVersion '27.3.13750724'
 
     defaultConfig {
         minSdk 26
@@ -34,6 +35,31 @@ android {
         jniLibs {
             useLegacyPackaging true
         }
+    }
+
+    def armsx2BuildNative = !project.hasProperty('armsx2.buildNative') ||
+            project.property('armsx2.buildNative').toString() == 'true'
+    def emucoreOut = layout.buildDirectory.dir("generated/emucore/arm64-v8a")
+
+    sourceSets {
+        main {
+            jniLibs.srcDirs += armsx2BuildNative ?
+                    "${layout.buildDirectory.get().asFile}/generated/emucore" :
+                    "prebuilt/emucore"
+        }
+    }
+
+    if (armsx2BuildNative) {
+        tasks.register('buildEmucore', Exec) {
+            inputs.file("$projectDir/build-emucore.sh")
+            outputs.dir(emucoreOut)
+            doFirst { emucoreOut.get().asFile.mkdirs() }
+            commandLine 'bash', "$projectDir/build-emucore.sh",
+                    android.ndkDirectory.absolutePath,
+                    "${android.sdkDirectory}/cmake/3.22.1/bin",
+                    emucoreOut.get().asFile.absolutePath
+        }
+        tasks.matching { it.name == 'preBuild' }.configureEach { dependsOn 'buildEmucore' }
     }
 }
 

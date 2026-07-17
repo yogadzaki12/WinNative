@@ -61,3 +61,8 @@ dist/
 # tracked; fetched sources and build outputs are generated at assemble time.
 /cores/*/
 !/cores/patches/
+
+# ARMSX2 emucore source build (opt-in via -Parmsx2.buildNative=true): fetched
+# source and build outputs are generated, not tracked.
+/armsx2/emucore-src/
+/armsx2/emucore-out/
