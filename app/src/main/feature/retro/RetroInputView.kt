@@ -275,6 +275,21 @@ class RetroInputView(
 
     private var gameArea: RectF? = null
     var hapticStrength = 0f
+    var invertLX = false
+    var invertLY = false
+    var invertRX = false
+    var invertRY = false
+
+    fun loadStickInversion() {
+        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+        val sys = system?.id ?: return
+        invertLX = prefs.getBoolean("retro_inv_lx_$sys", false)
+        invertLY = prefs.getBoolean("retro_inv_ly_$sys", false)
+        invertRX = prefs.getBoolean("retro_inv_rx_$sys", false)
+        invertRY = prefs.getBoolean("retro_inv_ry_$sys", false)
+    }
+
+    private fun ix(v: Float, inv: Boolean) = if (inv) -v else v
     private val vibrator: Vibrator? = context.getSystemService(Vibrator::class.java)
 
     var editMode = false
@@ -2113,7 +2128,7 @@ class RetroInputView(
             if (newCX != 0f || newCY != 0f) hapticTick()
             cStickX = newCX
             cStickY = newCY
-            listener.onRightStick(cStickX, cStickY)
+            listener.onRightStick(ix(cStickX, invertRX), ix(cStickY, invertRY))
         }
 
         if (!stickSeen && stickPointerId != -1) {
@@ -2124,7 +2139,7 @@ class RetroInputView(
         if (newStickX != stickX || newStickY != stickY) {
             stickX = newStickX
             stickY = newStickY
-            listener.onStick(stickX, stickY)
+            listener.onStick(ix(stickX, invertLX), ix(stickY, invertLY))
         }
 
         if (!stick2Seen && stick2PointerId != -1) {
@@ -2135,7 +2150,7 @@ class RetroInputView(
         if (newStick2X != stick2X || newStick2Y != stick2Y) {
             stick2X = newStick2X
             stick2Y = newStick2Y
-            listener.onRightStick(stick2X, stick2Y)
+            listener.onRightStick(ix(stick2X, invertRX), ix(stick2Y, invertRY))
         }
 
         for (keyCode in pressedButtons) {

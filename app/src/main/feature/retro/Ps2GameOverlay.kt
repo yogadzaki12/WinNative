@@ -490,6 +490,17 @@ object Ps2GameOverlay {
                         Toast.makeText(activity, "Layout reset", Toast.LENGTH_SHORT).show()
                     },
                 )
+                val invPrefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(activity)
+                fun invToggle(label: String, key: String) =
+                    RetroMenuEntry.Toggle(label, checked = invPrefs.getBoolean(key, false)) { value ->
+                        invPrefs.edit().putBoolean(key, value).apply()
+                        pad?.loadStickInversion()
+                        menu.rebuild()
+                    }
+                add(invToggle("Left Stick: Invert X", "retro_inv_lx_ps2"))
+                add(invToggle("Left Stick: Invert Y", "retro_inv_ly_ps2"))
+                add(invToggle("Right Stick: Invert X", "retro_inv_rx_ps2"))
+                add(invToggle("Right Stick: Invert Y", "retro_inv_ry_ps2"))
                 add(
                     RetroMenuEntry.ColorPick("Button Color", customColors.button) { value ->
                         customColors = customColors.copy(button = value)
@@ -849,6 +860,7 @@ object Ps2GameOverlay {
                                 modifier = Modifier.fillMaxSize(),
                                 factory = { ctx ->
                                     RetroInputView(ctx, listener, RetroSystems.PS2).also { view ->
+                                        view.loadStickInversion()
                                         view.hapticStrength =
                                             androidx.preference.PreferenceManager
                                                 .getDefaultSharedPreferences(ctx)

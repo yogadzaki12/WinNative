@@ -374,6 +374,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         onBackPressedDispatcher.addCallback(this, callback)
 
         val inputView = RetroInputView(this, this, resolvedSystem)
+        inputView.loadStickInversion()
         inputView.hapticStrength =
             androidx.preference.PreferenceManager
                 .getDefaultSharedPreferences(this)
@@ -975,6 +976,19 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
 
     private fun buildControlsEntries(): List<RetroMenuEntry> =
         buildList {
+            if (system?.id == RetroSystems.PSX.id) {
+                val invPrefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this@RetroActivity)
+                fun invToggle(label: String, key: String) =
+                    RetroMenuEntry.Toggle(label, checked = invPrefs.getBoolean(key, false)) { value ->
+                        invPrefs.edit().putBoolean(key, value).apply()
+                        overlay?.loadStickInversion()
+                        menu.rebuild()
+                    }
+                add(invToggle("Left Stick: Invert X", "retro_inv_lx_psx"))
+                add(invToggle("Left Stick: Invert Y", "retro_inv_ly_psx"))
+                add(invToggle("Right Stick: Invert X", "retro_inv_rx_psx"))
+                add(invToggle("Right Stick: Invert Y", "retro_inv_ry_psx"))
+            }
             add(
                 RetroMenuEntry.Toggle("On-screen Controls", checked = touchControlsSetting) { value ->
                     touchControlsSetting = value
