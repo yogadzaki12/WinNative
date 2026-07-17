@@ -54,10 +54,16 @@ Supported systems (bundled cores):
 | Game Boy / Color | Gambatte | `.gb` `.gbc` |
 | Game Boy Advance | mGBA | `.gba` |
 | Genesis / Mega Drive, Master System, Game Gear | Genesis Plus GX | `.gen` `.md` `.smd` `.sms` `.gg` |
-| Nintendo 64 | Mupen64Plus-Next | `.n64` `.z64` `.v64` |
-| PlayStation | PCSX-ReARMed | `.cue` `.chd` `.pbp` `.m3u` `.iso` |
+| Nintendo 64 | ParaLLEl N64 | `.n64` `.z64` `.v64` |
+| PlayStation | Beetle PSX | `.cue` `.chd` `.pbp` `.m3u` `.iso` |
+| PlayStation 2 | ARMSX2 (PCSX2 fork) | `.iso` `.chd` `.cso` `.bin` |
 
-**How to use:** In the Library, tap **Add Custom Game** and select a ROM instead of an `.exe`. WinNative detects the console and adds the game to your Library. Tap **Play** to launch it with on-screen touch controls and physical gamepad support; the in-game menu (Back button or on-screen **MENU**) offers save/load state, reset, and fast-forward. PlayStation BIOS files (e.g. `scph5501.bin`) can be placed in the app's `files/retro/system` folder for better compatibility.
+Cores are compiled **from source** as part of `assembleDebug` (see `cores/` for the
+libretro cores and `armsx2/build-emucore.sh` for the PS2 core); the ParaLLEl N64
+core ships prebuilt for now. PlayStation 2 online play is supported through the
+emulated DEV9 network adapter (see the in-game **Online** tab).
+
+**How to use:** In the Library, tap **Add Custom Game** and select a ROM instead of an `.exe`. WinNative detects the console and adds the game to your Library. Tap **Play** to launch it with on-screen touch controls and physical gamepad support; the in-game menu (Back button or on-screen **MENU**) offers save/load state, reset, and fast-forward. PlayStation and PlayStation 2 BIOS files can be imported from **Settings → Retro**.
 
 ### Contributing
 
@@ -75,4 +81,5 @@ Please match the existing code style and ensure any AI-assisted code is thorough
 - **Mesa/Turnip** contributions by the [Mesa3D](https://www.mesa3d.org/) team
 - **Goldberg Steam Emulator** by [Mr. Goldberg](https://gitlab.com/Mr_Goldberg/goldberg_emulator), maintained by [Detanup01](https://github.com/Detanup01/gbe_fork)
 - **LibretroDroid** by [Filippo Scognamiglio](https://github.com/Swordfish90/LibretroDroid) (GPL-3.0) — the embedded libretro host for retro console support
-- **libretro / RetroArch** and the individual core authors (FCEUmm, Snes9x, Gambatte, mGBA, Genesis Plus GX, Mupen64Plus-Next, PCSX-ReARMed)
+- **libretro / RetroArch** and the individual core authors, built from source: [FCEUmm](https://github.com/libretro/libretro-fceumm), [Snes9x](https://github.com/libretro/snes9x), [Gambatte](https://github.com/libretro/gambatte-libretro), [mGBA](https://github.com/libretro/mgba), [Genesis Plus GX](https://github.com/libretro/Genesis-Plus-GX), [ParaLLEl N64](https://github.com/libretro/parallel-n64), [Beetle PSX](https://github.com/libretro/beetle-psx-libretro)
+- **ARMSX2** by the [ARMSX2](https://github.com/ARMSX2/ARMSX2) team (GPL-3.0) — the PlayStation 2 core, a fork of **[PCSX2](https://github.com/pcsx2/pcsx2)** (GPL-3.0), built from source into `libemucore`. PS2 online play uses PCSX2's DEV9 network adapter
