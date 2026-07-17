@@ -1233,6 +1233,7 @@ class RetroInputView(
         canvas.drawPath(path, paint)
         buildShapePath(button)
         path.offset(0f, dy)
+        paint.alpha = 255
         paint.shader =
             LinearGradient(
                 b.left,
@@ -1283,6 +1284,7 @@ class RetroInputView(
         val bodyCy = cy + dy
 
         paint.style = Paint.Style.FILL
+        paint.alpha = 255
         paint.shader =
             RadialGradient(
                 cx,
@@ -1413,6 +1415,7 @@ class RetroInputView(
         path.reset()
         path.addRoundRect(cx - r, cy - arm, cx + r, cy + arm, corner, corner, Path.Direction.CW)
         path.addRoundRect(cx - arm, cy - r, cx + arm, cy + r, corner, corner, Path.Direction.CW)
+        paint.alpha = 255
         paint.shader =
             LinearGradient(
                 cx,
@@ -1527,6 +1530,7 @@ class RetroInputView(
         val wellColor = darken(customColors.body ?: theme.body, 0.16f)
         paint.shader = null
         paint.style = Paint.Style.FILL
+        paint.alpha = 255
         paint.shader =
             RadialGradient(
                 stickCx,
@@ -1558,6 +1562,7 @@ class RetroInputView(
                 Shader.TileMode.CLAMP,
             )
         canvas.drawCircle(thumbX, thumbY + thumbRadius * 0.18f, thumbRadius * 1.3f, paint)
+        paint.alpha = 255
         paint.shader =
             RadialGradient(
                 thumbX - thumbRadius * 0.28f,
