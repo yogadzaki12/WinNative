@@ -1513,7 +1513,85 @@ class RetroInputView(
         stickPointerId = op
     }
 
+    private fun drawPsStick(canvas: Canvas) {
+        val engaged = stickPointerId != -1
+        val wellColor = darken(customColors.body ?: theme.body, 0.16f)
+        paint.shader = null
+        paint.style = Paint.Style.FILL
+        paint.shader =
+            RadialGradient(
+                stickCx,
+                stickCy,
+                stickRadius,
+                intArrayOf(darken(wellColor, 0.32f), wellColor, lighten(wellColor, 0.1f)),
+                floatArrayOf(0f, 0.78f, 1f),
+                Shader.TileMode.CLAMP,
+            )
+        canvas.drawCircle(stickCx, stickCy, stickRadius, paint)
+        paint.shader = null
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = strokeWidth
+        paint.color = darken(wellColor, 0.4f)
+        canvas.drawCircle(stickCx, stickCy, stickRadius, paint)
+
+        val thumbX = stickCx + stickX * stickRadius * 0.5f
+        val thumbY = stickCy + stickY * stickRadius * 0.5f
+        val thumbRadius = stickRadius * 0.6f
+        val capColor = customColors.button ?: 0xFF33333A.toInt()
+        paint.style = Paint.Style.FILL
+        paint.shader =
+            RadialGradient(
+                thumbX,
+                thumbY + thumbRadius * 0.2f,
+                thumbRadius * 1.3f,
+                shadowTint(100),
+                Color.TRANSPARENT,
+                Shader.TileMode.CLAMP,
+            )
+        canvas.drawCircle(thumbX, thumbY + thumbRadius * 0.18f, thumbRadius * 1.3f, paint)
+        paint.shader =
+            RadialGradient(
+                thumbX - thumbRadius * 0.28f,
+                thumbY - thumbRadius * 0.32f,
+                thumbRadius * 1.9f,
+                intArrayOf(
+                    lighten(capColor, if (engaged) 0.12f else 0.28f),
+                    capColor,
+                    darken(capColor, 0.3f),
+                ),
+                floatArrayOf(0f, 0.5f, 1f),
+                Shader.TileMode.CLAMP,
+            )
+        canvas.drawCircle(thumbX, thumbY, thumbRadius, paint)
+        paint.shader =
+            RadialGradient(
+                thumbX,
+                thumbY + thumbRadius * 0.08f,
+                thumbRadius * 0.72f,
+                intArrayOf(
+                    darken(capColor, if (engaged) 0.34f else 0.24f),
+                    darken(capColor, 0.12f),
+                    lighten(capColor, 0.18f),
+                ),
+                floatArrayOf(0f, 0.75f, 1f),
+                Shader.TileMode.CLAMP,
+            )
+        canvas.drawCircle(thumbX, thumbY, thumbRadius * 0.72f, paint)
+        paint.shader = null
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = strokeWidth
+        paint.color = darken(capColor, 0.42f)
+        canvas.drawCircle(thumbX, thumbY, thumbRadius, paint)
+        paint.strokeWidth = strokeWidth * 0.7f
+        paint.color = lighten(capColor, 0.08f)
+        canvas.drawCircle(thumbX, thumbY, thumbRadius * 0.72f, paint)
+    }
+
     private fun drawStick(canvas: Canvas) {
+        if (config.hasDualSticks) {
+            drawPsStick(canvas)
+            return
+        }
         val engaged = stickPointerId != -1
         val wellColor = darken(customColors.button ?: theme.dpad, 0.1f)
         paint.shader = null
