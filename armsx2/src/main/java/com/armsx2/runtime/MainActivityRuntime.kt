@@ -1615,7 +1615,13 @@ open class MainActivityRuntime : ComponentActivity() {
         // the user in an empty library with the wizard skipped. If no configured ROMs
         // folder is actually reachable, drop setupComplete for this session so the wizard
         // re-runs (and re-requests the permission); finishSetup re-arms it.
-        if (setupComplete.value && !romsAccessible(this, romsDirs.value)) {
+        // WinNative embed: when launched with a game to boot, the host provides the
+        // ROM and BIOS directly, so ARMSX2's own onboarding/library is never needed —
+        // force setup complete and skip the roms-recovery reset so we go straight to boot.
+        val embeddedGameLaunch = runCatching { intent?.data != null }.getOrDefault(false)
+        if (embeddedGameLaunch) {
+            setupComplete.value = true
+        } else if (setupComplete.value && !romsAccessible(this, romsDirs.value)) {
             setupComplete.value = false
             setupRecoveryNeeded.value = true
         }

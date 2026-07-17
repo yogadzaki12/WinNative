@@ -103,14 +103,66 @@ object RetroShortcuts {
     ) {
         val system = systemForShortcut(shortcut)
         if (system != null && system.isExternal) {
-            Toast.makeText(
-                context,
-                context.getString(com.winlator.cmod.R.string.retro_ps2_coming_soon),
-                Toast.LENGTH_LONG,
-            ).show()
+            launchEmbeddedPs2(context, romPath(shortcut))
             return
         }
         context.startActivity(launchIntent(context, shortcut))
+    }
+
+    private fun launchEmbeddedPs2(
+        context: Context,
+        romPath: String,
+    ) {
+        val rom = File(romPath)
+        if (!rom.isFile) {
+            Toast.makeText(context, context.getString(com.winlator.cmod.R.string.retro_rom_missing), Toast.LENGTH_LONG).show()
+            return
+        }
+        val biosPath = ensurePs2Bios(context)
+        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+        prefs.edit().apply {
+            putBoolean("setupComplete", true)
+            putString("romsDirs", org.json.JSONArray().put(rom.parent ?: "").toString())
+            if (biosPath != null) putString("bios", biosPath)
+            apply()
+        }
+        val uri =
+            try {
+                androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.tileprovider", rom)
+            } catch (e: IllegalArgumentException) {
+                android.net.Uri.fromFile(rom)
+            }
+        val intent =
+            Intent(Intent.ACTION_VIEW).apply {
+                setClassName(context, "com.armsx2.BootSplashActivity")
+                setDataAndType(uri, "application/octet-stream")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+        context.startActivity(intent)
+    }
+
+    private fun ensurePs2Bios(context: Context): String? {
+        val biosDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "bios")
+        if (!biosDir.exists()) biosDir.mkdirs()
+        val existing = biosDir.listFiles()?.firstOrNull { it.isFile && it.length() >= 3L * 1024 * 1024 }
+        if (existing != null) return existing.absolutePath
+        val sources =
+            listOf(
+                File("/storage/emulated/0/Download/bios"),
+                File(RetroCoreManager.systemDir(context), "bios"),
+                File("/storage/emulated/0/Download"),
+            )
+        for (dir in sources) {
+            val candidate =
+                dir.listFiles()?.firstOrNull {
+                    it.isFile && it.length() in (3L * 1024 * 1024)..(8L * 1024 * 1024) &&
+                        (it.name.endsWith(".bin", true) || it.name.endsWith(".BIN") || it.name.contains("ROM0"))
+                } ?: continue
+            val target = File(biosDir, candidate.name)
+            runCatching { candidate.copyTo(target, overwrite = true) }
+            if (target.isFile) return target.absolutePath
+        }
+        return null
     }
 
     @JvmStatic

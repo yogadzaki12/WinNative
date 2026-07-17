@@ -282,6 +282,7 @@ dependencies {
     implementation libs.workRuntimeKtx
 
     implementation project(':libretrodroid')
+    implementation project(':armsx2')
 }
 
 spotless {
