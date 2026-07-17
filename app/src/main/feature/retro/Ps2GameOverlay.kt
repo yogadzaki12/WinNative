@@ -79,14 +79,20 @@ object Ps2GameOverlay {
             }
         }
 
+        fun bg(block: () -> Unit) {
+            Thread { runCatching { block() } }.start()
+        }
+
+        fun gsSetAsync(key: String, type: String, value: String) = bg { gsSet(key, type, value) }
+
         fun spSet(key: String, type: String, value: String) {
-            runCatching {
+            bg {
                 NativeApp.setSetting("EmuCore/Speedhacks", key, type, value)
                 NativeApp.commitSettings()
             }
         }
 
-        runCatching {
+        bg {
             NativeApp.setAudioVolume(prefs.getInt("wn.ps2.volume", 100))
             NativeApp.setAudioMuted(prefs.getBoolean("wn.ps2.muted", false))
             NativeApp.setAudioSwapChannels(prefs.getBoolean("wn.ps2.swap", false))
@@ -106,7 +112,7 @@ object Ps2GameOverlay {
         fun osd(key: String) = prefs.getBoolean("wn.osd.$key", false)
         fun setOsd(key: String, value: Boolean, apply: (Boolean) -> Unit) {
             prefs.edit().putBoolean("wn.osd.$key", value).apply()
-            runCatching { apply(value) }
+            bg { apply(value) }
             menu.rebuild()
         }
 
@@ -164,13 +170,21 @@ object Ps2GameOverlay {
                     onClick = {
                         if (savesLoadMode) {
                             menu.close()
-                            val ok = runCatching { NativeApp.loadStateFromSlot(slot) }.getOrDefault(false)
-                            Toast.makeText(activity, if (ok) "Loaded slot $ui" else "Slot $ui is empty", Toast.LENGTH_SHORT).show()
-                            if (ok) { wnPaused = false; MainActivityRuntime.resume() }
+                            Thread {
+                                val ok = runCatching { NativeApp.loadStateFromSlot(slot) }.getOrDefault(false)
+                                activity.runOnUiThread {
+                                    Toast.makeText(activity, if (ok) "Loaded slot $ui" else "Slot $ui is empty", Toast.LENGTH_SHORT).show()
+                                    if (ok) { wnPaused = false; MainActivityRuntime.resume() }
+                                }
+                            }.start()
                         } else {
-                            val ok = runCatching { NativeApp.saveStateToSlot(slot) }.getOrDefault(false)
-                            Toast.makeText(activity, if (ok) "Saved to slot $ui" else "Save failed", Toast.LENGTH_SHORT).show()
-                            menu.rebuild()
+                            Thread {
+                                val ok = runCatching { NativeApp.saveStateToSlot(slot) }.getOrDefault(false)
+                                activity.runOnUiThread {
+                                    Toast.makeText(activity, if (ok) "Saved to slot $ui" else "Save failed", Toast.LENGTH_SHORT).show()
+                                    menu.rebuild()
+                                }
+                            }.start()
                         }
                     },
                     onRename = {},
@@ -238,7 +252,7 @@ object Ps2GameOverlay {
                     add(
                         RetroMenuEntry.Radio(label, selected = renderer == key) {
                             prefs.edit().putString("wn.ps2.renderer", key).apply()
-                            runCatching {
+                            bg {
                                 when (key) {
                                     "vulkan" -> NativeApp.renderVulkan()
                                     "opengl" -> NativeApp.renderOpenGL()
@@ -256,7 +270,7 @@ object Ps2GameOverlay {
                 add(
                     RetroMenuEntry.Choice("Upscale", labels, idx) { next ->
                         prefs.edit().putFloat("wn.ps2.upscale", scales[next]).apply()
-                        runCatching { NativeApp.renderUpscalemultiplier(scales[next]) }
+                        bg { NativeApp.renderUpscalemultiplier(scales[next]) }
                         menu.rebuild()
                     },
                 )
@@ -264,7 +278,7 @@ object Ps2GameOverlay {
                 add(
                     RetroMenuEntry.Choice("Aspect Ratio", aspectLabels, prefs.getInt("wn.ps2.aspect", 1).coerceIn(0, 3)) { next ->
                         prefs.edit().putInt("wn.ps2.aspect", next).apply()
-                        runCatching { NativeApp.setAspectRatio(next) }
+                        bg { NativeApp.setAspectRatio(next) }
                         menu.rebuild()
                     },
                 )
@@ -272,7 +286,7 @@ object Ps2GameOverlay {
                 add(
                     RetroMenuEntry.Choice("Blending Accuracy", blendLabels, prefs.getInt("wn.ps2.blend", 1).coerceIn(0, 5)) { next ->
                         prefs.edit().putInt("wn.ps2.blend", next).apply()
-                        gsSet("accurate_blending_unit", "int", next.toString())
+                        gsSetAsync("accurate_blending_unit", "int", next.toString())
                         menu.rebuild()
                     },
                 )
@@ -280,14 +294,14 @@ object Ps2GameOverlay {
                 add(
                     RetroMenuEntry.Choice("Texture Filtering", filterLabels, prefs.getInt("wn.ps2.filter", 2).coerceIn(0, 3)) { next ->
                         prefs.edit().putInt("wn.ps2.filter", next).apply()
-                        gsSet("filter", "int", next.toString())
+                        gsSetAsync("filter", "int", next.toString())
                         menu.rebuild()
                     },
                 )
                 add(
                     RetroMenuEntry.Toggle("Mipmapping", checked = prefs.getBoolean("wn.ps2.mipmap", true)) { value ->
                         prefs.edit().putBoolean("wn.ps2.mipmap", value).apply()
-                        gsSet("hw_mipmap", "bool", value.toString())
+                        gsSetAsync("hw_mipmap", "bool", value.toString())
                         menu.rebuild()
                     },
                 )
@@ -295,7 +309,7 @@ object Ps2GameOverlay {
                 add(
                     RetroMenuEntry.Choice("Frame Skip", skipLabels, prefs.getInt("wn.ps2.frameskip", 0).coerceIn(0, 3)) { next ->
                         prefs.edit().putInt("wn.ps2.frameskip", next).apply()
-                        runCatching { NativeApp.setFrameSkip(next) }
+                        bg { NativeApp.setFrameSkip(next) }
                         menu.rebuild()
                     },
                 )
@@ -317,21 +331,21 @@ object Ps2GameOverlay {
                     ) { value ->
                         val v = value.toInt()
                         prefs.edit().putInt("wn.ps2.volume", v).apply()
-                        runCatching { NativeApp.setAudioVolume(v) }
+                        bg { NativeApp.setAudioVolume(v) }
                         menu.rebuild()
                     },
                 )
                 add(
                     RetroMenuEntry.Toggle("Mute", checked = muted) { value ->
                         prefs.edit().putBoolean("wn.ps2.muted", value).apply()
-                        runCatching { NativeApp.setAudioMuted(value) }
+                        bg { NativeApp.setAudioMuted(value) }
                         menu.rebuild()
                     },
                 )
                 add(
                     RetroMenuEntry.Toggle("Swap Stereo Channels", checked = swap) { value ->
                         prefs.edit().putBoolean("wn.ps2.swap", value).apply()
-                        runCatching { NativeApp.setAudioSwapChannels(value) }
+                        bg { NativeApp.setAudioSwapChannels(value) }
                         menu.rebuild()
                     },
                 )
@@ -345,7 +359,7 @@ object Ps2GameOverlay {
                 add(
                     RetroMenuEntry.Choice("EE Cycle Rate", rateLabels, rateValues.indexOf(curRate).coerceAtLeast(0)) { next ->
                         prefs.edit().putInt("wn.ps2.eeRate", rateValues[next]).apply()
-                        runCatching { NativeApp.speedhackEecyclerate(rateValues[next]) }
+                        bg { NativeApp.speedhackEecyclerate(rateValues[next]) }
                         spSet("EECycleRate", "int", rateValues[next].toString())
                         menu.rebuild()
                     },
@@ -354,7 +368,7 @@ object Ps2GameOverlay {
                 add(
                     RetroMenuEntry.Choice("EE Cycle Skip", skipLabels, prefs.getInt("wn.ps2.eeSkip", 0).coerceIn(0, 3)) { next ->
                         prefs.edit().putInt("wn.ps2.eeSkip", next).apply()
-                        runCatching { NativeApp.speedhackEecycleskip(next) }
+                        bg { NativeApp.speedhackEecycleskip(next) }
                         spSet("EECycleSkip", "int", next.toString())
                         menu.rebuild()
                     },
@@ -362,7 +376,7 @@ object Ps2GameOverlay {
                 add(
                     RetroMenuEntry.Toggle("Instant VU1", checked = prefs.getBoolean("wn.ps2.instantVu1", true)) { value ->
                         prefs.edit().putBoolean("wn.ps2.instantVu1", value).apply()
-                        runCatching { NativeApp.setInstantVU1(value) }
+                        bg { NativeApp.setInstantVU1(value) }
                         menu.rebuild()
                     },
                 )
@@ -538,5 +552,20 @@ object Ps2GameOverlay {
             overlayView,
             ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
         )
+
+        val prevCallback = activity.window.callback
+        if (prevCallback != null) {
+            activity.window.callback =
+                object : android.view.Window.Callback by prevCallback {
+                    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+                        if (ps2Screen.value == null && menu.visible &&
+                            menu.handleKey(event.keyCode, event.action)
+                        ) {
+                            return true
+                        }
+                        return prevCallback.dispatchKeyEvent(event)
+                    }
+                }
+        }
     }
 }

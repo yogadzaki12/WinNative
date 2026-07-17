@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.io.File
+import kotlinx.coroutines.launch
 
 private val PageBg = Color(0xFF101018)
 private val PageText = Color(0xFFF0F4FF)
@@ -51,6 +52,7 @@ private val UPSCALE_LABELS = listOf("2x", "4x", "Native")
 @Composable
 fun RetroDefaultsScreen() {
     val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     var expandedConsole by remember { mutableStateOf<String?>(null) }
     var refresh by remember { mutableIntStateOf(0) }
     var confirmHardcore by remember { mutableStateOf(false) }
@@ -69,28 +71,30 @@ fun RetroDefaultsScreen() {
     val biosPicker =
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) {
-                RetroBiosImport.importFromUri(context, uri)
-                    .onSuccess {
-                        Toast.makeText(context, "BIOS imported: $it", Toast.LENGTH_SHORT).show()
+                scope.launch {
+                    val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        RetroBiosImport.importFromUri(context, uri)
                     }
-                    .onFailure {
-                        Toast.makeText(context, it.message ?: "Invalid BIOS file", Toast.LENGTH_LONG).show()
-                    }
-                refresh++
+                    result
+                        .onSuccess { Toast.makeText(context, "BIOS imported: $it", Toast.LENGTH_SHORT).show() }
+                        .onFailure { Toast.makeText(context, it.message ?: "Invalid BIOS file", Toast.LENGTH_LONG).show() }
+                    refresh++
+                }
             }
         }
 
     val ps2BiosPicker =
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) {
-                RetroBiosImport.importPs2FromUri(context, uri)
-                    .onSuccess {
-                        Toast.makeText(context, "PS2 BIOS imported: $it", Toast.LENGTH_SHORT).show()
+                scope.launch {
+                    val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        RetroBiosImport.importPs2FromUri(context, uri)
                     }
-                    .onFailure {
-                        Toast.makeText(context, it.message ?: "Invalid PS2 BIOS file", Toast.LENGTH_LONG).show()
-                    }
-                refresh++
+                    result
+                        .onSuccess { Toast.makeText(context, "PS2 BIOS imported: $it", Toast.LENGTH_SHORT).show() }
+                        .onFailure { Toast.makeText(context, it.message ?: "Invalid PS2 BIOS file", Toast.LENGTH_LONG).show() }
+                    refresh++
+                }
             }
         }
 

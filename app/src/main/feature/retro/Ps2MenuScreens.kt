@@ -41,6 +41,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.armsx2.runtime.MainActivityRuntime
+import com.winlator.cmod.shared.ui.nav.LocalPaneNav
+import com.winlator.cmod.shared.ui.nav.PaneNavRegistry
+import com.winlator.cmod.shared.ui.nav.bindPaneNav
+import com.winlator.cmod.shared.ui.nav.paneNavItem
 import java.io.File
 import kotlinx.coroutines.launch
 import kr.co.iefriends.pcsx2.NativeApp
@@ -59,6 +63,14 @@ private fun humanSize(bytes: Long): String =
         bytes >= 1024 -> "${bytes / 1024} KB"
         else -> "$bytes B"
     }
+
+private data class RaSnapshot(
+    val json: String,
+    val loggedIn: Boolean,
+    val userName: String,
+    val score: Long,
+    val items: List<com.armsx2.ui.achievements.AchievementItem>,
+)
 
 private fun sharedRaCreds(context: Context): Pair<String, String>? {
     val ra = context.getSharedPreferences("retro_achievements", Context.MODE_PRIVATE)
@@ -117,7 +129,8 @@ fun Ps2MemoryCardsScreen(
     context: Context,
     onBack: () -> Unit,
 ) {
-    var cards by remember { mutableStateOf(listMemcards(context)) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var cards by remember { mutableStateOf<List<File>>(emptyList()) }
     val prefs = context.getSharedPreferences("ARMSX2", Context.MODE_PRIVATE)
     var slot1 by remember { mutableStateOf(prefs.getString("wn.ps2.mc.slot1", "").orEmpty()) }
     var slot2 by remember { mutableStateOf(prefs.getString("wn.ps2.mc.slot2", "").orEmpty()) }
@@ -125,24 +138,33 @@ fun Ps2MemoryCardsScreen(
     var exportTarget by remember { mutableStateOf<File?>(null) }
 
     fun reload() {
-        cards = listMemcards(context)
-        slot1 = prefs.getString("wn.ps2.mc.slot1", "").orEmpty()
-        slot2 = prefs.getString("wn.ps2.mc.slot2", "").orEmpty()
+        scope.launch {
+            val loaded = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { listMemcards(context) }
+            cards = loaded
+            slot1 = prefs.getString("wn.ps2.mc.slot1", "").orEmpty()
+            slot2 = prefs.getString("wn.ps2.mc.slot2", "").orEmpty()
+        }
     }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) { reload() }
 
     val importLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
     ) { uri ->
         if (uri != null) {
-            val ok = runCatching {
-                val name = queryName(context, uri) ?: "Imported.ps2"
-                val fileName = if (name.endsWith(".ps2", true)) name else "$name.ps2"
-                val target = uniqueMemcard(memcardDir(context), fileName)
-                context.contentResolver.openInputStream(uri)?.use { input -> target.outputStream().use(input::copyTo) }
-                target.length() > 0L && NativeApp.isMemoryCard(target.name)
-            }.getOrDefault(false)
-            android.widget.Toast.makeText(context, if (ok) "Imported memory card" else "Import failed", android.widget.Toast.LENGTH_SHORT).show()
-            reload()
+            scope.launch {
+                val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    runCatching {
+                        val name = queryName(context, uri) ?: "Imported.ps2"
+                        val fileName = if (name.endsWith(".ps2", true)) name else "$name.ps2"
+                        val target = uniqueMemcard(memcardDir(context), fileName)
+                        context.contentResolver.openInputStream(uri)?.use { input -> target.outputStream().use(input::copyTo) }
+                        target.length() > 0L && NativeApp.isMemoryCard(target.name)
+                    }.getOrDefault(false)
+                }
+                android.widget.Toast.makeText(context, if (ok) "Imported memory card" else "Import failed", android.widget.Toast.LENGTH_SHORT).show()
+                reload()
+            }
         }
     }
     val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -150,20 +172,25 @@ fun Ps2MemoryCardsScreen(
     ) { uri ->
         val src = exportTarget
         if (uri != null && src != null) {
-            val ok = runCatching {
-                context.contentResolver.openOutputStream(uri)?.use { it.write(src.readBytes()) }
-                true
-            }.getOrDefault(false)
-            android.widget.Toast.makeText(context, if (ok) "Exported ${src.name}" else "Export failed", android.widget.Toast.LENGTH_SHORT).show()
+            scope.launch {
+                val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    runCatching {
+                        context.contentResolver.openOutputStream(uri)?.use { it.write(src.readBytes()) }
+                        true
+                    }.getOrDefault(false)
+                }
+                android.widget.Toast.makeText(context, if (ok) "Exported ${src.name}" else "Export failed", android.widget.Toast.LENGTH_SHORT).show()
+            }
         }
         exportTarget = null
     }
 
     Ps2OverlayScaffold(title = "Memory Cards", onBack = onBack, action = {
-        IconButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) {
+        val importCard = { importLauncher.launch(arrayOf("*/*")) }
+        IconButton(onClick = importCard, modifier = Modifier.paneNavItem(onActivate = { importCard() })) {
             Icon(Icons.Outlined.FileDownload, contentDescription = "Import", tint = MaterialTheme.colorScheme.onSurface)
         }
-        IconButton(onClick = { showCreate = true }) {
+        IconButton(onClick = { showCreate = true }, modifier = Modifier.paneNavItem(onActivate = { showCreate = true })) {
             Icon(Icons.Outlined.Add, contentDescription = "Create", tint = MaterialTheme.colorScheme.onSurface)
         }
     }) {
@@ -193,14 +220,18 @@ fun Ps2MemoryCardsScreen(
                             )
                             Spacer(Modifier.height(10.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedButton(onClick = { assignSlot(context, 1, card.name); reload() }) { Text("Slot 1") }
-                                OutlinedButton(onClick = { assignSlot(context, 2, card.name); reload() }) { Text("Slot 2") }
+                                val assign1 = { scope.launch { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { assignSlot(context, 1, card.name) }; reload() }; Unit }
+                                val assign2 = { scope.launch { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { assignSlot(context, 2, card.name) }; reload() }; Unit }
+                                val export = { exportTarget = card; exportLauncher.launch(card.name); Unit }
+                                OutlinedButton(onClick = assign1, modifier = Modifier.paneNavItem(onActivate = assign1)) { Text("Slot 1") }
+                                OutlinedButton(onClick = assign2, modifier = Modifier.paneNavItem(onActivate = assign2)) { Text("Slot 2") }
                                 Spacer(Modifier.width(4.dp))
-                                IconButton(onClick = { exportTarget = card; exportLauncher.launch(card.name) }) {
+                                IconButton(onClick = export, modifier = Modifier.paneNavItem(onActivate = export)) {
                                     Icon(Icons.Outlined.FileUpload, contentDescription = "Export", tint = MaterialTheme.colorScheme.onSurface)
                                 }
                                 if (card.name != slot1 && card.name != slot2) {
-                                    IconButton(onClick = { card.delete(); reload() }) {
+                                    val del = { scope.launch { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { card.delete() }; reload() }; Unit }
+                                    IconButton(onClick = del, modifier = Modifier.paneNavItem(onActivate = del)) {
                                         Icon(Icons.Outlined.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
                                     }
                                 }
@@ -222,9 +253,13 @@ fun Ps2MemoryCardsScreen(
                 TextButton(onClick = {
                     val safe = name.trim().replace(Regex("[\\\\/:*?\"<>|]"), "_").ifBlank { "MemoryCard" }
                     val fileName = if (safe.endsWith(".ps2", true)) safe else "$safe.ps2"
-                    runCatching { NativeApp.createMemoryCard(fileName, 1, sizeType.coerceIn(1, 4)) }
                     showCreate = false
-                    reload()
+                    scope.launch {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            runCatching { NativeApp.createMemoryCard(fileName, 1, sizeType.coerceIn(1, 4)) }
+                        }
+                        reload()
+                    }
                 }) { Text("Create") }
             },
             dismissButton = { TextButton(onClick = { showCreate = false }) { Text("Cancel") } },
@@ -317,7 +352,7 @@ fun Ps2CheatsScreen(
 
     Ps2OverlayScaffold(title = "Cheats", onBack = onBack, action = {
         if (!loading && entries.isNotEmpty()) {
-            TextButton(onClick = { apply() }) { Text("Apply") }
+            TextButton(onClick = { apply() }, modifier = Modifier.paneNavItem(onActivate = { apply() })) { Text("Apply") }
         }
     }) {
         when {
@@ -337,8 +372,9 @@ fun Ps2CheatsScreen(
                 ) {
                     items(entries) { entry ->
                         val checked = entry.name in selected
+                        val toggle = { selected = if (entry.name in selected) selected - entry.name else selected + entry.name }
                         Card(
-                            Modifier.fillMaxWidth(),
+                            Modifier.fillMaxWidth().paneNavItem(cornerRadius = 12.dp, onActivate = { toggle() }),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                             shape = RoundedCornerShape(12.dp),
                         ) {
@@ -383,22 +419,35 @@ fun Ps2AchievementsScreen(
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
 
-    fun refresh() {
-        json = runCatching { NativeApp.getAchievementsJSON().orEmpty() }.getOrDefault("")
-        val root = runCatching { org.json.JSONObject(json) }.getOrNull()
-        loggedIn = root?.optBoolean("loggedIn") ?: false
-        userName = root?.optString("userName").orEmpty()
-        score = root?.optLong("score")?.coerceAtLeast(0) ?: 0L
-        items = com.armsx2.ui.achievements.parseAchievementItems(json)
+    suspend fun refresh() {
+        val parsed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val raw = runCatching { NativeApp.getAchievementsJSON().orEmpty() }.getOrDefault("")
+            val root = runCatching { org.json.JSONObject(raw) }.getOrNull()
+            RaSnapshot(
+                json = raw,
+                loggedIn = root?.optBoolean("loggedIn") ?: false,
+                userName = root?.optString("userName").orEmpty(),
+                score = root?.optLong("score")?.coerceAtLeast(0) ?: 0L,
+                items = com.armsx2.ui.achievements.parseAchievementItems(raw),
+            )
+        }
+        json = parsed.json
+        loggedIn = parsed.loggedIn
+        userName = parsed.userName
+        score = parsed.score
+        items = parsed.items
     }
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
         refresh()
-        if (!loggedIn && pushSharedRaToArmsx2(context)) {
-            repeat(6) {
-                kotlinx.coroutines.delay(500)
-                refresh()
-                if (loggedIn) return@LaunchedEffect
+        if (!loggedIn) {
+            val pushed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { pushSharedRaToArmsx2(context) }
+            if (pushed) {
+                repeat(6) {
+                    kotlinx.coroutines.delay(500)
+                    refresh()
+                    if (loggedIn) return@LaunchedEffect
+                }
             }
         }
     }
@@ -420,14 +469,13 @@ fun Ps2AchievementsScreen(
                     visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                 )
                 if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                OutlinedButton(
-                    enabled = !busy && user.isNotBlank() && pass.isNotBlank(),
-                    onClick = {
+                val doLogin = {
+                    if (!busy && user.isNotBlank() && pass.isNotBlank()) {
                         busy = true; error = ""
                         RetroAchievementsManager.login(context, user.trim(), pass) { ok, msg ->
                             if (ok) {
-                                pushSharedRaToArmsx2(context)
                                 scope.launch {
+                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { pushSharedRaToArmsx2(context) }
                                     repeat(6) {
                                         kotlinx.coroutines.delay(500)
                                         refresh()
@@ -440,7 +488,13 @@ fun Ps2AchievementsScreen(
                                 error = msg ?: "Login failed"
                             }
                         }
-                    },
+                    }
+                    Unit
+                }
+                OutlinedButton(
+                    enabled = !busy && user.isNotBlank() && pass.isNotBlank(),
+                    modifier = Modifier.paneNavItem(onActivate = doLogin),
+                    onClick = doLogin,
                 ) { Text(if (busy) "Signing in…" else "Sign In") }
             }
         } else {
@@ -503,22 +557,31 @@ fun Ps2OverlayScaffold(
     action: @Composable (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface),
-    ) {
-        Row(
-            Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val registry = remember { PaneNavRegistry() }
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        val activity = context as? android.app.Activity
+        val restore = activity?.window?.bindPaneNav(registry, onDismiss = onBack)
+        onDispose { restore?.invoke() }
+    }
+    androidx.compose.runtime.CompositionLocalProvider(LocalPaneNav provides registry) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surface),
         ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
+            Row(
+                Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onBack, modifier = Modifier.paneNavItem(onActivate = onBack)) {
+                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
+                }
+                Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 4.dp))
+                Spacer(Modifier.width(0.dp).weight(1f))
+                action?.invoke()
             }
-            Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 4.dp))
-            Spacer(Modifier.width(0.dp).weight(1f))
-            action?.invoke()
+            Box(Modifier.fillMaxSize()) { content() }
         }
-        Box(Modifier.fillMaxSize()) { content() }
     }
 }
