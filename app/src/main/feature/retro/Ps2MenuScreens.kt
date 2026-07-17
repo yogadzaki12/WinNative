@@ -19,6 +19,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -58,6 +60,23 @@ private fun humanSize(bytes: Long): String =
         else -> "$bytes B"
     }
 
+private fun queryName(context: Context, uri: android.net.Uri): String? =
+    runCatching {
+        context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+            if (it.moveToFirst()) it.getString(0) else null
+        }
+    }.getOrNull()
+
+private fun uniqueMemcard(dir: File, name: String): File {
+    dir.mkdirs()
+    val base = name.substringBeforeLast('.', name)
+    val ext = name.substringAfterLast('.', "").let { if (it.isEmpty()) "" else ".$it" }
+    var target = File(dir, name)
+    var i = 2
+    while (target.exists()) target = File(dir, "$base-$i$ext").also { i++ }
+    return target
+}
+
 private fun assignSlot(context: Context, slot: Int, name: String) {
     runCatching {
         NativeApp.setSetting("MemoryCards", "Slot${slot}_Enable", "bool", "false")
@@ -79,6 +98,7 @@ fun Ps2MemoryCardsScreen(
     var slot1 by remember { mutableStateOf(prefs.getString("wn.ps2.mc.slot1", "").orEmpty()) }
     var slot2 by remember { mutableStateOf(prefs.getString("wn.ps2.mc.slot2", "").orEmpty()) }
     var showCreate by remember { mutableStateOf(false) }
+    var exportTarget by remember { mutableStateOf<File?>(null) }
 
     fun reload() {
         cards = listMemcards(context)
@@ -86,7 +106,39 @@ fun Ps2MemoryCardsScreen(
         slot2 = prefs.getString("wn.ps2.mc.slot2", "").orEmpty()
     }
 
+    val importLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            val ok = runCatching {
+                val name = queryName(context, uri) ?: "Imported.ps2"
+                val fileName = if (name.endsWith(".ps2", true)) name else "$name.ps2"
+                val target = uniqueMemcard(memcardDir(context), fileName)
+                context.contentResolver.openInputStream(uri)?.use { input -> target.outputStream().use(input::copyTo) }
+                target.length() > 0L && NativeApp.isMemoryCard(target.name)
+            }.getOrDefault(false)
+            android.widget.Toast.makeText(context, if (ok) "Imported memory card" else "Import failed", android.widget.Toast.LENGTH_SHORT).show()
+            reload()
+        }
+    }
+    val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream"),
+    ) { uri ->
+        val src = exportTarget
+        if (uri != null && src != null) {
+            val ok = runCatching {
+                context.contentResolver.openOutputStream(uri)?.use { it.write(src.readBytes()) }
+                true
+            }.getOrDefault(false)
+            android.widget.Toast.makeText(context, if (ok) "Exported ${src.name}" else "Export failed", android.widget.Toast.LENGTH_SHORT).show()
+        }
+        exportTarget = null
+    }
+
     Ps2OverlayScaffold(title = "Memory Cards", onBack = onBack, action = {
+        IconButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) {
+            Icon(Icons.Outlined.FileDownload, contentDescription = "Import", tint = MaterialTheme.colorScheme.onSurface)
+        }
         IconButton(onClick = { showCreate = true }) {
             Icon(Icons.Outlined.Add, contentDescription = "Create", tint = MaterialTheme.colorScheme.onSurface)
         }
@@ -120,6 +172,9 @@ fun Ps2MemoryCardsScreen(
                                 OutlinedButton(onClick = { assignSlot(context, 1, card.name); reload() }) { Text("Slot 1") }
                                 OutlinedButton(onClick = { assignSlot(context, 2, card.name); reload() }) { Text("Slot 2") }
                                 Spacer(Modifier.width(4.dp))
+                                IconButton(onClick = { exportTarget = card; exportLauncher.launch(card.name) }) {
+                                    Icon(Icons.Outlined.FileUpload, contentDescription = "Export", tint = MaterialTheme.colorScheme.onSurface)
+                                }
                                 if (card.name != slot1 && card.name != slot2) {
                                     IconButton(onClick = { card.delete(); reload() }) {
                                         Icon(Icons.Outlined.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
