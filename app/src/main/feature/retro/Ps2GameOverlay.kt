@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Monitor
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.SportsEsports
@@ -77,6 +78,13 @@ object Ps2GameOverlay {
             }
         }
 
+        fun spSet(key: String, type: String, value: String) {
+            runCatching {
+                NativeApp.setSetting("EmuCore/Speedhacks", key, type, value)
+                NativeApp.commitSettings()
+            }
+        }
+
         runCatching {
             NativeApp.setAudioVolume(prefs.getInt("wn.ps2.volume", 100))
             NativeApp.setAudioMuted(prefs.getBoolean("wn.ps2.muted", false))
@@ -90,6 +98,9 @@ object Ps2GameOverlay {
             NativeApp.osdShowFPS(prefs.getBoolean("wn.osd.fps", false))
             NativeApp.setAspectRatio(prefs.getInt("wn.ps2.aspect", 1).coerceIn(0, 3))
             NativeApp.setFrameSkip(prefs.getInt("wn.ps2.frameskip", 0).coerceIn(0, 3))
+            NativeApp.speedhackEecyclerate(prefs.getInt("wn.ps2.eeRate", 0).coerceIn(-3, 3))
+            NativeApp.speedhackEecycleskip(prefs.getInt("wn.ps2.eeSkip", 0).coerceIn(0, 3))
+            NativeApp.setInstantVU1(prefs.getBoolean("wn.ps2.instantVu1", true))
         }
         fun osd(key: String) = prefs.getBoolean("wn.osd.$key", false)
         fun setOsd(key: String, value: Boolean, apply: (Boolean) -> Unit) {
@@ -121,6 +132,24 @@ object Ps2GameOverlay {
                 add(RetroMenuEntry.Action("Achievements", RetroDrawerIcons.Achievements) { openWinNativeScreen("achievements") })
                 add(RetroMenuEntry.Action("Cheats", RetroDrawerIcons.Cheats) { openWinNativeScreen("cheats") })
                 add(RetroMenuEntry.Action("Memory Cards", RetroDrawerIcons.Save) { openWinNativeScreen("memcards") })
+                add(
+                    RetroMenuEntry.Toggle("Fast Forward", checked = MainActivityRuntime.fastForwardToggleActive) {
+                        (activity as? MainActivityRuntime)?.toggleFastForward()
+                        menu.rebuild()
+                    },
+                )
+                add(
+                    RetroMenuEntry.Action("Reset", RetroDrawerIcons.Reset) {
+                        menu.close()
+                        MainActivityRuntime.restart()
+                    },
+                )
+                add(
+                    RetroMenuEntry.Action("Swap Disc", RetroDrawerIcons.Disc) {
+                        menu.close()
+                        MainActivityRuntime.promptSwapDisc()
+                    },
+                )
             }
 
         fun saveSlotEntries(): List<RetroMenuEntry> =
@@ -307,6 +336,51 @@ object Ps2GameOverlay {
                 )
             }
 
+        fun performanceEntries(): List<RetroMenuEntry> =
+            buildList {
+                val rateValues = listOf(-3, -2, -1, 0, 1, 2, 3)
+                val rateLabels = listOf("50%", "60%", "75%", "100% (Default)", "130%", "180%", "300%")
+                val curRate = prefs.getInt("wn.ps2.eeRate", 0).coerceIn(-3, 3)
+                add(
+                    RetroMenuEntry.Choice("EE Cycle Rate", rateLabels, rateValues.indexOf(curRate).coerceAtLeast(0)) { next ->
+                        prefs.edit().putInt("wn.ps2.eeRate", rateValues[next]).apply()
+                        runCatching { NativeApp.speedhackEecyclerate(rateValues[next]) }
+                        spSet("EECycleRate", "int", rateValues[next].toString())
+                        menu.rebuild()
+                    },
+                )
+                val skipLabels = listOf("Off", "1", "2", "3")
+                add(
+                    RetroMenuEntry.Choice("EE Cycle Skip", skipLabels, prefs.getInt("wn.ps2.eeSkip", 0).coerceIn(0, 3)) { next ->
+                        prefs.edit().putInt("wn.ps2.eeSkip", next).apply()
+                        runCatching { NativeApp.speedhackEecycleskip(next) }
+                        spSet("EECycleSkip", "int", next.toString())
+                        menu.rebuild()
+                    },
+                )
+                add(
+                    RetroMenuEntry.Toggle("Instant VU1", checked = prefs.getBoolean("wn.ps2.instantVu1", true)) { value ->
+                        prefs.edit().putBoolean("wn.ps2.instantVu1", value).apply()
+                        runCatching { NativeApp.setInstantVU1(value) }
+                        menu.rebuild()
+                    },
+                )
+                add(
+                    RetroMenuEntry.Toggle("Multi-Threaded VU (MTVU)", checked = prefs.getBoolean("wn.ps2.mtvu", true)) { value ->
+                        prefs.edit().putBoolean("wn.ps2.mtvu", value).apply()
+                        spSet("vuThread", "bool", value.toString())
+                        menu.rebuild()
+                    },
+                )
+                add(
+                    RetroMenuEntry.Toggle("Fast CDVD", checked = prefs.getBoolean("wn.ps2.fastCdvd", false)) { value ->
+                        prefs.edit().putBoolean("wn.ps2.fastCdvd", value).apply()
+                        spSet("fastCDVD", "bool", value.toString())
+                        menu.rebuild()
+                    },
+                )
+            }
+
         fun hudEntries(): List<RetroMenuEntry> =
             buildList {
                 add(RetroMenuEntry.Toggle("FPS", checked = osd("fps")) { v -> setOsd("fps", v) { NativeApp.osdShowFPS(it) } })
@@ -324,6 +398,7 @@ object Ps2GameOverlay {
             listOf(
                 RetroTabSpec(null, Icons.Outlined.Apps, "Menu"),
                 RetroTabSpec(RetroPane.DISPLAY, Icons.Outlined.Monitor, "Display"),
+                RetroTabSpec(RetroPane.PERFORMANCE, Icons.Outlined.Bolt, "Performance"),
                 RetroTabSpec(RetroPane.HUD, Icons.Outlined.Speed, "HUD"),
                 RetroTabSpec(RetroPane.SOUND, Icons.AutoMirrored.Outlined.VolumeUp, "Sound"),
                 RetroTabSpec(RetroPane.CONTROLS, Icons.Outlined.SportsEsports, "Controls"),
@@ -332,6 +407,7 @@ object Ps2GameOverlay {
             when (pane) {
                 null -> mainEntries()
                 RetroPane.DISPLAY -> displayEntries()
+                RetroPane.PERFORMANCE -> performanceEntries()
                 RetroPane.SOUND -> soundEntries()
                 RetroPane.SAVES -> saveSlotEntries()
                 RetroPane.CONTROLS -> controlsEntries()
