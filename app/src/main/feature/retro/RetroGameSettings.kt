@@ -33,7 +33,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Memory
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Monitor
+import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.DropdownMenu
@@ -197,8 +200,15 @@ private fun buildRetroSections(state: RetroSettingsState): List<RetroSection> {
     val sections = mutableListOf<RetroSection>()
     sections += RetroSection(Icons.Outlined.Tune, "General")
     sections += RetroSection(Icons.Outlined.Monitor, "Graphics")
+    if (state.system?.isExternal == true) {
+        sections += RetroSection(Icons.Outlined.Bolt, "Performance")
+        sections += RetroSection(Icons.Outlined.Speed, "HUD")
+    }
     sections += RetroSection(Icons.Outlined.SportsEsports, "Input")
     sections += RetroSection(Icons.AutoMirrored.Outlined.VolumeUp, "Audio")
+    if (state.system?.isExternal == true) {
+        sections += RetroSection(Icons.Outlined.Public, "Online")
+    }
     return sections
 }
 
@@ -317,11 +327,23 @@ private fun RetroSectionContent(
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 20.dp, vertical = 14.dp),
             ) {
-                when (idx) {
-                    0 -> RetroGeneralSection(state, onPickArtwork, onRemoveArtwork, onImportBios)
-                    1 -> RetroGraphicsSection(state)
-                    2 -> RetroInputSection(state)
-                    else -> RetroAudioSection(state)
+                if (state.system?.isExternal == true) {
+                    when (idx) {
+                        0 -> RetroGeneralSection(state, onPickArtwork, onRemoveArtwork, onImportBios)
+                        1 -> RetroGraphicsSection(state)
+                        2 -> RetroPs2PerformanceSection()
+                        3 -> RetroPs2HudSection()
+                        4 -> RetroInputSection(state)
+                        5 -> RetroAudioSection(state)
+                        else -> RetroPs2OnlineSection()
+                    }
+                } else {
+                    when (idx) {
+                        0 -> RetroGeneralSection(state, onPickArtwork, onRemoveArtwork, onImportBios)
+                        1 -> RetroGraphicsSection(state)
+                        2 -> RetroInputSection(state)
+                        else -> RetroAudioSection(state)
+                    }
                 }
                 Spacer(Modifier.height(12.dp))
             }
@@ -1043,7 +1065,19 @@ private fun RetroPs2GraphicsSection() {
         ) { putInt("wn.ps2.frameskip", it) }
         RetroSettingSwitch("Mipmapping", prefs.getBoolean("wn.ps2.mipmap", true)) { putBool("wn.ps2.mipmap", it) }
     }
-    Spacer(Modifier.height(12.dp))
+}
+
+@Composable
+private fun RetroPs2PerformanceSection() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember(context) { context.getSharedPreferences("ARMSX2", android.content.Context.MODE_PRIVATE) }
+    var version by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+
+    @Suppress("UNUSED_EXPRESSION") version
+
+    fun putInt(key: String, value: Int) { prefs.edit().putInt(key, value).apply(); version++ }
+    fun putBool(key: String, value: Boolean) { prefs.edit().putBoolean(key, value).apply(); version++ }
+
     RetroSettingGroup {
         RetroGroupTitle("PERFORMANCE")
         val rateValues = listOf(-3, -2, -1, 0, 1, 2, 3)
@@ -1059,7 +1093,18 @@ private fun RetroPs2GraphicsSection() {
         RetroSettingSwitch("Multi-Threaded VU (MTVU)", prefs.getBoolean("wn.ps2.mtvu", true)) { putBool("wn.ps2.mtvu", it) }
         RetroSettingSwitch("Fast CDVD", prefs.getBoolean("wn.ps2.fastCdvd", false)) { putBool("wn.ps2.fastCdvd", it) }
     }
-    Spacer(Modifier.height(12.dp))
+}
+
+@Composable
+private fun RetroPs2HudSection() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember(context) { context.getSharedPreferences("ARMSX2", android.content.Context.MODE_PRIVATE) }
+    var version by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+
+    @Suppress("UNUSED_EXPRESSION") version
+
+    fun putBool(key: String, value: Boolean) { prefs.edit().putBoolean(key, value).apply(); version++ }
+
     RetroSettingGroup {
         RetroGroupTitle("PERFORMANCE HUD")
         RetroSettingSwitch("FPS", prefs.getBoolean("wn.osd.fps", false)) { putBool("wn.osd.fps", it) }
@@ -1068,7 +1113,19 @@ private fun RetroPs2GraphicsSection() {
         RetroSettingSwitch("GPU Usage", prefs.getBoolean("wn.osd.gpu", false)) { putBool("wn.osd.gpu", it) }
         RetroSettingSwitch("Internal Resolution", prefs.getBoolean("wn.osd.res", false)) { putBool("wn.osd.res", it) }
     }
-    Spacer(Modifier.height(12.dp))
+}
+
+@Composable
+private fun RetroPs2OnlineSection() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember(context) { context.getSharedPreferences("ARMSX2", android.content.Context.MODE_PRIVATE) }
+    var version by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+
+    @Suppress("UNUSED_EXPRESSION") version
+
+    fun putBool(key: String, value: Boolean) { prefs.edit().putBoolean(key, value).apply(); version++ }
+    fun putStr(key: String, value: String) { prefs.edit().putString(key, value).apply(); version++ }
+
     RetroSettingGroup {
         RetroGroupTitle("ONLINE (DEV9)")
         val onlineEnabled = prefs.getBoolean("wn.ps2.net.enable", false)

@@ -1837,7 +1837,7 @@ internal fun UnifiedActivity.LibraryCarousel(
     var localLibraryRefreshKey by remember { mutableIntStateOf(0) }
     var shortcutsLoaded by remember { mutableStateOf(false) }
     var pullRefreshing by remember { mutableStateOf(false) }
-    LaunchedEffect(shortcutRefreshKey, localLibraryRefreshKey) {
+    LaunchedEffect(shortcutRefreshKey, localLibraryRefreshKey, com.winlator.cmod.feature.retro.RetroBoxart.artVersion.value) {
         shortcutsLoaded = false
 
         // Pull-to-refresh only: rescan disk so a manually moved game is picked up without faking a re-download.

@@ -62,6 +62,40 @@ object RetroBoxart {
             "ps2" to CaseStyle(0xFF1E2C6E.toInt(), 0xFF0E1436.toInt(), 0.74f, true, true),
         )
 
+    val artVersion = androidx.compose.runtime.mutableStateOf(0)
+    private val working = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    fun ensureArtworkAsync(context: Context) {
+        if (!working.compareAndSet(false, true)) return
+        val app = context.applicationContext
+        Thread {
+            try {
+                val retro =
+                    runCatching {
+                        com.winlator.cmod.runtime.container.ContainerManager(app)
+                            .loadShortcuts()
+                            .filter { RetroShortcuts.isRetroShortcut(it) }
+                    }.getOrDefault(emptyList())
+                retro.forEach { shortcut ->
+                    if (com.winlator.cmod.feature.shortcuts.LibraryShortcutArtwork.findIconArtworkPath(shortcut) != null) return@forEach
+                    val existing = shortcut.getExtra("customCoverArtPath")
+                    if (existing.isNotBlank() && File(existing).isFile) return@forEach
+                    val system = RetroShortcuts.systemForShortcut(shortcut) ?: return@forEach
+                    val name = shortcut.getExtra("custom_name", shortcut.name)
+                    val uuid = com.winlator.cmod.feature.shortcuts.LibraryShortcutArtwork.ensureShortcutUuid(shortcut)
+                    val artFile = com.winlator.cmod.feature.shortcuts.LibraryShortcutArtwork.buildManagedCustomGameArtworkFile(app, uuid)
+                    if (fetchAndCompose(app, system, name, artFile)) {
+                        shortcut.putExtra("customCoverArtPath", artFile.absolutePath)
+                        shortcut.saveData()
+                        artVersion.value++
+                    }
+                }
+            } finally {
+                working.set(false)
+            }
+        }.start()
+    }
+
     fun caseArtEnabled(context: Context): Boolean =
         androidx.preference.PreferenceManager
             .getDefaultSharedPreferences(context)

@@ -44,19 +44,7 @@ object RetroRomScanner {
             if (RetroShortcuts.create(context, name, rom.absolutePath, system)) added++
         }
 
-        retro.forEach { shortcut ->
-            if (com.winlator.cmod.feature.shortcuts.LibraryShortcutArtwork.findIconArtworkPath(shortcut) != null) return@forEach
-            val existingArt = shortcut.getExtra("customCoverArtPath")
-            if (existingArt.isNotBlank() && File(existingArt).isFile) return@forEach
-            val system = RetroShortcuts.systemForShortcut(shortcut) ?: return@forEach
-            val name = shortcut.getExtra("custom_name", shortcut.name)
-            val uuid = com.winlator.cmod.feature.shortcuts.LibraryShortcutArtwork.ensureShortcutUuid(shortcut)
-            val artFile = com.winlator.cmod.feature.shortcuts.LibraryShortcutArtwork.buildManagedCustomGameArtworkFile(context, uuid)
-            if (RetroBoxart.fetchAndCompose(context, system, name, artFile)) {
-                shortcut.putExtra("customCoverArtPath", artFile.absolutePath)
-                shortcut.saveData()
-            }
-        }
+        RetroBoxart.ensureArtworkAsync(context)
         return Result(added, removed)
     }
 
