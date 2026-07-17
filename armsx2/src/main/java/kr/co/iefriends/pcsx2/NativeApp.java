@@ -171,10 +171,8 @@ public class NativeApp {
 	 * enough — a patch is inert unless its name is enabled here.
 	 */
 	public static native void setEnabledPatches(boolean cheats, String[] allNames, String[] enabledNames);
-	public static native String getGameTitle(String path);
 	public static native String getGameSerial();
 	public static native String getGameCRC();
-	public static native float getFPS();
 
 	/** Build version string from BuildVersion::GitRev — formatted as
 	 *  "GitTagHi.GitTagMid.GitTagLo.ARMSX2Build-SNAPSHOT". Used by the
@@ -182,7 +180,6 @@ public class NativeApp {
 	 *  tracks the C++ constants without a Kotlin-side hardcoded copy. */
 	public static native String getBuildVersion();
 
-	public static native String getPauseGameTitle();
 	public static native String getPauseGameSerial();
 
 	/** Snapshot the current game's achievements as JSON for the in-game
@@ -240,16 +237,6 @@ public class NativeApp {
 	 *  restoring the saved hardcore choice and rebuilding the client. */
 	public static native void clearAchievementsHostOverride();
 
-	/** True iff the GS is currently in a HW renderer (OGL/VK), false for
-	 *  SW. Mirrors GSIsHardwareRenderer() from the GS thread. Polled by
-	 *  the in-game overlay's renderer pill so emucore-driven swaps
-	 *  (e.g. SoftwareRendererFMVHack) stay in sync with the UI. */
-	public static native boolean isHardwareRenderer();
-
-	/** Master OSD toggle — flips every OsdShow* bit we enable at first
-	 *  init. Backs the in-game overlay's OSD pill. */
-	public static native void osdShowAll(boolean enabled);
-
 	// Live-only OSD flag apply (no persist) — lets the OSD on/off hotkey hide/restore stats
 	// without clobbering the user's saved per-stat selection.
 	public static native void osdApplyFlags(boolean fps, boolean vps, boolean speed, boolean cpu,
@@ -299,20 +286,15 @@ public class NativeApp {
 		String driverDir, String driverName,
 		String redirectDir, String hookLibDir);
 
-	public static native void setPadVibration(boolean isonoff);
 	public static native void setPadButton(int index, int range, boolean iskeypressed);
 	/** Local co-op: like setPadButton but routes to PS2 controller port 0 (Player 1)
 	 *  or 1 (Player 2). The plain setPadButton above stays port-0 for touch controls. */
 	public static native void setPadButtonForPort(int port, int index, int range, boolean iskeypressed);
-	/** Local co-op: hot-plug a 2nd DualShock2 into PS2 port 2 when a second physical
-	 *  controller joins. Idempotent; briefly parks the VM to rebuild the pad list. */
-	public static native void enablePad2();
 	/** PS2 Multitap: enable/disable the 3 extra pad slots on one physical port
 	 *  (port 0 = PS2 port 1 / unified slots 2,3,4; port 1 = PS2 port 2 / slots 5,6,7).
 	 *  Idempotent; briefly parks the VM (up to ~3s) to rebuild the pad list, so call
 	 *  it OFF the UI thread. */
 	public static native void setMultitap(int port, boolean enabled);
-	public static native void resetKeyStatus();
 
 	// ---- USB keyboard (#254: EQOA / Konami-keyboard games) ----
 	/** Attach ({@code true}) or detach ({@code false}) an emulated USB HID
@@ -576,15 +558,12 @@ public class NativeApp {
 	public static native void setInstantVU1(boolean enabled);
 
 	public static native void renderUpscalemultiplier(float value);
-	public static native void renderMipmap(int value);
-	public static native void renderHalfpixeloffset(int value);
 	public static native void renderTvShader(int value);
 	public static native void renderShadeBoost(boolean enabled, int brightness, int contrast, int saturation, int gamma);
 	public static native void renderSoftware();
 	public static native void renderOpenGL();
 	public static native void renderVulkan();
 	public static native void renderAuto();
-	public static native void renderPreloading(int value);
 
 	/** Flip texture dumping on/off live (PCSX2's ToggleTextureDumping hotkey).
 	 *  Returns the new state. Runtime-only; no-op (returns false) with no VM. */
@@ -613,14 +592,8 @@ public class NativeApp {
 	 *  Vulkan device is active (becomes a no-op). */
 	public static native void flushShaderCache();
 
-	/** Runs ARM64 codegen tests and prints PASS/FAIL to logcat (tag: ARM64CodegenTest). */
-	public static native void runCodegenTests();
 
-	/** Runs Patch::ApplyPatches tests and prints PASS/FAIL to logcat (tag: PatchTests). */
-	public static native void runPatchTests();
 
-	/** Runs microVU JIT integer-instruction tests and prints PASS/FAIL to logcat (tag: VuJitTests). */
-	public static native void runVuJitTests();
 
 	/** Runs R5900 EE interpreter instruction tests and prints PASS/FAIL to logcat (tag: EeJitTests). */
 	public static native void runEeJitTests();

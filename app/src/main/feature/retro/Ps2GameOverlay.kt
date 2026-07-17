@@ -26,8 +26,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
 import com.armsx2.WinNativeHost
+import com.winlator.cmod.R
 import com.armsx2.runtime.MainActivityRuntime
 import com.armsx2.ui.WindowImpl
 import com.winlator.cmod.shared.theme.WinNativeTheme
@@ -52,10 +54,10 @@ private fun Ps2NetEditDialog(state: MutableState<Ps2NetEdit?>) {
             TextButton(onClick = {
                 edit.onSave(draft)
                 state.value = null
-            }) { Text("Save") }
+            }) { Text(stringResource(R.string.retro_ps2_save)) }
         },
         dismissButton = {
-            TextButton(onClick = { state.value = null }) { Text("Cancel") }
+            TextButton(onClick = { state.value = null }) { Text(stringResource(R.string.retro_ps2_cancel)) }
         },
     )
 }
@@ -235,34 +237,34 @@ object Ps2GameOverlay {
         fun mainEntries(): List<RetroMenuEntry> =
             buildList {
                 add(
-                    RetroMenuEntry.Action("Save State", RetroDrawerIcons.Save) {
+                    RetroMenuEntry.Action(activity.getString(R.string.retro_ps2_save_state), RetroDrawerIcons.Save) {
                         savesLoadMode = false
                         menu.showPane(RetroPane.SAVES)
                     },
                 )
                 add(
-                    RetroMenuEntry.Action("Load Save State", RetroDrawerIcons.Load) {
+                    RetroMenuEntry.Action(activity.getString(R.string.retro_ps2_load_save_state), RetroDrawerIcons.Load) {
                         savesLoadMode = true
                         menu.showPane(RetroPane.SAVES)
                     },
                 )
-                add(RetroMenuEntry.Action("Achievements", RetroDrawerIcons.Achievements) { openWinNativeScreen("achievements") })
-                add(RetroMenuEntry.Action("Cheats", RetroDrawerIcons.Cheats) { openWinNativeScreen("cheats") })
-                add(RetroMenuEntry.Action("Memory Cards", RetroDrawerIcons.Save) { menu.showPane(RetroPane.MEMCARDS) })
+                add(RetroMenuEntry.Action(activity.getString(R.string.retro_ps2_achievements), RetroDrawerIcons.Achievements) { openWinNativeScreen("achievements") })
+                add(RetroMenuEntry.Action(activity.getString(R.string.retro_ps2_cheats), RetroDrawerIcons.Cheats) { openWinNativeScreen("cheats") })
+                add(RetroMenuEntry.Action(activity.getString(R.string.retro_ps2_memory_cards), RetroDrawerIcons.Save) { menu.showPane(RetroPane.MEMCARDS) })
                 add(
-                    RetroMenuEntry.Toggle("Fast Forward", checked = MainActivityRuntime.fastForwardToggleActive) {
+                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_fast_forward), checked = MainActivityRuntime.fastForwardToggleActive) {
                         (activity as? MainActivityRuntime)?.toggleFastForward()
                         menu.rebuild()
                     },
                 )
                 add(
-                    RetroMenuEntry.Action("Reset", RetroDrawerIcons.Reset) {
+                    RetroMenuEntry.Action(activity.getString(R.string.retro_ps2_reset), RetroDrawerIcons.Reset) {
                         menu.close()
                         MainActivityRuntime.restart()
                     },
                 )
                 add(
-                    RetroMenuEntry.Action("Swap Disc", RetroDrawerIcons.Disc) {
+                    RetroMenuEntry.Action(activity.getString(R.string.retro_ps2_swap_disc), RetroDrawerIcons.Disc) {
                         menu.close()
                         MainActivityRuntime.promptSwapDisc()
                     },
@@ -272,28 +274,32 @@ object Ps2GameOverlay {
         fun saveSlotEntries(): List<RetroMenuEntry> =
             (1..8).map { ui ->
                 val slot = ui - 1
-                val filled = runCatching { NativeApp.getGamePathSlot(slot) }.getOrNull()?.isNotBlank() == true
+                // getGamePathSlot only formats the slot's file name — it never checks the
+                // file exists, so every slot would read as filled. Check the disk.
+                val filled = runCatching {
+                    NativeApp.getGamePathSlot(slot)?.takeIf { it.isNotBlank() }?.let { java.io.File(it).exists() }
+                }.getOrNull() == true
                 RetroMenuEntry.SaveSlot(
                     slot = ui,
-                    title = "Slot $ui",
+                    title = activity.getString(R.string.retro_ps2_slot, ui),
                     subtitle =
                         when {
-                            savesLoadMode && filled -> "Tap to load"
-                            savesLoadMode -> "Empty"
-                            filled -> "Tap to overwrite"
-                            else -> "Empty — tap to save"
+                            savesLoadMode && filled -> activity.getString(R.string.retro_ps2_slot_tap_to_load)
+                            savesLoadMode -> activity.getString(R.string.retro_ps2_slot_empty)
+                            filled -> activity.getString(R.string.retro_ps2_slot_tap_to_overwrite)
+                            else -> activity.getString(R.string.retro_ps2_slot_empty_tap_to_save)
                         },
                     filled = filled,
                     onClick = {
                         if (savesLoadMode) {
                             if (!filled) {
-                                Toast.makeText(activity, "Slot $ui is empty", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(activity, activity.getString(R.string.retro_ps2_slot_is_empty, ui), Toast.LENGTH_SHORT).show()
                             } else {
                                 menu.close()
                                 Thread {
                                     val ok = runCatching { NativeApp.loadStateFromSlot(slot) }.getOrDefault(false)
                                     activity.runOnUiThread {
-                                        Toast.makeText(activity, if (ok) "Loaded slot $ui" else "Could not load slot $ui", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(activity, if (ok) activity.getString(R.string.retro_ps2_loaded_slot, ui) else activity.getString(R.string.retro_ps2_could_not_load_slot, ui), Toast.LENGTH_SHORT).show()
                                         if (ok) { wnPaused = false; MainActivityRuntime.resume() }
                                     }
                                 }.start()
@@ -302,7 +308,7 @@ object Ps2GameOverlay {
                             Thread {
                                 val ok = runCatching { NativeApp.saveStateToSlot(slot) }.getOrDefault(false)
                                 activity.runOnUiThread {
-                                    Toast.makeText(activity, if (ok) "Saved to slot $ui" else "Save failed", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(activity, if (ok) activity.getString(R.string.retro_ps2_saved_to_slot, ui) else activity.getString(R.string.retro_ps2_save_failed), Toast.LENGTH_SHORT).show()
                                     menu.rebuild()
                                 }
                             }.start()
@@ -340,7 +346,7 @@ object Ps2GameOverlay {
                             slot = assigned,
                             title = card.name.removeSuffix(".ps2"),
                             subtitle = humanSize(card.length()) +
-                                when (assigned) { 1 -> "  •  Slot 1"; 2 -> "  •  Slot 2"; else -> "  •  Tap to use" },
+                                when (assigned) { 1 -> activity.getString(R.string.retro_ps2_slot_1_suffix); 2 -> activity.getString(R.string.retro_ps2_slot_2_suffix); else -> activity.getString(R.string.retro_ps2_tap_to_use_suffix) },
                             filled = assigned != 0,
                             onClick = {
                                 when (assigned) {
@@ -355,7 +361,7 @@ object Ps2GameOverlay {
                     )
                 }
                 add(
-                    RetroMenuEntry.Action("New Memory Card", RetroDrawerIcons.Save) {
+                    RetroMenuEntry.Action(activity.getString(R.string.retro_ps2_new_memory_card), RetroDrawerIcons.Save) {
                         bg {
                             val existing = runCatching { listMemcards(activity).map { it.name }.toHashSet() }.getOrDefault(hashSetOf())
                             var n = 1
@@ -366,7 +372,7 @@ object Ps2GameOverlay {
                         }
                     },
                 )
-                add(RetroMenuEntry.Action("Import Card", RetroDrawerIcons.Load) { launchMemcardImport?.invoke() })
+                add(RetroMenuEntry.Action(activity.getString(R.string.retro_ps2_import_card), RetroDrawerIcons.Load) { launchMemcardImport?.invoke() })
             }
 
         fun networkEntries(): List<RetroMenuEntry> =
@@ -374,8 +380,8 @@ object Ps2GameOverlay {
                 val enabled = prefs.getBoolean("wn.ps2.net.enable", false)
                 add(
                     RetroMenuEntry.Toggle(
-                        "Enable Online (DEV9)",
-                        subtitle = "PS2 network adapter — restarts the game to attach it",
+                        activity.getString(R.string.retro_ps2_enable_online_dev9),
+                        subtitle = activity.getString(R.string.retro_ps2_enable_online_subtitle),
                         checked = enabled,
                     ) { value ->
                         prefs.edit().putBoolean("wn.ps2.net.enable", value).apply()
@@ -393,7 +399,7 @@ object Ps2GameOverlay {
                 val devices = listOf("Auto", "Wi-Fi")
                 add(
                     RetroMenuEntry.Choice(
-                        "Ethernet Device",
+                        activity.getString(R.string.retro_ps2_ethernet_device),
                         devices,
                         devices.indexOf(prefs.getString("wn.ps2.net.ethdevice", "Auto")).coerceAtLeast(0),
                     ) { next ->
@@ -405,7 +411,7 @@ object Ps2GameOverlay {
                 val dnsModes = listOf("Manual", "Auto", "Internal")
                 add(
                     RetroMenuEntry.Choice(
-                        "DNS Mode",
+                        activity.getString(R.string.retro_ps2_dns_mode),
                         dnsModes,
                         dnsModes.indexOf(prefs.getString("wn.ps2.net.dnsmode", "Manual")).coerceAtLeast(0),
                     ) { next ->
@@ -415,8 +421,8 @@ object Ps2GameOverlay {
                     },
                 )
                 add(
-                    RetroMenuEntry.TextInput("Primary DNS", prefs.getString("wn.ps2.net.dns1", PS2_DEFAULT_DNS).orEmpty(), PS2_DEFAULT_DNS) {
-                        netEdit.value = Ps2NetEdit("Primary DNS", prefs.getString("wn.ps2.net.dns1", PS2_DEFAULT_DNS).orEmpty(), PS2_DEFAULT_DNS) { v ->
+                    RetroMenuEntry.TextInput(activity.getString(R.string.retro_ps2_primary_dns), prefs.getString("wn.ps2.net.dns1", PS2_DEFAULT_DNS).orEmpty(), PS2_DEFAULT_DNS) {
+                        netEdit.value = Ps2NetEdit(activity.getString(R.string.retro_ps2_primary_dns), prefs.getString("wn.ps2.net.dns1", PS2_DEFAULT_DNS).orEmpty(), PS2_DEFAULT_DNS) { v ->
                             prefs.edit().putString("wn.ps2.net.dns1", v.trim()).apply()
                             applyNetwork()
                             menu.rebuild()
@@ -424,8 +430,8 @@ object Ps2GameOverlay {
                     },
                 )
                 add(
-                    RetroMenuEntry.TextInput("Secondary DNS", prefs.getString("wn.ps2.net.dns2", "").orEmpty(), "optional") {
-                        netEdit.value = Ps2NetEdit("Secondary DNS", prefs.getString("wn.ps2.net.dns2", "").orEmpty(), "0.0.0.0") { v ->
+                    RetroMenuEntry.TextInput(activity.getString(R.string.retro_ps2_secondary_dns), prefs.getString("wn.ps2.net.dns2", "").orEmpty(), activity.getString(R.string.retro_ps2_optional)) {
+                        netEdit.value = Ps2NetEdit(activity.getString(R.string.retro_ps2_secondary_dns), prefs.getString("wn.ps2.net.dns2", "").orEmpty(), "0.0.0.0") { v ->
                             prefs.edit().putString("wn.ps2.net.dns2", v.trim()).apply()
                             applyNetwork()
                             menu.rebuild()
@@ -433,7 +439,7 @@ object Ps2GameOverlay {
                     },
                 )
                 add(
-                    RetroMenuEntry.Toggle("Auto IP (DHCP)", checked = prefs.getBoolean("wn.ps2.net.dhcp", true)) { value ->
+                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_auto_ip_dhcp), checked = prefs.getBoolean("wn.ps2.net.dhcp", true)) { value ->
                         prefs.edit().putBoolean("wn.ps2.net.dhcp", value).apply()
                         applyNetwork()
                         menu.rebuild()
@@ -442,8 +448,8 @@ object Ps2GameOverlay {
                 val hosts = readHosts()
                 hosts.forEachIndexed { i, host ->
                     add(
-                        RetroMenuEntry.TextInput("Server: ${host.url}", host.ip, "tap to set IP (blank removes)") {
-                            netEdit.value = Ps2NetEdit("${host.url} → IP", host.ip, "0.0.0.0") { v ->
+                        RetroMenuEntry.TextInput(activity.getString(R.string.retro_ps2_server_host, host.url), host.ip, activity.getString(R.string.retro_ps2_tap_to_set_ip)) {
+                            netEdit.value = Ps2NetEdit(activity.getString(R.string.retro_ps2_host_to_ip, host.url), host.ip, "0.0.0.0") { v ->
                                 val list = readHosts().toMutableList()
                                 if (i < list.size) {
                                     if (v.isBlank()) list.removeAt(i) else list[i] = list[i].copy(ip = v.trim())
@@ -456,8 +462,8 @@ object Ps2GameOverlay {
                     )
                 }
                 add(
-                    RetroMenuEntry.Action("Add Server Host", RetroDrawerIcons.Add) {
-                        netEdit.value = Ps2NetEdit("New Server Hostname", "", "e.g. bf2.playbattlefront.com") { v ->
+                    RetroMenuEntry.Action(activity.getString(R.string.retro_ps2_add_server_host), RetroDrawerIcons.Add) {
+                        netEdit.value = Ps2NetEdit(activity.getString(R.string.retro_ps2_new_server_hostname), "", activity.getString(R.string.retro_ps2_server_hostname_hint)) { v ->
                             if (v.isNotBlank()) {
                                 writeHosts(readHosts() + Ps2NetHost(v.trim(), "0.0.0.0"))
                                 applyNetwork()
@@ -471,23 +477,23 @@ object Ps2GameOverlay {
         fun controlsEntries(): List<RetroMenuEntry> =
             buildList {
                 add(
-                    RetroMenuEntry.Toggle("On-screen Controls", checked = touchVisible.value) { value ->
+                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_onscreen_controls), checked = touchVisible.value) { value ->
                         touchVisible.value = value
                         RetroDefaults.setTouchControls(activity, RetroSystems.PS2.id, value)
                         menu.rebuild()
                     },
                 )
                 add(
-                    RetroMenuEntry.Action("Edit Layout", RetroDrawerIcons.EditLayout) {
+                    RetroMenuEntry.Action(activity.getString(R.string.retro_ps2_edit_layout), RetroDrawerIcons.EditLayout) {
                         menu.close()
                         touchVisible.value = true
                         pad?.enterEdit()
                     },
                 )
                 add(
-                    RetroMenuEntry.Action("Reset Layout", RetroDrawerIcons.Reset) {
+                    RetroMenuEntry.Action(activity.getString(R.string.retro_ps2_reset_layout), RetroDrawerIcons.Reset) {
                         pad?.resetLayout()
-                        Toast.makeText(activity, "Layout reset", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(activity, activity.getString(R.string.retro_ps2_layout_reset), Toast.LENGTH_SHORT).show()
                     },
                 )
                 val invPrefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(activity)
@@ -497,36 +503,36 @@ object Ps2GameOverlay {
                         pad?.loadStickInversion()
                         menu.rebuild()
                     }
-                add(invToggle("Left Stick: Invert X", "retro_inv_lx_ps2"))
-                add(invToggle("Left Stick: Invert Y", "retro_inv_ly_ps2"))
-                add(invToggle("Right Stick: Invert X", "retro_inv_rx_ps2"))
-                add(invToggle("Right Stick: Invert Y", "retro_inv_ry_ps2"))
+                add(invToggle(activity.getString(R.string.retro_ps2_left_stick_invert_x), "retro_inv_lx_ps2"))
+                add(invToggle(activity.getString(R.string.retro_ps2_left_stick_invert_y), "retro_inv_ly_ps2"))
+                add(invToggle(activity.getString(R.string.retro_ps2_right_stick_invert_x), "retro_inv_rx_ps2"))
+                add(invToggle(activity.getString(R.string.retro_ps2_right_stick_invert_y), "retro_inv_ry_ps2"))
                 add(
-                    RetroMenuEntry.ColorPick("Button Color", customColors.button) { value ->
+                    RetroMenuEntry.ColorPick(activity.getString(R.string.retro_ps2_button_color), customColors.button) { value ->
                         customColors = customColors.copy(button = value)
                         persistColors()
                     },
                 )
                 add(
-                    RetroMenuEntry.ColorPick("Letter Color", customColors.text) { value ->
+                    RetroMenuEntry.ColorPick(activity.getString(R.string.retro_ps2_letter_color), customColors.text) { value ->
                         customColors = customColors.copy(text = value)
                         persistColors()
                     },
                 )
                 add(
-                    RetroMenuEntry.ColorPick("Shadow Color", customColors.shadow) { value ->
+                    RetroMenuEntry.ColorPick(activity.getString(R.string.retro_ps2_shadow_color), customColors.shadow) { value ->
                         customColors = customColors.copy(shadow = value)
                         persistColors()
                     },
                 )
                 add(
-                    RetroMenuEntry.ColorPick("Background Color", customColors.body) { value ->
+                    RetroMenuEntry.ColorPick(activity.getString(R.string.retro_ps2_background_color), customColors.body) { value ->
                         customColors = customColors.copy(body = value)
                         persistColors()
                     },
                 )
                 add(
-                    RetroMenuEntry.Action("Reset Colors", RetroDrawerIcons.Reset) {
+                    RetroMenuEntry.Action(activity.getString(R.string.retro_ps2_reset_colors), RetroDrawerIcons.Reset) {
                         customColors = RetroCustomColors()
                         persistColors()
                     },
@@ -536,10 +542,14 @@ object Ps2GameOverlay {
         fun displayEntries(): List<RetroMenuEntry> =
             buildList {
                 val rendererKeys = listOf("vulkan", "opengl", "software")
-                val rendererLabels = listOf("Vulkan", "OpenGL", "Software")
+                val rendererLabels = listOf(
+                    activity.getString(R.string.retro_ps2_renderer_vulkan),
+                    activity.getString(R.string.retro_ps2_renderer_opengl),
+                    activity.getString(R.string.retro_ps2_renderer_software),
+                )
                 add(
                     RetroMenuEntry.Choice(
-                        "Renderer",
+                        activity.getString(R.string.retro_ps2_renderer),
                         rendererLabels,
                         rendererKeys.indexOf(prefs.getString("wn.ps2.renderer", "vulkan")).coerceAtLeast(0),
                     ) { next ->
@@ -555,10 +565,16 @@ object Ps2GameOverlay {
                     },
                 )
                 val scales = listOf(1f, 1.5f, 2f, 3f, 4f)
-                val scaleLabels = listOf("1x (Native)", "1.5x", "2x", "3x", "4x")
+                val scaleLabels = listOf(
+                    activity.getString(R.string.retro_ps2_scale_1x_native),
+                    activity.getString(R.string.retro_ps2_scale_1_5x),
+                    activity.getString(R.string.retro_ps2_scale_2x),
+                    activity.getString(R.string.retro_ps2_scale_3x),
+                    activity.getString(R.string.retro_ps2_scale_4x),
+                )
                 val scaleIdx = scales.indexOfFirst { kotlin.math.abs(it - prefs.getFloat("wn.ps2.upscale", 1f)) < 0.01f }.coerceAtLeast(0)
                 add(
-                    RetroMenuEntry.Choice("Resolution Scale", scaleLabels, scaleIdx) { next ->
+                    RetroMenuEntry.Choice(activity.getString(R.string.retro_ps2_resolution_scale), scaleLabels, scaleIdx) { next ->
                         prefs.edit().putFloat("wn.ps2.upscale", scales[next]).apply()
                         bg { NativeApp.renderUpscalemultiplier(scales[next]) }
                         menu.rebuild()
@@ -566,8 +582,13 @@ object Ps2GameOverlay {
                 )
                 add(
                     RetroMenuEntry.Choice(
-                        "Aspect Ratio",
-                        listOf("Stretch", "Auto (Standard)", "4:3", "16:9"),
+                        activity.getString(R.string.retro_ps2_aspect_ratio),
+                        listOf(
+                            activity.getString(R.string.retro_ps2_aspect_stretch),
+                            activity.getString(R.string.retro_ps2_aspect_auto_standard),
+                            activity.getString(R.string.retro_ps2_aspect_4_3),
+                            activity.getString(R.string.retro_ps2_aspect_16_9),
+                        ),
                         prefs.getInt("wn.ps2.aspect", 1).coerceIn(0, 3),
                     ) { next ->
                         prefs.edit().putInt("wn.ps2.aspect", next).apply()
@@ -577,8 +598,12 @@ object Ps2GameOverlay {
                 )
                 add(
                     RetroMenuEntry.Choice(
-                        "Display Filter",
-                        listOf("Nearest", "Bilinear (Smooth)", "Bilinear (Sharp)"),
+                        activity.getString(R.string.retro_ps2_display_filter),
+                        listOf(
+                            activity.getString(R.string.retro_ps2_filter_nearest),
+                            activity.getString(R.string.retro_ps2_filter_bilinear_smooth),
+                            activity.getString(R.string.retro_ps2_filter_bilinear_sharp),
+                        ),
                         prefs.getInt("wn.ps2.displayfilter", 1).coerceIn(0, 2),
                     ) { next ->
                         prefs.edit().putInt("wn.ps2.displayfilter", next).apply()
@@ -588,8 +613,13 @@ object Ps2GameOverlay {
                 )
                 add(
                     RetroMenuEntry.Choice(
-                        "Texture Filter",
-                        listOf("Nearest", "Bilinear (Forced)", "Bilinear (PS2)", "Bilinear (Sprites)"),
+                        activity.getString(R.string.retro_ps2_texture_filter),
+                        listOf(
+                            activity.getString(R.string.retro_ps2_filter_nearest),
+                            activity.getString(R.string.retro_ps2_filter_bilinear_forced),
+                            activity.getString(R.string.retro_ps2_filter_bilinear_ps2),
+                            activity.getString(R.string.retro_ps2_filter_bilinear_sprites),
+                        ),
                         prefs.getInt("wn.ps2.filter", 2).coerceIn(0, 3),
                     ) { next ->
                         prefs.edit().putInt("wn.ps2.filter", next).apply()
@@ -599,8 +629,15 @@ object Ps2GameOverlay {
                 )
                 add(
                     RetroMenuEntry.Choice(
-                        "Blending Accuracy",
-                        listOf("Minimum", "Basic", "Medium", "High", "Full", "Maximum"),
+                        activity.getString(R.string.retro_ps2_blending_accuracy),
+                        listOf(
+                            activity.getString(R.string.retro_ps2_blend_minimum),
+                            activity.getString(R.string.retro_ps2_blend_basic),
+                            activity.getString(R.string.retro_ps2_blend_medium),
+                            activity.getString(R.string.retro_ps2_blend_high),
+                            activity.getString(R.string.retro_ps2_blend_full),
+                            activity.getString(R.string.retro_ps2_blend_maximum),
+                        ),
                         prefs.getInt("wn.ps2.blend", 1).coerceIn(0, 5),
                     ) { next ->
                         prefs.edit().putInt("wn.ps2.blend", next).apply()
@@ -610,8 +647,17 @@ object Ps2GameOverlay {
                 )
                 add(
                     RetroMenuEntry.Choice(
-                        "CRT / TV Shader",
-                        listOf("Off", "Scanline", "Diagonal", "Triangular", "Wave", "Lottes", "4xRGSS", "NxAGSS"),
+                        activity.getString(R.string.retro_ps2_crt_tv_shader),
+                        listOf(
+                            activity.getString(R.string.retro_ps2_shader_off),
+                            activity.getString(R.string.retro_ps2_shader_scanline),
+                            activity.getString(R.string.retro_ps2_shader_diagonal),
+                            activity.getString(R.string.retro_ps2_shader_triangular),
+                            activity.getString(R.string.retro_ps2_shader_wave),
+                            activity.getString(R.string.retro_ps2_shader_lottes),
+                            activity.getString(R.string.retro_ps2_shader_4xrgss),
+                            activity.getString(R.string.retro_ps2_shader_nxagss),
+                        ),
                         prefs.getInt("wn.ps2.tvshader", 0).coerceIn(0, 7),
                     ) { next ->
                         prefs.edit().putInt("wn.ps2.tvshader", next).apply()
@@ -621,8 +667,13 @@ object Ps2GameOverlay {
                 )
                 add(
                     RetroMenuEntry.Choice(
-                        "Frame Skip",
-                        listOf("Off", "Skip 1", "Skip 2", "Skip 3"),
+                        activity.getString(R.string.retro_ps2_frame_skip),
+                        listOf(
+                            activity.getString(R.string.retro_ps2_frameskip_off),
+                            activity.getString(R.string.retro_ps2_frameskip_1),
+                            activity.getString(R.string.retro_ps2_frameskip_2),
+                            activity.getString(R.string.retro_ps2_frameskip_3),
+                        ),
                         prefs.getInt("wn.ps2.frameskip", 0).coerceIn(0, 3),
                     ) { next ->
                         prefs.edit().putInt("wn.ps2.frameskip", next).apply()
@@ -631,7 +682,7 @@ object Ps2GameOverlay {
                     },
                 )
                 add(
-                    RetroMenuEntry.Toggle("Mipmapping", checked = prefs.getBoolean("wn.ps2.mipmap", true)) { value ->
+                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_mipmapping), checked = prefs.getBoolean("wn.ps2.mipmap", true)) { value ->
                         prefs.edit().putBoolean("wn.ps2.mipmap", value).apply()
                         gsSetAsync("hw_mipmap", "bool", value.toString())
                         menu.rebuild()
@@ -646,8 +697,8 @@ object Ps2GameOverlay {
                 val swap = prefs.getBoolean("wn.ps2.swap", false)
                 add(
                     RetroMenuEntry.Slider(
-                        label = "Volume",
-                        valueText = "$volume%",
+                        label = activity.getString(R.string.retro_ps2_volume),
+                        valueText = activity.getString(R.string.retro_ps2_volume_percent, volume),
                         value = volume.toFloat(),
                         min = 0f,
                         max = 200f,
@@ -660,14 +711,14 @@ object Ps2GameOverlay {
                     },
                 )
                 add(
-                    RetroMenuEntry.Toggle("Mute", checked = muted) { value ->
+                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_mute), checked = muted) { value ->
                         prefs.edit().putBoolean("wn.ps2.muted", value).apply()
                         bg { NativeApp.setAudioMuted(value) }
                         menu.rebuild()
                     },
                 )
                 add(
-                    RetroMenuEntry.Toggle("Swap Stereo Channels", checked = swap) { value ->
+                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_swap_stereo_channels), checked = swap) { value ->
                         prefs.edit().putBoolean("wn.ps2.swap", value).apply()
                         bg { NativeApp.setAudioSwapChannels(value) }
                         menu.rebuild()
@@ -678,19 +729,32 @@ object Ps2GameOverlay {
         fun performanceEntries(): List<RetroMenuEntry> =
             buildList {
                 val rateValues = listOf(-3, -2, -1, 0, 1, 2, 3)
-                val rateLabels = listOf("50%", "60%", "75%", "100% (Default)", "130%", "180%", "300%")
+                val rateLabels = listOf(
+                    activity.getString(R.string.retro_ps2_rate_50),
+                    activity.getString(R.string.retro_ps2_rate_60),
+                    activity.getString(R.string.retro_ps2_rate_75),
+                    activity.getString(R.string.retro_ps2_rate_100_default),
+                    activity.getString(R.string.retro_ps2_rate_130),
+                    activity.getString(R.string.retro_ps2_rate_180),
+                    activity.getString(R.string.retro_ps2_rate_300),
+                )
                 val curRate = prefs.getInt("wn.ps2.eeRate", 0).coerceIn(-3, 3)
                 add(
-                    RetroMenuEntry.Choice("EE Cycle Rate", rateLabels, rateValues.indexOf(curRate).coerceAtLeast(0)) { next ->
+                    RetroMenuEntry.Choice(activity.getString(R.string.retro_ps2_ee_cycle_rate), rateLabels, rateValues.indexOf(curRate).coerceAtLeast(0)) { next ->
                         prefs.edit().putInt("wn.ps2.eeRate", rateValues[next]).apply()
                         bg { NativeApp.speedhackEecyclerate(rateValues[next]) }
                         spSet("EECycleRate", "int", rateValues[next].toString())
                         menu.rebuild()
                     },
                 )
-                val skipLabels = listOf("Off", "1", "2", "3")
+                val skipLabels = listOf(
+                    activity.getString(R.string.retro_ps2_skip_off),
+                    activity.getString(R.string.retro_ps2_skip_1),
+                    activity.getString(R.string.retro_ps2_skip_2),
+                    activity.getString(R.string.retro_ps2_skip_3),
+                )
                 add(
-                    RetroMenuEntry.Choice("EE Cycle Skip", skipLabels, prefs.getInt("wn.ps2.eeSkip", 0).coerceIn(0, 3)) { next ->
+                    RetroMenuEntry.Choice(activity.getString(R.string.retro_ps2_ee_cycle_skip), skipLabels, prefs.getInt("wn.ps2.eeSkip", 0).coerceIn(0, 3)) { next ->
                         prefs.edit().putInt("wn.ps2.eeSkip", next).apply()
                         bg { NativeApp.speedhackEecycleskip(next) }
                         spSet("EECycleSkip", "int", next.toString())
@@ -698,21 +762,21 @@ object Ps2GameOverlay {
                     },
                 )
                 add(
-                    RetroMenuEntry.Toggle("Instant VU1", checked = prefs.getBoolean("wn.ps2.instantVu1", true)) { value ->
+                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_instant_vu1), checked = prefs.getBoolean("wn.ps2.instantVu1", true)) { value ->
                         prefs.edit().putBoolean("wn.ps2.instantVu1", value).apply()
                         bg { NativeApp.setInstantVU1(value) }
                         menu.rebuild()
                     },
                 )
                 add(
-                    RetroMenuEntry.Toggle("Multi-Threaded VU (MTVU)", checked = prefs.getBoolean("wn.ps2.mtvu", true)) { value ->
+                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_mtvu), checked = prefs.getBoolean("wn.ps2.mtvu", true)) { value ->
                         prefs.edit().putBoolean("wn.ps2.mtvu", value).apply()
                         spSet("vuThread", "bool", value.toString())
                         menu.rebuild()
                     },
                 )
                 add(
-                    RetroMenuEntry.Toggle("Fast CDVD", checked = prefs.getBoolean("wn.ps2.fastCdvd", false)) { value ->
+                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_fast_cdvd), checked = prefs.getBoolean("wn.ps2.fastCdvd", false)) { value ->
                         prefs.edit().putBoolean("wn.ps2.fastCdvd", value).apply()
                         spSet("fastCDVD", "bool", value.toString())
                         menu.rebuild()
@@ -722,12 +786,12 @@ object Ps2GameOverlay {
 
         fun hudEntries(): List<RetroMenuEntry> =
             buildList {
-                add(RetroMenuEntry.Toggle("FPS", checked = osd("fps")) { v -> setOsd("fps", v) { NativeApp.osdShowFPS(it) } })
-                add(RetroMenuEntry.Toggle("Emulation Speed", checked = osd("speed")) { v -> setOsd("speed", v) { NativeApp.osdShowSpeed(it) } })
-                add(RetroMenuEntry.Toggle("CPU Usage", checked = osd("cpu")) { v -> setOsd("cpu", v) { NativeApp.osdShowCPU(it) } })
-                add(RetroMenuEntry.Toggle("GPU Usage", checked = osd("gpu")) { v -> setOsd("gpu", v) { NativeApp.osdShowGPU(it) } })
+                add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_fps), checked = osd("fps")) { v -> setOsd("fps", v) { NativeApp.osdShowFPS(it) } })
+                add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_emulation_speed), checked = osd("speed")) { v -> setOsd("speed", v) { NativeApp.osdShowSpeed(it) } })
+                add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_cpu_usage), checked = osd("cpu")) { v -> setOsd("cpu", v) { NativeApp.osdShowCPU(it) } })
+                add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_gpu_usage), checked = osd("gpu")) { v -> setOsd("gpu", v) { NativeApp.osdShowGPU(it) } })
                 add(
-                    RetroMenuEntry.Toggle("Internal Resolution", checked = osd("res")) { v ->
+                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_internal_resolution), checked = osd("res")) { v ->
                         setOsd("res", v) { NativeApp.osdShowResolution(it) }
                     },
                 )
@@ -735,13 +799,13 @@ object Ps2GameOverlay {
 
         menu.tabs =
             listOf(
-                RetroTabSpec(null, Icons.Outlined.Apps, "Menu"),
-                RetroTabSpec(RetroPane.DISPLAY, Icons.Outlined.Monitor, "Display"),
-                RetroTabSpec(RetroPane.PERFORMANCE, Icons.Outlined.Bolt, "Performance"),
-                RetroTabSpec(RetroPane.HUD, Icons.Outlined.Speed, "HUD"),
-                RetroTabSpec(RetroPane.SOUND, Icons.AutoMirrored.Outlined.VolumeUp, "Sound"),
-                RetroTabSpec(RetroPane.NETWORK, Icons.Outlined.Public, "Online"),
-                RetroTabSpec(RetroPane.CONTROLS, Icons.Outlined.SportsEsports, "Controls"),
+                RetroTabSpec(null, Icons.Outlined.Apps, activity.getString(R.string.retro_ps2_tab_menu)),
+                RetroTabSpec(RetroPane.DISPLAY, Icons.Outlined.Monitor, activity.getString(R.string.retro_ps2_tab_display)),
+                RetroTabSpec(RetroPane.PERFORMANCE, Icons.Outlined.Bolt, activity.getString(R.string.retro_ps2_tab_performance)),
+                RetroTabSpec(RetroPane.HUD, Icons.Outlined.Speed, activity.getString(R.string.retro_ps2_tab_hud)),
+                RetroTabSpec(RetroPane.SOUND, Icons.AutoMirrored.Outlined.VolumeUp, activity.getString(R.string.retro_ps2_tab_sound)),
+                RetroTabSpec(RetroPane.NETWORK, Icons.Outlined.Public, activity.getString(R.string.retro_ps2_tab_online)),
+                RetroTabSpec(RetroPane.CONTROLS, Icons.Outlined.SportsEsports, activity.getString(R.string.retro_ps2_tab_controls)),
             )
         menu.entriesProvider = { pane ->
             when (pane) {
@@ -759,18 +823,18 @@ object Ps2GameOverlay {
         menu.bottomProvider = {
             listOf(
                 if (wnPaused) {
-                    RetroMenuEntry.Action("Resume", RetroDrawerIcons.Resume, active = true) {
+                    RetroMenuEntry.Action(activity.getString(R.string.retro_ps2_resume), RetroDrawerIcons.Resume, active = true) {
                         wnPaused = false
                         MainActivityRuntime.resume()
                         menu.close()
                     }
                 } else {
-                    RetroMenuEntry.Action("Pause", RetroDrawerIcons.Pause) {
+                    RetroMenuEntry.Action(activity.getString(R.string.retro_ps2_pause), RetroDrawerIcons.Pause) {
                         wnPaused = true
                         menu.rebuild()
                     }
                 },
-                RetroMenuEntry.Action("Exit", RetroDrawerIcons.Exit, danger = true) {
+                RetroMenuEntry.Action(activity.getString(R.string.retro_ps2_exit), RetroDrawerIcons.Exit, danger = true) {
                     menu.close()
                     runCatching { NativeApp.shutdown() }
                     activity.finish()

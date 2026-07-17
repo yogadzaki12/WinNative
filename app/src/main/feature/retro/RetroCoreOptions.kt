@@ -1,10 +1,12 @@
 package com.winlator.cmod.feature.retro
 
+import com.winlator.cmod.R
+
 data class RetroCoreOption(
     val key: String,
-    val label: String,
+    @androidx.annotation.StringRes val label: Int,
     val values: List<String>,
-    val valueLabels: List<String>,
+    val valueLabels: List<Int>,
     val defaultValue: String,
 )
 
@@ -13,9 +15,9 @@ object RetroCoreOptions {
         listOf(
             RetroCoreOption(
                 key = "fceumm_aspect",
-                label = "Aspect Ratio",
+                label = R.string.retro_co_aspect_ratio,
                 values = listOf("8:7 PAR", "4:3"),
-                valueLabels = listOf("8:7 (Native)", "4:3 (TV)"),
+                valueLabels = listOf(R.string.retro_co_val_8_7_native, R.string.retro_co_val_4_3_tv),
                 defaultValue = "8:7 PAR",
             ),
         )
@@ -24,9 +26,16 @@ object RetroCoreOptions {
         listOf(
             RetroCoreOption(
                 key = "snes9x_blargg",
-                label = "NTSC Filter",
+                label = R.string.retro_co_ntsc_filter,
                 values = listOf("disabled", "rf", "composite", "s-video", "rgb"),
-                valueLabels = listOf("Off", "RF", "Composite", "S-Video", "RGB"),
+                valueLabels =
+                    listOf(
+                        R.string.retro_co_val_off,
+                        R.string.retro_co_val_rf,
+                        R.string.retro_co_val_composite,
+                        R.string.retro_co_val_s_video,
+                        R.string.retro_co_val_rgb,
+                    ),
                 defaultValue = "disabled",
             ),
         )
@@ -35,9 +44,9 @@ object RetroCoreOptions {
         listOf(
             RetroCoreOption(
                 key = "gambatte_gb_colorization",
-                label = "Colorization",
+                label = R.string.retro_co_colorization,
                 values = listOf("disabled", "auto"),
-                valueLabels = listOf("Off", "Auto"),
+                valueLabels = listOf(R.string.retro_co_val_off, R.string.retro_co_val_auto),
                 defaultValue = "disabled",
             ),
         )
@@ -46,9 +55,14 @@ object RetroCoreOptions {
         listOf(
             RetroCoreOption(
                 key = "mgba_color_correction",
-                label = "Color Correction",
+                label = R.string.retro_co_color_correction,
                 values = listOf("OFF", "GBA", "GBC"),
-                valueLabels = listOf("Off", "GBA Screen", "GBC Screen"),
+                valueLabels =
+                    listOf(
+                        R.string.retro_co_val_off,
+                        R.string.retro_co_val_gba_screen,
+                        R.string.retro_co_val_gbc_screen,
+                    ),
                 defaultValue = "OFF",
             ),
         )
@@ -57,16 +71,22 @@ object RetroCoreOptions {
         listOf(
             RetroCoreOption(
                 key = "genesis_plus_gx_no_sprite_limit",
-                label = "Remove Sprite Limit",
+                label = R.string.retro_co_remove_sprite_limit,
                 values = listOf("disabled", "enabled"),
-                valueLabels = listOf("Off", "On"),
+                valueLabels = listOf(R.string.retro_co_val_off, R.string.retro_co_val_on),
                 defaultValue = "disabled",
             ),
             RetroCoreOption(
                 key = "genesis_plus_gx_blargg_ntsc_filter",
-                label = "NTSC Filter",
+                label = R.string.retro_co_ntsc_filter,
                 values = listOf("Off", "Composite", "S-Video", "RGB"),
-                valueLabels = listOf("Off", "Composite", "S-Video", "RGB"),
+                valueLabels =
+                    listOf(
+                        R.string.retro_co_val_off,
+                        R.string.retro_co_val_composite,
+                        R.string.retro_co_val_s_video,
+                        R.string.retro_co_val_rgb,
+                    ),
                 defaultValue = "Off",
             ),
         )
@@ -75,23 +95,34 @@ object RetroCoreOptions {
         listOf(
             RetroCoreOption(
                 key = "mupen64plus-43screensize",
-                label = "Resolution",
+                label = R.string.retro_co_resolution,
                 values = listOf("320x240", "640x480", "960x720", "1280x960"),
-                valueLabels = listOf("320x240 (Native)", "640x480", "960x720", "1280x960"),
+                valueLabels =
+                    listOf(
+                        R.string.retro_co_val_320x240_native,
+                        R.string.retro_co_val_640x480,
+                        R.string.retro_co_val_960x720,
+                        R.string.retro_co_val_1280x960,
+                    ),
                 defaultValue = "640x480",
             ),
             RetroCoreOption(
                 key = "mupen64plus-EnableFBEmulation",
-                label = "Framebuffer Emulation",
+                label = R.string.retro_co_framebuffer_emulation,
                 values = listOf("True", "False"),
-                valueLabels = listOf("On", "Off"),
+                valueLabels = listOf(R.string.retro_co_val_on, R.string.retro_co_val_off),
                 defaultValue = "True",
             ),
             RetroCoreOption(
                 key = "mupen64plus-aspect",
-                label = "Aspect Ratio",
+                label = R.string.retro_co_aspect_ratio,
                 values = listOf("4:3", "16:9", "16:9 adjusted"),
-                valueLabels = listOf("4:3", "16:9", "16:9 Adjusted"),
+                valueLabels =
+                    listOf(
+                        R.string.retro_co_val_4_3,
+                        R.string.retro_co_val_16_9,
+                        R.string.retro_co_val_16_9_adjusted,
+                    ),
                 defaultValue = "4:3",
             ),
         )
@@ -100,16 +131,21 @@ object RetroCoreOptions {
         listOf(
             RetroCoreOption(
                 key = "beetle_psx_dither_mode",
-                label = "Dithering",
+                label = R.string.retro_co_dithering,
                 values = listOf("1x(native)", "internal resolution", "disabled"),
-                valueLabels = listOf("Native", "Internal", "Off"),
+                valueLabels =
+                    listOf(
+                        R.string.retro_co_val_native,
+                        R.string.retro_co_val_internal,
+                        R.string.retro_co_val_off,
+                    ),
                 defaultValue = "1x(native)",
             ),
             RetroCoreOption(
                 key = "beetle_psx_widescreen_hack",
-                label = "Widescreen Hack",
+                label = R.string.retro_co_widescreen_hack,
                 values = listOf("disabled", "enabled"),
-                valueLabels = listOf("Off", "On (16:9)"),
+                valueLabels = listOf(R.string.retro_co_val_off, R.string.retro_co_val_on_16_9),
                 defaultValue = "disabled",
             ),
         )

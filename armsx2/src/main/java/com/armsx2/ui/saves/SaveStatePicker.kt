@@ -214,7 +214,12 @@ private fun AutosaveTile(onPick: () -> Unit) {
 @Composable
 private fun SlotTile(slot: Int, mode: SaveMode, onPick: (Int) -> Unit) {
     val gamePath by produceState<String?>(initialValue = null, slot) {
-        value = withContext(Dispatchers.IO) { runCatching { NativeApp.getGamePathSlot(slot) }.getOrNull() }
+        // getGamePathSlot only formats the slot's file name — verify the state
+        // actually exists on disk, or every slot reads as occupied.
+        value = withContext(Dispatchers.IO) {
+            runCatching { NativeApp.getGamePathSlot(slot) }.getOrNull()
+                ?.takeIf { it.isNotBlank() && java.io.File(it).exists() }
+        }
     }
     val image by produceState<android.graphics.Bitmap?>(initialValue = null, slot) {
         value = withContext(Dispatchers.IO) {

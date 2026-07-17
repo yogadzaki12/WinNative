@@ -26,6 +26,7 @@ import com.swordfish.libretrodroid.LibretroDroid
 import com.swordfish.libretrodroid.ShaderConfig
 import com.swordfish.libretrodroid.Variable
 import com.swordfish.libretrodroid.ViewportAlignment
+import com.winlator.cmod.R
 import com.winlator.cmod.feature.sync.google.GameSaveBackupManager
 import com.winlator.cmod.feature.sync.google.GoogleAuthMode
 import com.winlator.cmod.runtime.container.ContainerManager
@@ -59,11 +60,15 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         const val EXTRA_SGSR = "retro_sgsr"
 
         private val SHADER_KEYS = listOf("default", "crt", "lcd", "sharp")
-        private val SHADER_LABELS = listOf("Default", "CRT", "LCD", "Sharp")
+        private val SHADER_LABEL_RES =
+            listOf(R.string.retro_lr_shader_default, R.string.retro_lr_shader_crt, R.string.retro_lr_shader_lcd, R.string.retro_lr_shader_sharp)
         private val UPSCALE_KEYS = listOf("2x", "4x", "native")
-        private val UPSCALE_LABELS = listOf("2x", "4x", "Native")
-        private val HUD_ELEMENT_LABELS =
-            listOf("FPS", "Console", "GPU", "CPU", "RAM", "Battery", "Temp", "Graph", "CPU Temp")
+        private val HUD_ELEMENT_LABEL_RES =
+            listOf(
+                R.string.retro_lr_hud_fps, R.string.retro_lr_hud_console, R.string.retro_lr_hud_gpu,
+                R.string.retro_lr_hud_cpu, R.string.retro_lr_hud_ram, R.string.retro_lr_hud_battery,
+                R.string.retro_lr_hud_temp, R.string.retro_lr_hud_graph, R.string.retro_lr_hud_cpu_temp,
+            )
         private val HUD_ELEMENT_ORDER = listOf(1, 2, 3, 8, 4, 5, 6, 0, 7)
     }
 
@@ -102,11 +107,11 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             if (uri != null) {
                 RetroBiosImport.importFromUri(this, uri)
                     .onSuccess {
-                        Toast.makeText(this, "BIOS imported: $it", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, getString(R.string.retro_lr_bios_imported, it), Toast.LENGTH_SHORT).show()
                         recreate()
                     }
                     .onFailure {
-                        Toast.makeText(this, it.message ?: "Invalid BIOS file", Toast.LENGTH_LONG).show()
+                        Toast.makeText(this, it.message ?: getString(R.string.retro_lr_invalid_bios_file), Toast.LENGTH_LONG).show()
                     }
             } else {
                 finish()
@@ -270,7 +275,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         if (achievementsSessionStarted) {
             RetroAchievementsManager.endSession()
             achievementsSessionStarted = false
-            Toast.makeText(this, "Cheats enabled — achievements are disabled for this session", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, getString(R.string.retro_lr_cheats_enabled_achievements_disabled), Toast.LENGTH_LONG).show()
         }
     }
 
@@ -297,21 +302,21 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         system = resolvedSystem
 
         if (romPath.isNullOrBlank() || resolvedSystem == null) {
-            Toast.makeText(this, "Invalid retro game", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, getString(R.string.retro_lr_invalid_retro_game), Toast.LENGTH_LONG).show()
             finish()
             return
         }
 
         val sourceFile = File(romPath)
         if (!sourceFile.isFile) {
-            Toast.makeText(this, "ROM not found: $romPath", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, getString(R.string.retro_lr_rom_not_found, romPath), Toast.LENGTH_LONG).show()
             finish()
             return
         }
         val romFile =
             if (RetroRomArchive.isArchive(romPath)) {
                 RetroRomArchive.extractTo(this, romPath) ?: run {
-                    Toast.makeText(this, "Could not read the ROM inside this archive", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, getString(R.string.retro_lr_could_not_read_rom_archive), Toast.LENGTH_LONG).show()
                     finish()
                     return
                 }
@@ -323,7 +328,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
 
         val coreFile = RetroCoreManager.coreFile(this, resolvedSystem)
         if (!coreFile.isFile) {
-            Toast.makeText(this, "Core not installed: ${resolvedSystem.coreFileName}", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, getString(R.string.retro_lr_core_not_installed, resolvedSystem.coreFileName), Toast.LENGTH_LONG).show()
             finish()
             return
         }
@@ -401,7 +406,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
 
         menu.entriesProvider = { pane -> buildEntriesFor(pane) }
         menu.bottomProvider = { buildBottomEntries() }
-        menu.tabs = RetroDrawerTabs.build()
+        menu.tabs = RetroDrawerTabs.build(this)
         hudVisible = intent.getBooleanExtra(EXTRA_HUD, false)
         val menuView =
             ComposeView(this).apply {
@@ -549,7 +554,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                                 setCloudMark(latest.timestampMs)
                                 runOnUiThread {
                                     Toast
-                                        .makeText(this@RetroActivity, "Cloud save restored", Toast.LENGTH_SHORT)
+                                        .makeText(this@RetroActivity, getString(R.string.retro_lr_cloud_save_restored), Toast.LENGTH_SHORT)
                                         .show()
                                 }
                             }
@@ -590,12 +595,10 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                     pauseEmulation()
                     menu.conflictPrompt =
                         RetroConflictPrompt(
-                            message =
-                                "A newer cloud save exists for $gameName. " +
-                                    "Do you wish to sync, and which cloud save would you prefer to keep?",
+                            message = getString(R.string.retro_lr_cloud_conflict_message, gameName),
                             options =
                                 top.map { entry ->
-                                    (entry.label ?: "Cloud save") + " — " +
+                                    (entry.label ?: getString(R.string.retro_lr_cloud_save)) + " — " +
                                         RetroSaveStates.relativeTime(entry.timestampMs)
                                 },
                             onKeepLocal = {
@@ -634,10 +637,10 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                         val sram = RetroSaveStates.sramFile(this@RetroActivity, gameName)
                         if (sram.isFile) retroView.unserializeSRAM(sram.readBytes())
                     }
-                    Toast.makeText(this@RetroActivity, "Cloud save restored", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@RetroActivity, getString(R.string.retro_lr_cloud_save_restored), Toast.LENGTH_SHORT).show()
                 } else {
                     Toast
-                        .makeText(this@RetroActivity, result?.message ?: "Restore failed", Toast.LENGTH_SHORT)
+                        .makeText(this@RetroActivity, result?.message ?: getString(R.string.retro_lr_restore_failed), Toast.LENGTH_SHORT)
                         .show()
                 }
                 resumeEmulation()
@@ -687,7 +690,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         if (rating == null) {
             val root = rootLayout ?: return
             rating = FrameRating(this, HashMap<String, String>())
-            rating.setRenderer(system?.shortName ?: "Retro")
+            rating.setRenderer(system?.shortName ?: getString(R.string.retro_lr_renderer_default))
             rating.visibility = View.GONE
             frameRating = rating
             val menuIndex = menuComposeView?.let { root.indexOfChild(it) } ?: -1
@@ -846,10 +849,10 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             .onEach { error ->
                 val message =
                     when (error) {
-                        GLRetroView.ERROR_LOAD_LIBRARY -> "Failed to load emulator core"
-                        GLRetroView.ERROR_LOAD_GAME -> "Failed to load ROM"
-                        GLRetroView.ERROR_GL_NOT_COMPATIBLE -> "Graphics not supported for this core"
-                        else -> "Emulator error"
+                        GLRetroView.ERROR_LOAD_LIBRARY -> getString(R.string.retro_lr_failed_load_core)
+                        GLRetroView.ERROR_LOAD_GAME -> getString(R.string.retro_lr_failed_load_rom)
+                        GLRetroView.ERROR_GL_NOT_COMPATIBLE -> getString(R.string.retro_lr_graphics_not_supported)
+                        else -> getString(R.string.retro_lr_emulator_error)
                     }
                 Toast.makeText(this@RetroActivity, message, Toast.LENGTH_LONG).show()
                 finish()
@@ -910,7 +913,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                     SHADER_KEYS.forEachIndexed { index, key ->
                         add(
                             RetroMenuEntry.Radio(
-                                label = SHADER_LABELS[index],
+                                label = getString(SHADER_LABEL_RES[index]),
                                 selected = currentShaderKey == key,
                             ) {
                                 currentShaderKey = key
@@ -921,7 +924,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                         )
                     }
                     add(
-                        RetroMenuEntry.Toggle("SGSR", checked = sgsrEnabled) { value ->
+                        RetroMenuEntry.Toggle(getString(R.string.retro_lr_sgsr), checked = sgsrEnabled) { value ->
                             sgsrEnabled = value
                             retroView.shader = effectiveShader()
                             persistExtra(RetroShortcuts.KEY_SGSR, if (value) "1" else "0")
@@ -930,7 +933,12 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                     )
                     val upscaleIndex = UPSCALE_KEYS.indexOf(currentUpscaleKey).coerceAtLeast(0)
                     add(
-                        RetroMenuEntry.Choice("SGSR Upscale", UPSCALE_LABELS, upscaleIndex, visible = sgsrEnabled) { next ->
+                        RetroMenuEntry.Choice(
+                            getString(R.string.retro_lr_sgsr_upscale),
+                            listOf("2x", "4x", getString(R.string.retro_lr_upscale_native)),
+                            upscaleIndex,
+                            visible = sgsrEnabled,
+                        ) { next ->
                             currentUpscaleKey = UPSCALE_KEYS[next]
                             persistExtra(RetroShortcuts.KEY_UPSCALE, currentUpscaleKey)
                             if (sgsrEnabled) retroView.shader = effectiveShader()
@@ -941,7 +949,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                         val current = coreVars[option.key] ?: option.defaultValue
                         val index = option.values.indexOf(current).coerceAtLeast(0)
                         add(
-                            RetroMenuEntry.Choice(option.label, option.valueLabels, index) { next ->
+                            RetroMenuEntry.Choice(getString(option.label), option.valueLabels.map { getString(it) }, index) { next ->
                                 val newValue = option.values[next]
                                 coreVars[option.key] = newValue
                                 retroView.updateVariables(Variable(option.key, newValue))
@@ -953,7 +961,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 }
             RetroPane.SOUND ->
                 listOf(
-                    RetroMenuEntry.Toggle("Sound", checked = audioEnabledSetting) { value ->
+                    RetroMenuEntry.Toggle(getString(R.string.retro_lr_sound), checked = audioEnabledSetting) { value ->
                         audioEnabledSetting = value
                         retroView.audioEnabled = value
                         persistExtra(RetroShortcuts.KEY_AUDIO, if (value) "1" else "0")
@@ -984,13 +992,13 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                         overlay?.loadStickInversion()
                         menu.rebuild()
                     }
-                add(invToggle("Left Stick: Invert X", "retro_inv_lx_psx"))
-                add(invToggle("Left Stick: Invert Y", "retro_inv_ly_psx"))
-                add(invToggle("Right Stick: Invert X", "retro_inv_rx_psx"))
-                add(invToggle("Right Stick: Invert Y", "retro_inv_ry_psx"))
+                add(invToggle(getString(R.string.retro_lr_left_stick_invert_x), "retro_inv_lx_psx"))
+                add(invToggle(getString(R.string.retro_lr_left_stick_invert_y), "retro_inv_ly_psx"))
+                add(invToggle(getString(R.string.retro_lr_right_stick_invert_x), "retro_inv_rx_psx"))
+                add(invToggle(getString(R.string.retro_lr_right_stick_invert_y), "retro_inv_ry_psx"))
             }
             add(
-                RetroMenuEntry.Toggle("On-screen Controls", checked = touchControlsSetting) { value ->
+                RetroMenuEntry.Toggle(getString(R.string.retro_lr_on_screen_controls), checked = touchControlsSetting) { value ->
                     touchControlsSetting = value
                     updateOverlayVisibility()
                     persistExtra(RetroShortcuts.KEY_TOUCH_CONTROLS, if (value) "1" else "0")
@@ -999,7 +1007,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             )
             add(
                 RetroMenuEntry.Slider(
-                    label = "Haptic Feedback",
+                    label = getString(R.string.retro_lr_haptic_feedback),
                     valueText =
                         overlay?.hapticStrength?.let { "${(it * 100).toInt()}%" } ?: "0%",
                     value = overlay?.hapticStrength ?: 0f,
@@ -1017,9 +1025,13 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 },
             )
             val orientationLabel =
-                if ((rootLayout?.height ?: 0) > (rootLayout?.width ?: 0)) "Portrait" else "Landscape"
+                if ((rootLayout?.height ?: 0) > (rootLayout?.width ?: 0)) {
+                    getString(R.string.retro_lr_portrait)
+                } else {
+                    getString(R.string.retro_lr_landscape)
+                }
             add(
-                RetroMenuEntry.Action("Edit Layout ($orientationLabel)", RetroDrawerIcons.EditLayout) {
+                RetroMenuEntry.Action(getString(R.string.retro_lr_edit_layout, orientationLabel), RetroDrawerIcons.EditLayout) {
                     menu.close()
                     overlay?.let {
                         it.visibility = View.VISIBLE
@@ -1028,40 +1040,40 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 },
             )
             add(
-                RetroMenuEntry.Action("Reset $orientationLabel Layout", RetroDrawerIcons.Reset) {
+                RetroMenuEntry.Action(getString(R.string.retro_lr_reset_layout, orientationLabel), RetroDrawerIcons.Reset) {
                     overlay?.resetLayout()
-                    Toast.makeText(this@RetroActivity, "$orientationLabel layout reset", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@RetroActivity, getString(R.string.retro_lr_layout_reset, orientationLabel), Toast.LENGTH_SHORT).show()
                 },
             )
             add(
-                RetroMenuEntry.ColorPick("Button Color", customColors.button) { value ->
+                RetroMenuEntry.ColorPick(getString(R.string.retro_lr_button_color), customColors.button) { value ->
                     customColors.button = value
                     persistColors()
                 },
             )
             add(
-                RetroMenuEntry.ColorPick("Letter Color", customColors.text) { value ->
+                RetroMenuEntry.ColorPick(getString(R.string.retro_lr_letter_color), customColors.text) { value ->
                     customColors.text = value
                     persistColors()
                 },
             )
             add(
-                RetroMenuEntry.ColorPick("Shadow Color", customColors.shadow) { value ->
+                RetroMenuEntry.ColorPick(getString(R.string.retro_lr_shadow_color), customColors.shadow) { value ->
                     customColors.shadow = value
                     persistColors()
                 },
             )
             add(
-                RetroMenuEntry.ColorPick("Background Color", customColors.body) { value ->
+                RetroMenuEntry.ColorPick(getString(R.string.retro_lr_background_color), customColors.body) { value ->
                     customColors.body = value
                     persistColors()
                 },
             )
             add(
-                RetroMenuEntry.Action("Reset Colors", RetroDrawerIcons.Reset) {
+                RetroMenuEntry.Action(getString(R.string.retro_lr_reset_colors), RetroDrawerIcons.Reset) {
                     customColors = RetroCustomColors()
                     persistColors()
-                    Toast.makeText(this@RetroActivity, "Colors reset", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@RetroActivity, getString(R.string.retro_lr_colors_reset), Toast.LENGTH_SHORT).show()
                 },
             )
         }
@@ -1081,13 +1093,13 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
     private fun buildHudEntries(): List<RetroMenuEntry> {
         val entries = mutableListOf<RetroMenuEntry>()
         entries +=
-            RetroMenuEntry.Toggle("Performance HUD", checked = hudVisible) { value ->
+            RetroMenuEntry.Toggle(getString(R.string.retro_lr_performance_hud), checked = hudVisible) { value ->
                 setHudVisible(value)
             }
         if (!hudVisible) return entries
         entries +=
             RetroMenuEntry.Slider(
-                label = "Alpha",
+                label = getString(R.string.retro_lr_alpha),
                 valueText = "${(hudAlpha * 100).toInt()}%",
                 value = hudAlpha,
                 min = 0.1f,
@@ -1104,7 +1116,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 menu.rebuild()
             }
         entries +=
-            RetroMenuEntry.Toggle("Background Alpha", checked = hudBgDecoupled) { value ->
+            RetroMenuEntry.Toggle(getString(R.string.retro_lr_background_alpha), checked = hudBgDecoupled) { value ->
                 hudBgDecoupled = value
                 frameRating?.setBackgroundAlphaDecoupled(value)
                 if (!value) {
@@ -1117,7 +1129,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         if (hudBgDecoupled) {
             entries +=
                 RetroMenuEntry.Slider(
-                    label = "Background",
+                    label = getString(R.string.retro_lr_background),
                     valueText = "${(hudBgAlpha * 100).toInt()}%",
                     value = hudBgAlpha,
                     min = 0.1f,
@@ -1132,7 +1144,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         }
         entries +=
             RetroMenuEntry.Slider(
-                label = "Scale",
+                label = getString(R.string.retro_lr_scale),
                 valueText = "${(hudScale * 100).toInt()}%",
                 value = hudScale,
                 min = 0.3f,
@@ -1145,21 +1157,21 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 menu.rebuild()
             }
         entries +=
-            RetroMenuEntry.Toggle("Numeric Frametime", checked = hudFrametimeNumeric) { value ->
+            RetroMenuEntry.Toggle(getString(R.string.retro_lr_numeric_frametime), checked = hudFrametimeNumeric) { value ->
                 hudFrametimeNumeric = value
                 frameRating?.setFrametimeNumericMode(value)
                 menu.rebuild()
             }
         entries +=
-            RetroMenuEntry.Toggle("Dual-series Battery", checked = hudDualBattery) { value ->
+            RetroMenuEntry.Toggle(getString(R.string.retro_lr_dual_series_battery), checked = hudDualBattery) { value ->
                 hudDualBattery = value
                 frameRating?.setDualSeriesBattery(value)
                 menu.rebuild()
             }
         entries +=
             RetroMenuEntry.Chips(
-                label = "HUD ELEMENTS",
-                items = HUD_ELEMENT_ORDER.map { HUD_ELEMENT_LABELS[it] },
+                label = getString(R.string.retro_lr_hud_elements),
+                items = HUD_ELEMENT_ORDER.map { getString(HUD_ELEMENT_LABEL_RES[it]) },
                 states = HUD_ELEMENT_ORDER.map { hudElements[it] },
             ) { position ->
                 val index = HUD_ELEMENT_ORDER[position]
@@ -1176,14 +1188,14 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         val entries = mutableListOf<RetroMenuEntry>()
         val hardcoreActive = achievementsSessionStarted && RetroAchievementsManager.isHardcoreActive()
         entries +=
-            RetroMenuEntry.Action("Save State", RetroDrawerIcons.Save) {
+            RetroMenuEntry.Action(getString(R.string.retro_lr_save_state), RetroDrawerIcons.Save) {
                 savesLoadMode = false
                 menu.showPane(RetroPane.SAVES)
             }
         entries +=
-            RetroMenuEntry.Action("Load Save State", RetroDrawerIcons.Load) {
+            RetroMenuEntry.Action(getString(R.string.retro_lr_load_save_state), RetroDrawerIcons.Load) {
                 if (hardcoreActive) {
-                    Toast.makeText(this, "Loading states is disabled in Hardcore mode", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.retro_lr_loading_states_disabled_hardcore), Toast.LENGTH_SHORT).show()
                 } else {
                     savesLoadMode = true
                     menu.showPane(RetroPane.SAVES)
@@ -1191,30 +1203,30 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             }
         if (RetroAchievementsManager.isLoggedIn(this) && RetroAchievementsManager.consoleId(system?.id) != 0) {
             entries +=
-                RetroMenuEntry.Action("Achievements", RetroDrawerIcons.Achievements) {
+                RetroMenuEntry.Action(getString(R.string.retro_lr_achievements), RetroDrawerIcons.Achievements) {
                     menu.close()
                     openAchievementsScreen()
                 }
         }
         entries +=
-            RetroMenuEntry.Action("Cheats", RetroDrawerIcons.Cheats, active = !cheatsAllowed()) {
+            RetroMenuEntry.Action(getString(R.string.retro_lr_cheats), RetroDrawerIcons.Cheats, active = !cheatsAllowed()) {
                 if (!cheatsAllowed()) {
-                    Toast.makeText(this, "Cheats are disabled in Hardcore mode", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.retro_lr_cheats_disabled_hardcore), Toast.LENGTH_SHORT).show()
                 } else {
                     menu.close()
                     openCheatsScreen()
                 }
             }
         entries +=
-            RetroMenuEntry.Action("Reset", RetroDrawerIcons.Reset) {
+            RetroMenuEntry.Action(getString(R.string.retro_lr_reset), RetroDrawerIcons.Reset) {
                 menu.close()
                 retroView.reset()
                 RetroAchievementsManager.onEmulatorReset()
             }
         entries +=
-            RetroMenuEntry.Action("Fast Forward", RetroDrawerIcons.FastForward, active = fastForward) {
+            RetroMenuEntry.Action(getString(R.string.retro_lr_fast_forward), RetroDrawerIcons.FastForward, active = fastForward) {
                 if (hardcoreActive) {
-                    Toast.makeText(this, "Fast forward is disabled in Hardcore mode", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.retro_lr_fast_forward_disabled_hardcore), Toast.LENGTH_SHORT).show()
                 } else {
                     fastForward = !fastForward
                     retroView.frameSpeed = if (fastForward) 2 else 1
@@ -1222,12 +1234,12 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 }
             }
         entries +=
-            RetroMenuEntry.Action("HUD", RetroDrawerIcons.Hud, active = hudVisible) {
+            RetroMenuEntry.Action(getString(R.string.retro_lr_hud), RetroDrawerIcons.Hud, active = hudVisible) {
                 setHudVisible(!hudVisible)
             }
         if (diskCount > 1) {
             entries +=
-                RetroMenuEntry.Action("Disc ${currentDisk + 1}/$diskCount", RetroDrawerIcons.Disc) {
+                RetroMenuEntry.Action(getString(R.string.retro_lr_disc, currentDisk + 1, diskCount), RetroDrawerIcons.Disc) {
                     val next = (currentDisk + 1) % diskCount
                     lifecycleScope.launch(Dispatchers.Default) {
                         runCatching { retroView.changeDisk(next) }
@@ -1242,17 +1254,17 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
     private fun buildBottomEntries(): List<RetroMenuEntry.Action> =
         listOf(
             if (emulationPaused) {
-                RetroMenuEntry.Action("Resume", RetroDrawerIcons.Resume, active = true) {
+                RetroMenuEntry.Action(getString(R.string.retro_lr_resume), RetroDrawerIcons.Resume, active = true) {
                     resumeEmulation()
                     menu.close()
                 }
             } else {
-                RetroMenuEntry.Action("Pause", RetroDrawerIcons.Pause) {
+                RetroMenuEntry.Action(getString(R.string.retro_lr_pause), RetroDrawerIcons.Pause) {
                     pauseEmulation()
                     menu.close()
                 }
             },
-            RetroMenuEntry.Action("Exit", RetroDrawerIcons.Exit, danger = true) { finish() },
+            RetroMenuEntry.Action(getString(R.string.retro_lr_exit), RetroDrawerIcons.Exit, danger = true) { finish() },
         )
 
     private fun requestSixtyHzDisplayMode(): Boolean {
@@ -1423,25 +1435,22 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             val bytes = retroView.serializeState()
             check(RetroSaveStates.writeSlot(this, gameName, slot, bytes))
         }.onSuccess {
-            Toast.makeText(this, "Saved to slot $slot", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.retro_lr_saved_to_slot, slot), Toast.LENGTH_SHORT).show()
         }.onFailure {
-            Toast.makeText(this, "Could not save state", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.retro_lr_could_not_save_state), Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun showBiosRequiredDialog(system: RetroSystem) {
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("${system.shortName} BIOS required")
-            .setMessage(
-                "PlayStation games need a real console BIOS file that you must provide. " +
-                    "Import a BIOS (scph5501.bin, scph5500.bin, scph5502.bin, scph1001.bin or scph7001.bin) to continue.",
-            )
+            .setTitle(getString(R.string.retro_lr_bios_required_title, system.shortName))
+            .setMessage(getString(R.string.retro_lr_bios_required_message))
             .setCancelable(false)
-            .setPositiveButton("Import BIOS…") { _, _ ->
+            .setPositiveButton(getString(R.string.retro_lr_import_bios)) { _, _ ->
                 runCatching { biosPicker.launch(arrayOf("*/*")) }
                     .onFailure { finish() }
             }
-            .setNegativeButton("Cancel") { _, _ -> finish() }
+            .setNegativeButton(getString(R.string.retro_lr_cancel)) { _, _ -> finish() }
             .show()
     }
 
@@ -1460,24 +1469,24 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
 
     private fun loadState(slot: Int) {
         if (achievementsSessionStarted && RetroAchievementsManager.isHardcoreActive()) {
-            Toast.makeText(this, "Loading states is disabled in Hardcore mode", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.retro_lr_loading_states_disabled_hardcore), Toast.LENGTH_SHORT).show()
             return
         }
         val bytes = RetroSaveStates.readSlot(this, gameName, slot)
         if (bytes == null) {
-            Toast.makeText(this, "Slot $slot is empty", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.retro_lr_slot_empty, slot), Toast.LENGTH_SHORT).show()
             return
         }
         runCatching { check(retroView.unserializeState(bytes)) }
-            .onSuccess { Toast.makeText(this, "Loaded slot $slot", Toast.LENGTH_SHORT).show() }
-            .onFailure { Toast.makeText(this, "Could not load state", Toast.LENGTH_SHORT).show() }
+            .onSuccess { Toast.makeText(this, getString(R.string.retro_lr_loaded_slot, slot), Toast.LENGTH_SHORT).show() }
+            .onFailure { Toast.makeText(this, getString(R.string.retro_lr_could_not_load_state), Toast.LENGTH_SHORT).show() }
     }
 
     private fun buildSaveSlotEntries(): List<RetroMenuEntry> =
         RetroSaveStates.listSlots(this, gameName).map { info ->
             RetroMenuEntry.SaveSlot(
                 slot = info.slot,
-                title = info.customName ?: "Slot ${info.slot}",
+                title = info.customName ?: getString(R.string.retro_lr_slot_title, info.slot),
                 subtitle = RetroSaveStates.relativeTime(info.timestampMs),
                 filled = info.exists,
                 onClick = {
@@ -1494,7 +1503,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 onRename = {
                     menu.renamePrompt =
                         RetroRenamePrompt(
-                            title = "Rename Slot ${info.slot}",
+                            title = getString(R.string.retro_lr_rename_slot, info.slot),
                             initial = info.customName ?: "",
                         ) { newName ->
                             RetroSaveStates.renameSlot(this, gameName, info.slot, newName)

@@ -59,6 +59,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -67,6 +68,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import coil.compose.AsyncImage
+import com.winlator.cmod.R
 import com.winlator.cmod.shared.ui.nav.bindPaneNav
 import com.winlator.cmod.shared.ui.nav.paneNavItem
 import kotlinx.coroutines.Dispatchers
@@ -275,7 +277,7 @@ private fun Header(gameName: String, summary: RetroGameSummary?, onClose: () -> 
         }
         Column(Modifier.weight(1f)) {
             Text(
-                "RETROACHIEVEMENTS",
+                stringResource(R.string.retro_ach_brand),
                 color = TextSecondary,
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Bold,
@@ -309,6 +311,7 @@ private fun Header(gameName: String, summary: RetroGameSummary?, onClose: () -> 
 
 @Composable
 private fun LoginPane(onLogin: (String, String, (Boolean, String?) -> Unit) -> Unit) {
+    val context = LocalContext.current
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
@@ -318,7 +321,7 @@ private fun LoginPane(onLogin: (String, String, (Boolean, String?) -> Unit) -> U
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Text(
-            "Sign in with your RetroAchievements account to earn and track achievements for retro games.",
+            stringResource(R.string.retro_ach_login_intro),
             color = TextSecondary,
             style = MaterialTheme.typography.bodyMedium,
         )
@@ -338,7 +341,7 @@ private fun LoginPane(onLogin: (String, String, (Boolean, String?) -> Unit) -> U
         OutlinedTextField(
             value = username,
             onValueChange = { username = it },
-            label = { Text("Username") },
+            label = { Text(stringResource(R.string.retro_ach_username)) },
             singleLine = true,
             colors = fieldColors,
             modifier = Modifier.fillMaxWidth(),
@@ -346,7 +349,7 @@ private fun LoginPane(onLogin: (String, String, (Boolean, String?) -> Unit) -> U
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
-            label = { Text("Password") },
+            label = { Text(stringResource(R.string.retro_ach_password)) },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -356,13 +359,13 @@ private fun LoginPane(onLogin: (String, String, (Boolean, String?) -> Unit) -> U
         error?.let { Text(it, color = Color(0xFFE07B6B), style = MaterialTheme.typography.labelMedium) }
         val submit = {
             if (username.isBlank() || password.isBlank()) {
-                error = "Enter your username and password"
+                error = context.getString(R.string.retro_ach_enter_credentials)
             } else {
                 busy = true
                 error = null
                 onLogin(username.trim(), password) { ok, msg ->
                     busy = false
-                    if (!ok) error = msg ?: "Login failed"
+                    if (!ok) error = msg ?: context.getString(R.string.retro_ach_login_failed)
                 }
             }
         }
@@ -375,11 +378,11 @@ private fun LoginPane(onLogin: (String, String, (Boolean, String?) -> Unit) -> U
             if (busy) {
                 CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp))
             } else {
-                Text("Sign In")
+                Text(stringResource(R.string.retro_ach_sign_in))
             }
         }
         Text(
-            "Your password is only used once to obtain a login token, which is stored securely on device.",
+            stringResource(R.string.retro_ach_password_disclaimer),
             color = TextSecondary,
             style = MaterialTheme.typography.labelSmall,
         )
@@ -412,11 +415,11 @@ private fun AchievementsList(
             Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            SettingsRow("Achievements enabled", enabled, onEnabledChange)
-            SettingsRow("Hardcore mode (no save states)", hardcore, onHardcoreChange)
+            SettingsRow(stringResource(R.string.retro_ach_achievements_enabled), enabled, onEnabledChange)
+            SettingsRow(stringResource(R.string.retro_ach_hardcore_mode), hardcore, onHardcoreChange)
             if (summary != null) {
                 Text(
-                    "${summary.pointsUnlocked} / ${summary.pointsTotal} points",
+                    stringResource(R.string.retro_ach_points, summary.pointsUnlocked, summary.pointsTotal),
                     color = TextSecondary,
                     style = MaterialTheme.typography.labelMedium,
                     modifier = Modifier.padding(top = 2.dp, start = 4.dp),
@@ -424,7 +427,7 @@ private fun AchievementsList(
             }
             if (achievements.isEmpty()) {
                 Text(
-                    "No achievements found for this game.",
+                    stringResource(R.string.retro_ach_none_found),
                     color = TextSecondary,
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(24.dp),
@@ -434,7 +437,7 @@ private fun AchievementsList(
             }
             Spacer(Modifier.height(8.dp))
             TextButton(onClick = onLogout, modifier = Modifier.fillMaxWidth().paneNavItem(onActivate = onLogout)) {
-                Text("Sign Out", color = TextSecondary)
+                Text(stringResource(R.string.retro_ach_sign_out), color = TextSecondary)
             }
         }
     }

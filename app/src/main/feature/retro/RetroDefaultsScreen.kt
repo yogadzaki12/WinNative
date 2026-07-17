@@ -34,11 +34,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.sp
+import com.winlator.cmod.R
 import com.winlator.cmod.shared.ui.nav.paneNavItem
 import java.io.File
 import kotlinx.coroutines.launch
@@ -48,9 +50,7 @@ private val PageText = Color(0xFFF0F4FF)
 private val PageSub = Color(0xFF93A6BC)
 
 private val SHADER_KEYS = listOf("default", "crt", "lcd", "sharp")
-private val SHADER_LABELS = listOf("Default", "CRT", "LCD", "Sharp")
 private val UPSCALE_KEYS = listOf("2x", "4x", "native")
-private val UPSCALE_LABELS = listOf("2x", "4x", "Native")
 
 @Composable
 fun RetroDefaultsScreen() {
@@ -80,8 +80,8 @@ fun RetroDefaultsScreen() {
                         RetroBiosImport.importFromUri(context, uri)
                     }
                     result
-                        .onSuccess { Toast.makeText(context, "BIOS imported: $it", Toast.LENGTH_SHORT).show() }
-                        .onFailure { Toast.makeText(context, it.message ?: "Invalid BIOS file", Toast.LENGTH_LONG).show() }
+                        .onSuccess { Toast.makeText(context, context.getString(R.string.retro_scr_bios_imported, it), Toast.LENGTH_SHORT).show() }
+                        .onFailure { Toast.makeText(context, it.message ?: context.getString(R.string.retro_scr_invalid_bios_file), Toast.LENGTH_LONG).show() }
                     refresh++
                 }
             }
@@ -95,8 +95,8 @@ fun RetroDefaultsScreen() {
                         RetroBiosImport.importPs2FromUri(context, uri)
                     }
                     result
-                        .onSuccess { Toast.makeText(context, "PS2 BIOS imported: $it", Toast.LENGTH_SHORT).show() }
-                        .onFailure { Toast.makeText(context, it.message ?: "Invalid PS2 BIOS file", Toast.LENGTH_LONG).show() }
+                        .onSuccess { Toast.makeText(context, context.getString(R.string.retro_scr_ps2_bios_imported, it), Toast.LENGTH_SHORT).show() }
+                        .onFailure { Toast.makeText(context, it.message ?: context.getString(R.string.retro_scr_invalid_ps2_bios_file), Toast.LENGTH_LONG).show() }
                     refresh++
                 }
             }
@@ -117,37 +117,37 @@ fun RetroDefaultsScreen() {
         RetroSettingsTabBar(creditsTab) { creditsTab = it }
         if (creditsTab == 0) {
         Text(
-            "RETRO DEFAULTS",
+            stringResource(R.string.retro_scr_retro_defaults),
             color = PageSub,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp,
         )
         Text(
-            "Defaults applied to each console's games unless overridden in a game's own settings.",
+            stringResource(R.string.retro_scr_retro_defaults_desc),
             color = PageSub,
             style = MaterialTheme.typography.bodySmall,
         )
 
         RetroSettingGroup {
-            RetroGroupTitle("RETROACHIEVEMENTS")
+            RetroGroupTitle(stringResource(R.string.retro_scr_retroachievements))
             RetroInfoRow(
-                "Account",
+                stringResource(R.string.retro_scr_account),
                 if (RetroAchievementsManager.isLoggedIn(context)) {
-                    RetroAchievementsManager.displayName(context) ?: "Signed in"
+                    RetroAchievementsManager.displayName(context) ?: stringResource(R.string.retro_scr_signed_in)
                 } else {
-                    "Not signed in — open a game's Achievements to sign in"
+                    stringResource(R.string.retro_scr_not_signed_in_hint)
                 },
             )
             RetroSettingSwitch(
-                "Achievements enabled",
+                stringResource(R.string.retro_scr_achievements_enabled),
                 RetroAchievementsManager.isEnabled(context),
             ) {
                 RetroAchievementsManager.setEnabled(context, it)
                 refresh++
             }
             RetroSettingSwitch(
-                "Hardcore mode by default (no save states)",
+                stringResource(R.string.retro_scr_hardcore_default),
                 RetroAchievementsManager.isHardcorePreferred(context),
             ) {
                 if (it) {
@@ -165,92 +165,92 @@ fun RetroDefaultsScreen() {
                     },
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 ) {
-                    Text("Sign Out")
+                    Text(stringResource(R.string.retro_scr_sign_out))
                 }
             }
         }
 
         RetroSettingGroup {
-            RetroGroupTitle("PLAYSTATION BIOS")
+            RetroGroupTitle(stringResource(R.string.retro_scr_playstation_bios))
             val dir = RetroCoreManager.systemDir(context)
             val installed = RetroSystems.PSX.biosFiles.filter { File(dir, it).isFile }
             RetroInfoRow(
-                "Installed",
-                if (installed.isEmpty()) "None — PS1 games require a BIOS" else installed.joinToString(", "),
+                stringResource(R.string.retro_scr_installed),
+                if (installed.isEmpty()) stringResource(R.string.retro_scr_none_ps1_bios) else installed.joinToString(", "),
             )
             Button(
                 onClick = { runCatching { biosPicker.launch(arrayOf("*/*")) } },
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             ) {
-                Text("Import PS1 BIOS…")
+                Text(stringResource(R.string.retro_scr_import_ps1_bios))
             }
             if (installed.isNotEmpty()) {
                 OutlinedButton(
                     onClick = {
                         val n = RetroBiosImport.deletePs1Bios(context)
-                        Toast.makeText(context, if (n > 0) "PS1 BIOS removed" else "No BIOS to remove", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, if (n > 0) context.getString(R.string.retro_scr_ps1_bios_removed) else context.getString(R.string.retro_scr_no_bios_to_remove), Toast.LENGTH_SHORT).show()
                         refresh++
                     },
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 ) {
-                    Text("Remove PS1 BIOS")
+                    Text(stringResource(R.string.retro_scr_remove_ps1_bios))
                 }
             }
         }
 
         RetroSettingGroup {
-            RetroGroupTitle("PLAYSTATION 2 BIOS")
+            RetroGroupTitle(stringResource(R.string.retro_scr_playstation_2_bios))
             val ps2Installed = RetroBiosImport.installedPs2Bios(context)
             RetroInfoRow(
-                "Installed",
-                if (ps2Installed.isEmpty()) "None — PS2 games require a BIOS" else ps2Installed.joinToString(", "),
+                stringResource(R.string.retro_scr_installed),
+                if (ps2Installed.isEmpty()) stringResource(R.string.retro_scr_none_ps2_bios) else ps2Installed.joinToString(", "),
             )
             RetroInfoRow(
-                "Format",
-                "Merged single-file dump (region-tagged .bin, ~4MB). Split ROM0/MEC/NVM sets are not accepted.",
+                stringResource(R.string.retro_scr_format),
+                stringResource(R.string.retro_scr_ps2_bios_format),
             )
             Button(
                 onClick = { runCatching { ps2BiosPicker.launch(arrayOf("*/*")) } },
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             ) {
-                Text("Import PS2 BIOS…")
+                Text(stringResource(R.string.retro_scr_import_ps2_bios))
             }
             if (ps2Installed.isNotEmpty()) {
                 OutlinedButton(
                     onClick = {
                         val n = RetroBiosImport.deletePs2Bios(context)
-                        Toast.makeText(context, if (n > 0) "PS2 BIOS removed" else "No BIOS to remove", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, if (n > 0) context.getString(R.string.retro_scr_ps2_bios_removed) else context.getString(R.string.retro_scr_no_bios_to_remove), Toast.LENGTH_SHORT).show()
                         refresh++
                     },
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 ) {
-                    Text("Remove PS2 BIOS")
+                    Text(stringResource(R.string.retro_scr_remove_ps2_bios))
                 }
             }
         }
 
         RetroSettingGroup {
-            RetroGroupTitle("LIBRARY ARTWORK")
+            RetroGroupTitle(stringResource(R.string.retro_scr_library_artwork))
             RetroSettingSwitch(
-                "Retro case art (cartridge / CD case)",
+                stringResource(R.string.retro_scr_retro_case_art),
                 RetroBoxart.caseArtEnabled(context),
             ) { RetroBoxart.setCaseArtEnabled(context, it); refresh++ }
             RetroInfoRow(
-                "Box art",
-                "Fetched automatically from thumbnails.libretro.com on import; a custom image always overrides it.",
+                stringResource(R.string.retro_scr_box_art),
+                stringResource(R.string.retro_scr_box_art_desc),
             )
         }
 
         RetroSettingGroup {
-            RetroGroupTitle("ROMS FOLDER")
+            RetroGroupTitle(stringResource(R.string.retro_scr_roms_folder))
             val romsDir = RetroDefaults.romsDir(context)
             RetroInfoRow(
-                "Folder",
-                romsDir ?: "Not set — pick a folder to auto-import games",
+                stringResource(R.string.retro_scr_folder),
+                romsDir ?: stringResource(R.string.retro_scr_roms_not_set),
             )
             RetroInfoRow(
-                "Auto-import",
-                "New games in this folder are added to your library automatically with the right console detected.",
+                stringResource(R.string.retro_scr_auto_import),
+                stringResource(R.string.retro_scr_auto_import_desc),
             )
             Button(
                 onClick = {
@@ -261,13 +261,13 @@ fun RetroDefaultsScreen() {
                             ?: android.os.Environment.getExternalStoragePublicDirectory(
                                 android.os.Environment.DIRECTORY_DOWNLOADS,
                             ).absolutePath,
-                        title = "Select ROMs Folder",
+                        title = context.getString(R.string.retro_scr_select_roms_folder_title),
                     ) { path ->
                         RetroDefaults.setRomsDir(context, path)
                         Thread {
                             val result = RetroRomScanner.scan(context, File(path))
                             activity.runOnUiThread {
-                                Toast.makeText(context, scanMessage(result), Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, scanMessage(context, result), Toast.LENGTH_SHORT).show()
                                 refresh++
                             }
                         }.start()
@@ -275,7 +275,7 @@ fun RetroDefaultsScreen() {
                 },
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             ) {
-                Text(if (romsDir == null) "Select ROMs Folder…" else "Change ROMs Folder…")
+                Text(if (romsDir == null) stringResource(R.string.retro_scr_select_roms_folder_button) else stringResource(R.string.retro_scr_change_roms_folder_button))
             }
             if (romsDir != null) {
                 OutlinedButton(
@@ -284,20 +284,20 @@ fun RetroDefaultsScreen() {
                         Thread {
                             val result = RetroRomScanner.scanConfiguredFolder(context)
                             activity?.runOnUiThread {
-                                Toast.makeText(context, scanMessage(result), Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, scanMessage(context, result), Toast.LENGTH_SHORT).show()
                                 refresh++
                             }
                         }.start()
                     },
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 ) {
-                    Text("Scan Now")
+                    Text(stringResource(R.string.retro_scr_scan_now))
                 }
             }
         }
 
         Text(
-            "CONSOLE DEFAULTS",
+            stringResource(R.string.retro_scr_console_defaults),
             color = PageSub,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
@@ -305,7 +305,7 @@ fun RetroDefaultsScreen() {
             modifier = Modifier.padding(top = 4.dp),
         )
         Text(
-            "Tap a console to set its default settings.",
+            stringResource(R.string.retro_scr_console_defaults_desc),
             color = PageSub,
             style = MaterialTheme.typography.labelMedium,
         )
@@ -339,7 +339,7 @@ fun RetroDefaultsScreen() {
                     val rendererKeys = listOf("vulkan", "opengl", "software")
                     val rendererLabels = listOf("Vulkan", "OpenGL", "Software")
                     RetroSettingDropdown(
-                        label = "Renderer",
+                        label = stringResource(R.string.retro_scr_renderer),
                         entries = rendererLabels,
                         selectedIndex = rendererKeys.indexOf(ps2Prefs.getString("wn.ps2.renderer", "vulkan")).coerceAtLeast(0),
                         onSelected = { ps2Prefs.edit().putString("wn.ps2.renderer", rendererKeys[it]).apply(); refresh++ },
@@ -348,164 +348,224 @@ fun RetroDefaultsScreen() {
                     val ps2ScaleLabels = listOf("1x (Native)", "1.5x", "2x", "3x", "4x")
                     val curScale = ps2Prefs.getFloat("wn.ps2.upscale", 1f)
                     RetroSettingDropdown(
-                        label = "Upscale resolution",
+                        label = stringResource(R.string.retro_scr_upscale_resolution),
                         entries = ps2ScaleLabels,
                         selectedIndex = ps2Scales.indexOfFirst { kotlin.math.abs(it - curScale) < 0.01f }.coerceAtLeast(0),
                         onSelected = { ps2Prefs.edit().putFloat("wn.ps2.upscale", ps2Scales[it]).apply(); refresh++ },
                     )
                     RetroSettingDropdown(
-                        label = "Aspect Ratio",
-                        entries = listOf("Stretch", "Auto (Standard)", "4:3", "16:9"),
+                        label = stringResource(R.string.retro_scr_aspect_ratio),
+                        entries = listOf(
+                            stringResource(R.string.retro_scr_aspect_stretch),
+                            stringResource(R.string.retro_scr_aspect_auto_standard),
+                            stringResource(R.string.retro_scr_aspect_4_3),
+                            stringResource(R.string.retro_scr_aspect_16_9),
+                        ),
                         selectedIndex = ps2Prefs.getInt("wn.ps2.aspect", 1).coerceIn(0, 3),
                         onSelected = { ps2Prefs.edit().putInt("wn.ps2.aspect", it).apply(); refresh++ },
                     )
                     RetroSettingDropdown(
-                        label = "Display Filter",
-                        entries = listOf("Nearest", "Bilinear (Smooth)", "Bilinear (Sharp)"),
+                        label = stringResource(R.string.retro_scr_display_filter),
+                        entries = listOf(
+                            stringResource(R.string.retro_scr_filter_nearest),
+                            stringResource(R.string.retro_scr_filter_bilinear_smooth),
+                            stringResource(R.string.retro_scr_filter_bilinear_sharp),
+                        ),
                         selectedIndex = ps2Prefs.getInt("wn.ps2.displayfilter", 1).coerceIn(0, 2),
                         onSelected = { ps2Prefs.edit().putInt("wn.ps2.displayfilter", it).apply(); refresh++ },
                     )
                     RetroSettingDropdown(
-                        label = "Texture Filter",
-                        entries = listOf("Nearest", "Bilinear (Forced)", "Bilinear (PS2)", "Bilinear (Sprites)"),
+                        label = stringResource(R.string.retro_scr_texture_filter),
+                        entries = listOf(
+                            stringResource(R.string.retro_scr_filter_nearest),
+                            stringResource(R.string.retro_scr_filter_bilinear_forced),
+                            stringResource(R.string.retro_scr_filter_bilinear_ps2),
+                            stringResource(R.string.retro_scr_filter_bilinear_sprites),
+                        ),
                         selectedIndex = ps2Prefs.getInt("wn.ps2.filter", 2).coerceIn(0, 3),
                         onSelected = { ps2Prefs.edit().putInt("wn.ps2.filter", it).apply(); refresh++ },
                     )
                     RetroSettingDropdown(
-                        label = "Blending Accuracy",
-                        entries = listOf("Minimum", "Basic", "Medium", "High", "Full", "Maximum"),
+                        label = stringResource(R.string.retro_scr_blending_accuracy),
+                        entries = listOf(
+                            stringResource(R.string.retro_scr_blend_minimum),
+                            stringResource(R.string.retro_scr_blend_basic),
+                            stringResource(R.string.retro_scr_blend_medium),
+                            stringResource(R.string.retro_scr_blend_high),
+                            stringResource(R.string.retro_scr_blend_full),
+                            stringResource(R.string.retro_scr_blend_maximum),
+                        ),
                         selectedIndex = ps2Prefs.getInt("wn.ps2.blend", 1).coerceIn(0, 5),
                         onSelected = { ps2Prefs.edit().putInt("wn.ps2.blend", it).apply(); refresh++ },
                     )
                     RetroSettingDropdown(
-                        label = "CRT / TV Shader",
-                        entries = listOf("Off", "Scanline", "Diagonal", "Triangular", "Wave", "Lottes", "4xRGSS", "NxAGSS"),
+                        label = stringResource(R.string.retro_scr_crt_tv_shader),
+                        entries = listOf(
+                            stringResource(R.string.retro_scr_shader_off),
+                            stringResource(R.string.retro_scr_shader_scanline),
+                            stringResource(R.string.retro_scr_shader_diagonal),
+                            stringResource(R.string.retro_scr_shader_triangular),
+                            stringResource(R.string.retro_scr_shader_wave),
+                            stringResource(R.string.retro_scr_shader_lottes),
+                            stringResource(R.string.retro_scr_shader_4xrgss),
+                            stringResource(R.string.retro_scr_shader_nxagss),
+                        ),
                         selectedIndex = ps2Prefs.getInt("wn.ps2.tvshader", 0).coerceIn(0, 7),
                         onSelected = { ps2Prefs.edit().putInt("wn.ps2.tvshader", it).apply(); refresh++ },
                     )
                     RetroSettingDropdown(
-                        label = "Frame Skip",
-                        entries = listOf("Off", "Skip 1", "Skip 2", "Skip 3"),
+                        label = stringResource(R.string.retro_scr_frame_skip),
+                        entries = listOf(
+                            stringResource(R.string.retro_scr_skip_off),
+                            stringResource(R.string.retro_scr_skip_1),
+                            stringResource(R.string.retro_scr_skip_2),
+                            stringResource(R.string.retro_scr_skip_3),
+                        ),
                         selectedIndex = ps2Prefs.getInt("wn.ps2.frameskip", 0).coerceIn(0, 3),
                         onSelected = { ps2Prefs.edit().putInt("wn.ps2.frameskip", it).apply(); refresh++ },
                     )
-                    RetroSettingSwitch("Mipmapping", ps2Prefs.getBoolean("wn.ps2.mipmap", true)) {
+                    RetroSettingSwitch(stringResource(R.string.retro_scr_mipmapping), ps2Prefs.getBoolean("wn.ps2.mipmap", true)) {
                         ps2Prefs.edit().putBoolean("wn.ps2.mipmap", it).apply(); refresh++
                     }
                     val eeRates = listOf(-3, -2, -1, 0, 1, 2, 3)
                     RetroSettingDropdown(
-                        label = "EE Cycle Rate",
-                        entries = listOf("50%", "60%", "75%", "100% (Default)", "130%", "180%", "300%"),
+                        label = stringResource(R.string.retro_scr_ee_cycle_rate),
+                        entries = listOf(
+                            stringResource(R.string.retro_scr_ee_rate_50),
+                            stringResource(R.string.retro_scr_ee_rate_60),
+                            stringResource(R.string.retro_scr_ee_rate_75),
+                            stringResource(R.string.retro_scr_ee_rate_100_default),
+                            stringResource(R.string.retro_scr_ee_rate_130),
+                            stringResource(R.string.retro_scr_ee_rate_180),
+                            stringResource(R.string.retro_scr_ee_rate_300),
+                        ),
                         selectedIndex = eeRates.indexOf(ps2Prefs.getInt("wn.ps2.eeRate", 0).coerceIn(-3, 3)).coerceAtLeast(0),
                         onSelected = { ps2Prefs.edit().putInt("wn.ps2.eeRate", eeRates[it]).apply(); refresh++ },
                     )
                     RetroSettingDropdown(
-                        label = "EE Cycle Skip",
-                        entries = listOf("Off", "1", "2", "3"),
+                        label = stringResource(R.string.retro_scr_ee_cycle_skip),
+                        entries = listOf(
+                            stringResource(R.string.retro_scr_skip_off),
+                            stringResource(R.string.retro_scr_skip_num_1),
+                            stringResource(R.string.retro_scr_skip_num_2),
+                            stringResource(R.string.retro_scr_skip_num_3),
+                        ),
                         selectedIndex = ps2Prefs.getInt("wn.ps2.eeSkip", 0).coerceIn(0, 3),
                         onSelected = { ps2Prefs.edit().putInt("wn.ps2.eeSkip", it).apply(); refresh++ },
                     )
-                    RetroSettingSwitch("Instant VU1", ps2Prefs.getBoolean("wn.ps2.instantVu1", true)) {
+                    RetroSettingSwitch(stringResource(R.string.retro_scr_instant_vu1), ps2Prefs.getBoolean("wn.ps2.instantVu1", true)) {
                         ps2Prefs.edit().putBoolean("wn.ps2.instantVu1", it).apply(); refresh++
                     }
-                    RetroSettingSwitch("Multi-Threaded VU (MTVU)", ps2Prefs.getBoolean("wn.ps2.mtvu", true)) {
+                    RetroSettingSwitch(stringResource(R.string.retro_scr_mtvu), ps2Prefs.getBoolean("wn.ps2.mtvu", true)) {
                         ps2Prefs.edit().putBoolean("wn.ps2.mtvu", it).apply(); refresh++
                     }
-                    RetroSettingSwitch("Fast CDVD", ps2Prefs.getBoolean("wn.ps2.fastCdvd", false)) {
+                    RetroSettingSwitch(stringResource(R.string.retro_scr_fast_cdvd), ps2Prefs.getBoolean("wn.ps2.fastCdvd", false)) {
                         ps2Prefs.edit().putBoolean("wn.ps2.fastCdvd", it).apply(); refresh++
                     }
                     RetroSettingSwitch(
-                        "On-screen touch controls",
+                        stringResource(R.string.retro_scr_touch_controls),
                         RetroDefaults.touchControls(context, sys),
                     ) { RetroDefaults.setTouchControls(context, sys, it); refresh++ }
                     RetroSettingSwitch(
-                        "Sound",
+                        stringResource(R.string.retro_scr_sound),
                         !ps2Prefs.getBoolean("wn.ps2.muted", false),
                     ) { ps2Prefs.edit().putBoolean("wn.ps2.muted", !it).apply(); refresh++ }
                     RetroSettingSwitch(
-                        "Swap Stereo Channels",
+                        stringResource(R.string.retro_scr_swap_stereo),
                         ps2Prefs.getBoolean("wn.ps2.swap", false),
                     ) { ps2Prefs.edit().putBoolean("wn.ps2.swap", it).apply(); refresh++ }
                     RetroSettingSwitch(
-                        "HUD: FPS",
+                        stringResource(R.string.retro_scr_hud_fps),
                         ps2Prefs.getBoolean("wn.osd.fps", false),
                     ) { ps2Prefs.edit().putBoolean("wn.osd.fps", it).apply(); refresh++ }
                     RetroSettingSwitch(
-                        "HUD: Emulation Speed",
+                        stringResource(R.string.retro_scr_hud_emulation_speed),
                         ps2Prefs.getBoolean("wn.osd.speed", false),
                     ) { ps2Prefs.edit().putBoolean("wn.osd.speed", it).apply(); refresh++ }
                     RetroSettingSwitch(
-                        "HUD: CPU Usage",
+                        stringResource(R.string.retro_scr_hud_cpu_usage),
                         ps2Prefs.getBoolean("wn.osd.cpu", false),
                     ) { ps2Prefs.edit().putBoolean("wn.osd.cpu", it).apply(); refresh++ }
                     RetroSettingSwitch(
-                        "HUD: GPU Usage",
+                        stringResource(R.string.retro_scr_hud_gpu_usage),
                         ps2Prefs.getBoolean("wn.osd.gpu", false),
                     ) { ps2Prefs.edit().putBoolean("wn.osd.gpu", it).apply(); refresh++ }
                     RetroSettingSwitch(
-                        "HUD: Internal Resolution",
+                        stringResource(R.string.retro_scr_hud_internal_resolution),
                         ps2Prefs.getBoolean("wn.osd.res", false),
                     ) { ps2Prefs.edit().putBoolean("wn.osd.res", it).apply(); refresh++ }
                     RetroSettingSwitch(
-                        "Enable Online (DEV9)",
+                        stringResource(R.string.retro_scr_enable_online_dev9),
                         ps2Prefs.getBoolean("wn.ps2.net.enable", false),
                     ) { ps2Prefs.edit().putBoolean("wn.ps2.net.enable", it).apply(); refresh++ }
                     if (ps2Prefs.getBoolean("wn.ps2.net.enable", false)) {
                         val devices = listOf("Auto", "Wi-Fi")
                         RetroSettingDropdown(
-                            label = "Ethernet Device",
-                            entries = devices,
+                            label = stringResource(R.string.retro_scr_ethernet_device),
+                            entries = listOf(
+                                stringResource(R.string.retro_scr_net_auto),
+                                stringResource(R.string.retro_scr_net_wifi),
+                            ),
                             selectedIndex = devices.indexOf(ps2Prefs.getString("wn.ps2.net.ethdevice", "Auto")).coerceAtLeast(0),
                             onSelected = { ps2Prefs.edit().putString("wn.ps2.net.ethdevice", devices[it]).apply(); refresh++ },
                         )
                         val dnsModes = listOf("Manual", "Auto", "Internal")
                         RetroSettingDropdown(
-                            label = "DNS Mode",
-                            entries = dnsModes,
+                            label = stringResource(R.string.retro_scr_dns_mode),
+                            entries = listOf(
+                                stringResource(R.string.retro_scr_dns_manual),
+                                stringResource(R.string.retro_scr_net_auto),
+                                stringResource(R.string.retro_scr_dns_internal),
+                            ),
                             selectedIndex = dnsModes.indexOf(ps2Prefs.getString("wn.ps2.net.dnsmode", "Manual")).coerceAtLeast(0),
                             onSelected = { ps2Prefs.edit().putString("wn.ps2.net.dnsmode", dnsModes[it]).apply(); refresh++ },
                         )
-                        RetroSettingTextField("Primary DNS", ps2Prefs.getString("wn.ps2.net.dns1", PS2_DEFAULT_DNS).orEmpty(), PS2_DEFAULT_DNS) { ps2Prefs.edit().putString("wn.ps2.net.dns1", it).apply(); refresh++ }
-                        RetroSettingTextField("Secondary DNS", ps2Prefs.getString("wn.ps2.net.dns2", "").orEmpty(), "optional") { ps2Prefs.edit().putString("wn.ps2.net.dns2", it).apply(); refresh++ }
-                        RetroSettingSwitch("Auto IP (DHCP)", ps2Prefs.getBoolean("wn.ps2.net.dhcp", true)) { ps2Prefs.edit().putBoolean("wn.ps2.net.dhcp", it).apply(); refresh++ }
+                        RetroSettingTextField(stringResource(R.string.retro_scr_primary_dns), ps2Prefs.getString("wn.ps2.net.dns1", PS2_DEFAULT_DNS).orEmpty(), PS2_DEFAULT_DNS) { ps2Prefs.edit().putString("wn.ps2.net.dns1", it).apply(); refresh++ }
+                        RetroSettingTextField(stringResource(R.string.retro_scr_secondary_dns), ps2Prefs.getString("wn.ps2.net.dns2", "").orEmpty(), stringResource(R.string.retro_scr_optional)) { ps2Prefs.edit().putString("wn.ps2.net.dns2", it).apply(); refresh++ }
+                        RetroSettingSwitch(stringResource(R.string.retro_scr_auto_ip_dhcp), ps2Prefs.getBoolean("wn.ps2.net.dhcp", true)) { ps2Prefs.edit().putBoolean("wn.ps2.net.dhcp", it).apply(); refresh++ }
                     }
                 }
                 if (expanded && !console.isExternal) {
                     RetroSettingDropdown(
-                        label = "Shader",
-                        entries = SHADER_LABELS,
+                        label = stringResource(R.string.retro_scr_shader),
+                        entries = listOf(
+                            stringResource(R.string.retro_scr_shader_default),
+                            stringResource(R.string.retro_scr_shader_crt),
+                            stringResource(R.string.retro_scr_shader_lcd),
+                            stringResource(R.string.retro_scr_shader_sharp),
+                        ),
                         selectedIndex = SHADER_KEYS.indexOf(RetroDefaults.shader(context, sys)).coerceAtLeast(0),
                         onSelected = { RetroDefaults.setShader(context, sys, SHADER_KEYS[it]); refresh++ },
                     )
                     RetroSettingSwitch(
-                        "SGSR upscaling",
+                        stringResource(R.string.retro_scr_sgsr_upscaling),
                         RetroDefaults.sgsr(context, sys),
                     ) { RetroDefaults.setSgsr(context, sys, it); refresh++ }
                     RetroSettingDropdown(
-                        label = "Upscale resolution",
-                        entries = UPSCALE_LABELS,
+                        label = stringResource(R.string.retro_scr_upscale_resolution),
+                        entries = listOf("2x", "4x", stringResource(R.string.retro_scr_upscale_native)),
                         selectedIndex = UPSCALE_KEYS.indexOf(RetroDefaults.upscale(context, sys)).coerceAtLeast(0),
                         onSelected = { RetroDefaults.setUpscale(context, sys, UPSCALE_KEYS[it]); refresh++ },
                     )
                     RetroCoreOptions.forSystem(console).forEach { option ->
                         val current = RetroDefaults.coreOption(context, sys, option.key, option.defaultValue)
                         RetroSettingDropdown(
-                            label = option.label,
-                            entries = option.valueLabels,
+                            label = stringResource(option.label),
+                            entries = option.valueLabels.map { stringResource(it) },
                             selectedIndex = option.values.indexOf(current).coerceAtLeast(0),
                             onSelected = { RetroDefaults.setCoreOption(context, sys, option.key, option.values[it]); refresh++ },
                         )
                     }
                     RetroSettingSwitch(
-                        "On-screen touch controls",
+                        stringResource(R.string.retro_scr_touch_controls),
                         RetroDefaults.touchControls(context, sys),
                     ) { RetroDefaults.setTouchControls(context, sys, it); refresh++ }
                     RetroSettingSwitch(
-                        "Sound",
+                        stringResource(R.string.retro_scr_sound),
                         RetroDefaults.audio(context, sys),
                     ) { RetroDefaults.setAudio(context, sys, it); refresh++ }
                     RetroSettingSwitch(
-                        "Performance HUD",
+                        stringResource(R.string.retro_scr_performance_hud),
                         RetroDefaults.hud(context, sys),
                     ) { RetroDefaults.setHud(context, sys, it); refresh++ }
                 }
@@ -515,7 +575,7 @@ fun RetroDefaultsScreen() {
 
         if (creditsTab == 1) {
         Text(
-            "CREDITS & LICENSES",
+            stringResource(R.string.retro_scr_credits_licenses),
             color = PageSub,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
@@ -523,7 +583,7 @@ fun RetroDefaultsScreen() {
             modifier = Modifier.padding(top = 4.dp),
         )
         Text(
-            "WinNative's retro features are built on these open-source projects. Tap to view each source.",
+            stringResource(R.string.retro_scr_credits_desc),
             color = PageSub,
             style = MaterialTheme.typography.labelMedium,
         )
@@ -557,17 +617,21 @@ fun RetroDefaultsScreen() {
     }
 }
 
-private fun scanMessage(result: RetroRomScanner.Result): String {
+private fun scanMessage(context: android.content.Context, result: RetroRomScanner.Result): String {
     val parts = buildList {
-        if (result.added > 0) add("added ${result.added}")
-        if (result.removed > 0) add("removed ${result.removed}")
+        if (result.added > 0) add(context.getString(R.string.retro_scan_added, result.added))
+        if (result.removed > 0) add(context.getString(R.string.retro_scan_removed, result.removed))
     }
-    return if (parts.isEmpty()) "Library up to date" else "ROMs: ${parts.joinToString(", ")}"
+    return if (parts.isEmpty()) {
+        context.getString(R.string.retro_scan_up_to_date)
+    } else {
+        context.getString(R.string.retro_scan_roms, parts.joinToString(", "))
+    }
 }
 
 @Composable
 private fun RetroSettingsTabBar(selected: Int, onSelect: (Int) -> Unit) {
-    val tabs = listOf("Defaults", "Credits")
+    val tabs = listOf(stringResource(R.string.retro_scr_tab_defaults), stringResource(R.string.retro_scr_tab_credits))
     Row(
         modifier =
             Modifier
@@ -642,10 +706,10 @@ fun RetroHardcoreConfirmDialog(
     val accent = Color(0xFF1A9FFF)
     com.winlator.cmod.shared.ui.dialog.WinNativeDialogShell(
         onDismiss = onDismiss,
-        title = "Enable Hardcore mode?",
+        title = stringResource(R.string.retro_scr_enable_hardcore_title),
     ) {
         Text(
-            "Hardcore mode resets the game now and disables loading save states, fast forward, and cheats. Any unsaved progress will be lost. Continue?",
+            stringResource(R.string.retro_scr_enable_hardcore_body),
             color = com.winlator.cmod.shared.theme.WinNativeTextSecondary,
             fontSize = 14.sp,
             lineHeight = 20.sp,
@@ -655,12 +719,12 @@ fun RetroHardcoreConfirmDialog(
         Spacer(Modifier.height(16.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) {
             com.winlator.cmod.shared.ui.dialog.WinNativeDialogButton(
-                label = "Cancel",
+                label = stringResource(R.string.retro_scr_cancel),
                 textColor = com.winlator.cmod.shared.theme.WinNativeTextPrimary,
                 onClick = onDismiss,
             )
             com.winlator.cmod.shared.ui.dialog.WinNativeDialogButton(
-                label = "Enable",
+                label = stringResource(R.string.retro_scr_enable),
                 textColor = accent,
                 backgroundColor = accent.copy(alpha = 0.12f),
                 borderColor = accent.copy(alpha = 0.3f),

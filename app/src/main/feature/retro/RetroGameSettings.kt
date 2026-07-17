@@ -1,15 +1,5 @@
 package com.winlator.cmod.feature.retro
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -60,10 +50,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.PopupProperties
+import com.winlator.cmod.R
 import com.winlator.cmod.feature.library.GameSettingsNav
 import com.winlator.cmod.feature.shortcuts.LibraryShortcutArtwork
 import com.winlator.cmod.runtime.container.Shortcut
@@ -99,9 +91,7 @@ private val ItemGap = 10.dp
 private val TightGap = 4.dp
 
 private val SHADER_KEYS = listOf("default", "crt", "lcd", "sharp")
-private val SHADER_LABELS = listOf("Default", "CRT", "LCD", "Sharp")
 private val UPSCALE_KEYS = listOf("2x", "4x", "native")
-private val UPSCALE_LABELS = listOf("2x", "4x", "Native")
 
 class RetroSettingsState(
     val shortcut: Shortcut,
@@ -193,21 +183,21 @@ class RetroSettingsState(
 
 private data class RetroSection(
     val icon: ImageVector,
-    val label: String,
+    val labelRes: Int,
 )
 
 private fun buildRetroSections(state: RetroSettingsState): List<RetroSection> {
     val sections = mutableListOf<RetroSection>()
-    sections += RetroSection(Icons.Outlined.Tune, "General")
-    sections += RetroSection(Icons.Outlined.Monitor, "Graphics")
+    sections += RetroSection(Icons.Outlined.Tune, R.string.retro_gs_section_general)
+    sections += RetroSection(Icons.Outlined.Monitor, R.string.retro_gs_section_graphics)
     if (state.system?.isExternal == true) {
-        sections += RetroSection(Icons.Outlined.Bolt, "Performance")
-        sections += RetroSection(Icons.Outlined.Speed, "HUD")
+        sections += RetroSection(Icons.Outlined.Bolt, R.string.retro_gs_section_performance)
+        sections += RetroSection(Icons.Outlined.Speed, R.string.retro_gs_section_hud)
     }
-    sections += RetroSection(Icons.Outlined.SportsEsports, "Input")
-    sections += RetroSection(Icons.AutoMirrored.Outlined.VolumeUp, "Audio")
+    sections += RetroSection(Icons.Outlined.SportsEsports, R.string.retro_gs_section_input)
+    sections += RetroSection(Icons.AutoMirrored.Outlined.VolumeUp, R.string.retro_gs_section_audio)
     if (state.system?.isExternal == true) {
-        sections += RetroSection(Icons.Outlined.Public, "Online")
+        sections += RetroSection(Icons.Outlined.Public, R.string.retro_gs_section_online)
     }
     return sections
 }
@@ -283,22 +273,11 @@ private fun RetroSectionContent(
     onRemoveArtwork: ((LibraryShortcutArtwork.LibraryArtworkSlot) -> Unit)? = null,
     onImportBios: (() -> Unit)? = null,
 ) {
-    AnimatedContent(
-        targetState = sectionIndex,
-        transitionSpec = {
-            val direction = if (targetState > initialState) 1 else -1
-            (
-                slideInHorizontally(animationSpec = tween(220)) { direction * it / 6 } +
-                    fadeIn(tween(200))
-            ).togetherWith(
-                slideOutHorizontally(animationSpec = tween(180)) { -direction * it / 6 } +
-                    fadeOut(tween(120)),
-            )
-        },
-        label = "RetroSectionTransition",
-    ) { idx ->
+    // Section switches render instantly — no slide/fade between settings panes.
+    run {
+        val idx = sectionIndex
         val contentNav = remember(nav) { nav?.let { PaneNavRegistry(initialSignal = it.contentSignal) } }
-        val isCurrent = idx == sectionIndex
+        val isCurrent = true
         if (nav != null && contentNav != null) {
             contentNav.controllerActive = nav.active && nav.inContent && isCurrent
             contentNav.onEdgeLeft = { nav.exitToSidebar() }
@@ -426,7 +405,7 @@ private fun RetroSidebar(
             sections.forEachIndexed { index, section ->
                 RetroSidebarItem(
                     icon = section.icon,
-                    label = section.label,
+                    label = stringResource(section.labelRes),
                     isSelected = currentIndex == index,
                     navHighlighted =
                         nav != null && nav.active && !nav.inContent && !nav.onActionRow &&
@@ -470,7 +449,7 @@ private fun RetroSidebar(
                         },
                 contentAlignment = Alignment.Center,
             ) {
-                Text("Cancel", color = TextSecondary, fontSize = LabelSize, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.retro_gs_cancel), color = TextSecondary, fontSize = LabelSize, fontWeight = FontWeight.Medium)
             }
             Box(
                 modifier =
@@ -487,7 +466,7 @@ private fun RetroSidebar(
                         },
                 contentAlignment = Alignment.Center,
             ) {
-                Text("Save", color = AccentBlue, fontSize = LabelSize, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.retro_gs_save), color = AccentBlue, fontSize = LabelSize, fontWeight = FontWeight.Medium)
             }
         }
     }
@@ -758,10 +737,10 @@ internal fun RetroSettingTextField(
                 androidx.compose.material3.TextButton(onClick = {
                     onChange(draft.trim())
                     editing = false
-                }) { Text("Save") }
+                }) { Text(stringResource(R.string.retro_gs_save)) }
             },
             dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { editing = false }) { Text("Cancel") }
+                androidx.compose.material3.TextButton(onClick = { editing = false }) { Text(stringResource(R.string.retro_gs_cancel)) }
             },
         )
     }
@@ -800,29 +779,29 @@ private fun RetroGeneralSection(
     onImportBios: (() -> Unit)? = null,
 ) {
     RetroSettingGroup {
-        RetroGroupTitle("GAME")
-        RetroInfoRow("Name", state.name)
-        RetroInfoRow("System", state.system?.displayName ?: "")
-        RetroInfoRow("Emulator Core", state.system?.coreFileName ?: "")
-        RetroInfoRow("ROM Path", state.romPath)
+        RetroGroupTitle(stringResource(R.string.retro_gs_group_game))
+        RetroInfoRow(stringResource(R.string.retro_gs_label_name), state.name)
+        RetroInfoRow(stringResource(R.string.retro_gs_label_system), state.system?.displayName ?: "")
+        RetroInfoRow(stringResource(R.string.retro_gs_label_emulator_core), state.system?.coreFileName ?: "")
+        RetroInfoRow(stringResource(R.string.retro_gs_label_rom_path), state.romPath)
     }
     if (state.system?.needsBios == true && onImportBios != null) {
         val context = androidx.compose.ui.platform.LocalContext.current
         Spacer(Modifier.height(ItemGap))
         RetroSettingGroup {
-            RetroGroupTitle("${state.system.shortName.uppercase()} BIOS")
+            RetroGroupTitle(stringResource(R.string.retro_gs_group_bios, state.system.shortName.uppercase()))
             state.biosRefresh
             val dir = RetroCoreManager.systemDir(context)
             val installed = state.system.biosFiles.filter { java.io.File(dir, it).isFile }
             RetroInfoRow(
-                "Installed",
-                if (installed.isEmpty()) "None — required to run ${state.system.shortName} games" else installed.joinToString(", "),
+                stringResource(R.string.retro_gs_label_installed),
+                if (installed.isEmpty()) stringResource(R.string.retro_gs_bios_none, state.system.shortName) else installed.joinToString(", "),
             )
             androidx.compose.material3.Button(
                 onClick = { onImportBios() },
                 modifier = Modifier.fillMaxWidth().padding(top = ItemGap),
             ) {
-                androidx.compose.material3.Text("Import BIOS…")
+                androidx.compose.material3.Text(stringResource(R.string.retro_gs_import_bios))
             }
             if (installed.isNotEmpty()) {
                 androidx.compose.material3.OutlinedButton(
@@ -832,7 +811,7 @@ private fun RetroGeneralSection(
                     },
                     modifier = Modifier.fillMaxWidth().padding(top = ItemGap),
                 ) {
-                    androidx.compose.material3.Text("Remove BIOS")
+                    androidx.compose.material3.Text(stringResource(R.string.retro_gs_remove_bios))
                 }
             }
         }
@@ -840,11 +819,11 @@ private fun RetroGeneralSection(
     if (onPickArtwork != null && onRemoveArtwork != null) {
         Spacer(Modifier.height(ItemGap))
         RetroSettingGroup {
-            RetroGroupTitle("LIBRARY ARTWORK")
+            RetroGroupTitle(stringResource(R.string.retro_gs_group_library_artwork))
             Row(horizontalArrangement = Arrangement.spacedBy(ItemGap)) {
                 Box(Modifier.weight(1f)) {
                     RetroArtworkRow(
-                        title = "Game Card Image",
+                        title = stringResource(R.string.retro_gs_artwork_game_card),
                         selected = state.artworkSelected[LibraryShortcutArtwork.LibraryArtworkSlot.GAME_CARD] == true,
                         onPick = { onPickArtwork(LibraryShortcutArtwork.LibraryArtworkSlot.GAME_CARD) },
                         onRemove = { onRemoveArtwork(LibraryShortcutArtwork.LibraryArtworkSlot.GAME_CARD) },
@@ -852,7 +831,7 @@ private fun RetroGeneralSection(
                 }
                 Box(Modifier.weight(1f)) {
                     RetroArtworkRow(
-                        title = "Grid Image",
+                        title = stringResource(R.string.retro_gs_artwork_grid),
                         selected = state.artworkSelected[LibraryShortcutArtwork.LibraryArtworkSlot.GRID] == true,
                         onPick = { onPickArtwork(LibraryShortcutArtwork.LibraryArtworkSlot.GRID) },
                         onRemove = { onRemoveArtwork(LibraryShortcutArtwork.LibraryArtworkSlot.GRID) },
@@ -863,7 +842,7 @@ private fun RetroGeneralSection(
             Row(horizontalArrangement = Arrangement.spacedBy(ItemGap)) {
                 Box(Modifier.weight(1f)) {
                     RetroArtworkRow(
-                        title = "Carousel Image",
+                        title = stringResource(R.string.retro_gs_artwork_carousel),
                         selected = state.artworkSelected[LibraryShortcutArtwork.LibraryArtworkSlot.CAROUSEL] == true,
                         onPick = { onPickArtwork(LibraryShortcutArtwork.LibraryArtworkSlot.CAROUSEL) },
                         onRemove = { onRemoveArtwork(LibraryShortcutArtwork.LibraryArtworkSlot.CAROUSEL) },
@@ -871,7 +850,7 @@ private fun RetroGeneralSection(
                 }
                 Box(Modifier.weight(1f)) {
                     RetroArtworkRow(
-                        title = "List Image",
+                        title = stringResource(R.string.retro_gs_artwork_list),
                         selected = state.artworkSelected[LibraryShortcutArtwork.LibraryArtworkSlot.LIST] == true,
                         onPick = { onPickArtwork(LibraryShortcutArtwork.LibraryArtworkSlot.LIST) },
                         onRemove = { onRemoveArtwork(LibraryShortcutArtwork.LibraryArtworkSlot.LIST) },
@@ -913,7 +892,7 @@ private fun RetroArtworkRow(
                 if (selected) {
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        text = "Custom image set",
+                        text = stringResource(R.string.retro_gs_artwork_custom_set),
                         color = TextSecondary,
                         fontSize = LabelSize,
                         maxLines = 1,
@@ -926,9 +905,9 @@ private fun RetroArtworkRow(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (!selected) {
-                    RetroArtworkActionButton("Set image", AccentBlue, onPick)
+                    RetroArtworkActionButton(stringResource(R.string.retro_gs_artwork_set_image), AccentBlue, onPick)
                 } else {
-                    RetroArtworkActionButton("Remove", DangerRed, onRemove)
+                    RetroArtworkActionButton(stringResource(R.string.retro_gs_artwork_remove), DangerRed, onRemove)
                 }
             }
         }
@@ -966,33 +945,40 @@ private fun RetroGraphicsSection(state: RetroSettingsState) {
         RetroPs2GraphicsSection()
         return
     }
+    val shaderLabels = listOf(
+        stringResource(R.string.retro_gs_shader_default),
+        stringResource(R.string.retro_gs_shader_crt),
+        stringResource(R.string.retro_gs_shader_lcd),
+        stringResource(R.string.retro_gs_shader_sharp),
+    )
+    val upscaleLabels = listOf(
+        stringResource(R.string.retro_gs_upscale_2x),
+        stringResource(R.string.retro_gs_upscale_4x),
+        stringResource(R.string.retro_gs_upscale_native),
+    )
     RetroSettingGroup {
-        RetroGroupTitle("VIDEO")
+        RetroGroupTitle(stringResource(R.string.retro_gs_group_video))
         RetroSettingDropdown(
-            label = "Video Filter",
-            entries = SHADER_LABELS,
+            label = stringResource(R.string.retro_gs_video_filter),
+            entries = shaderLabels,
             selectedIndex = SHADER_KEYS.indexOf(state.shader).coerceAtLeast(0),
             onSelected = { state.shader = SHADER_KEYS[it] },
         )
         RetroSettingSwitch(
-            label = "SGSR",
+            label = stringResource(R.string.retro_gs_sgsr),
             checked = state.sgsr,
             onCheckedChange = { state.sgsr = it },
         )
-        AnimatedVisibility(
-            visible = state.sgsr,
-            enter = expandVertically(tween(240)) + fadeIn(tween(240)),
-            exit = shrinkVertically(tween(200)) + fadeOut(tween(160)),
-        ) {
+        if (state.sgsr) {
             RetroSettingDropdown(
-                label = "SGSR Upscale",
-                entries = UPSCALE_LABELS,
+                label = stringResource(R.string.retro_gs_sgsr_upscale),
+                entries = upscaleLabels,
                 selectedIndex = UPSCALE_KEYS.indexOf(state.upscale).coerceAtLeast(0),
                 onSelected = { state.upscale = UPSCALE_KEYS[it] },
             )
         }
         RetroSettingSwitch(
-            label = "Performance HUD",
+            label = stringResource(R.string.retro_gs_performance_hud),
             checked = state.hud,
             onCheckedChange = { state.hud = it },
         )
@@ -1000,12 +986,12 @@ private fun RetroGraphicsSection(state: RetroSettingsState) {
     if (state.coreOptions.isNotEmpty()) {
         Spacer(Modifier.height(12.dp))
         RetroSettingGroup {
-            RetroGroupTitle((state.system?.shortName ?: "CORE").uppercase())
+            RetroGroupTitle((state.system?.shortName ?: stringResource(R.string.retro_gs_group_core)).uppercase())
             state.coreOptions.forEach { option ->
                 val current = state.optionValues[option.key] ?: option.defaultValue
                 RetroSettingDropdown(
-                    label = option.label,
-                    entries = option.valueLabels,
+                    label = androidx.compose.ui.res.stringResource(option.label),
+                    entries = option.valueLabels.map { androidx.compose.ui.res.stringResource(it) },
                     selectedIndex = option.values.indexOf(current).coerceAtLeast(0),
                     onSelected = { state.optionValues[option.key] = option.values[it] },
                 )
@@ -1028,42 +1014,95 @@ private fun RetroPs2GraphicsSection() {
     fun putFloat(key: String, value: Float) { prefs.edit().putFloat(key, value).apply(); version++ }
 
     RetroSettingGroup {
-        RetroGroupTitle("VIDEO")
+        RetroGroupTitle(stringResource(R.string.retro_gs_group_video))
         val rendererKeys = listOf("vulkan", "opengl", "software")
         RetroSettingDropdown(
-            "Renderer", listOf("Vulkan", "OpenGL", "Software"),
+            stringResource(R.string.retro_gs_renderer),
+            listOf(
+                stringResource(R.string.retro_gs_renderer_vulkan),
+                stringResource(R.string.retro_gs_renderer_opengl),
+                stringResource(R.string.retro_gs_renderer_software),
+            ),
             rendererKeys.indexOf(prefs.getString("wn.ps2.renderer", "vulkan")).coerceAtLeast(0),
         ) { putStr("wn.ps2.renderer", rendererKeys[it]) }
         val scales = listOf(1f, 1.5f, 2f, 3f, 4f)
         RetroSettingDropdown(
-            "Resolution Scale", listOf("1x (Native)", "1.5x", "2x", "3x", "4x"),
+            stringResource(R.string.retro_gs_resolution_scale),
+            listOf(
+                stringResource(R.string.retro_gs_scale_1x_native),
+                stringResource(R.string.retro_gs_scale_1_5x),
+                stringResource(R.string.retro_gs_scale_2x),
+                stringResource(R.string.retro_gs_scale_3x),
+                stringResource(R.string.retro_gs_scale_4x),
+            ),
             scales.indexOfFirst { kotlin.math.abs(it - prefs.getFloat("wn.ps2.upscale", 1f)) < 0.01f }.coerceAtLeast(0),
         ) { putFloat("wn.ps2.upscale", scales[it]) }
         RetroSettingDropdown(
-            "Aspect Ratio", listOf("Stretch", "Auto (Standard)", "4:3", "16:9"),
+            stringResource(R.string.retro_gs_aspect_ratio),
+            listOf(
+                stringResource(R.string.retro_gs_aspect_stretch),
+                stringResource(R.string.retro_gs_aspect_auto_standard),
+                stringResource(R.string.retro_gs_aspect_4_3),
+                stringResource(R.string.retro_gs_aspect_16_9),
+            ),
             prefs.getInt("wn.ps2.aspect", 1).coerceIn(0, 3),
         ) { putInt("wn.ps2.aspect", it) }
         RetroSettingDropdown(
-            "Display Filter", listOf("Nearest", "Bilinear (Smooth)", "Bilinear (Sharp)"),
+            stringResource(R.string.retro_gs_display_filter),
+            listOf(
+                stringResource(R.string.retro_gs_filter_nearest),
+                stringResource(R.string.retro_gs_filter_bilinear_smooth),
+                stringResource(R.string.retro_gs_filter_bilinear_sharp),
+            ),
             prefs.getInt("wn.ps2.displayfilter", 1).coerceIn(0, 2),
         ) { putInt("wn.ps2.displayfilter", it) }
         RetroSettingDropdown(
-            "Texture Filter", listOf("Nearest", "Bilinear (Forced)", "Bilinear (PS2)", "Bilinear (Sprites)"),
+            stringResource(R.string.retro_gs_texture_filter),
+            listOf(
+                stringResource(R.string.retro_gs_filter_nearest),
+                stringResource(R.string.retro_gs_filter_bilinear_forced),
+                stringResource(R.string.retro_gs_filter_bilinear_ps2),
+                stringResource(R.string.retro_gs_filter_bilinear_sprites),
+            ),
             prefs.getInt("wn.ps2.filter", 2).coerceIn(0, 3),
         ) { putInt("wn.ps2.filter", it) }
         RetroSettingDropdown(
-            "Blending Accuracy", listOf("Minimum", "Basic", "Medium", "High", "Full", "Maximum"),
+            stringResource(R.string.retro_gs_blending_accuracy),
+            listOf(
+                stringResource(R.string.retro_gs_blend_minimum),
+                stringResource(R.string.retro_gs_blend_basic),
+                stringResource(R.string.retro_gs_blend_medium),
+                stringResource(R.string.retro_gs_blend_high),
+                stringResource(R.string.retro_gs_blend_full),
+                stringResource(R.string.retro_gs_blend_maximum),
+            ),
             prefs.getInt("wn.ps2.blend", 1).coerceIn(0, 5),
         ) { putInt("wn.ps2.blend", it) }
         RetroSettingDropdown(
-            "CRT / TV Shader", listOf("Off", "Scanline", "Diagonal", "Triangular", "Wave", "Lottes", "4xRGSS", "NxAGSS"),
+            stringResource(R.string.retro_gs_crt_tv_shader),
+            listOf(
+                stringResource(R.string.retro_gs_off),
+                stringResource(R.string.retro_gs_tvshader_scanline),
+                stringResource(R.string.retro_gs_tvshader_diagonal),
+                stringResource(R.string.retro_gs_tvshader_triangular),
+                stringResource(R.string.retro_gs_tvshader_wave),
+                stringResource(R.string.retro_gs_tvshader_lottes),
+                stringResource(R.string.retro_gs_tvshader_4xrgss),
+                stringResource(R.string.retro_gs_tvshader_nxagss),
+            ),
             prefs.getInt("wn.ps2.tvshader", 0).coerceIn(0, 7),
         ) { putInt("wn.ps2.tvshader", it) }
         RetroSettingDropdown(
-            "Frame Skip", listOf("Off", "Skip 1", "Skip 2", "Skip 3"),
+            stringResource(R.string.retro_gs_frame_skip),
+            listOf(
+                stringResource(R.string.retro_gs_off),
+                stringResource(R.string.retro_gs_frameskip_1),
+                stringResource(R.string.retro_gs_frameskip_2),
+                stringResource(R.string.retro_gs_frameskip_3),
+            ),
             prefs.getInt("wn.ps2.frameskip", 0).coerceIn(0, 3),
         ) { putInt("wn.ps2.frameskip", it) }
-        RetroSettingSwitch("Mipmapping", prefs.getBoolean("wn.ps2.mipmap", true)) { putBool("wn.ps2.mipmap", it) }
+        RetroSettingSwitch(stringResource(R.string.retro_gs_mipmapping), prefs.getBoolean("wn.ps2.mipmap", true)) { putBool("wn.ps2.mipmap", it) }
     }
 }
 
@@ -1079,19 +1118,34 @@ private fun RetroPs2PerformanceSection() {
     fun putBool(key: String, value: Boolean) { prefs.edit().putBoolean(key, value).apply(); version++ }
 
     RetroSettingGroup {
-        RetroGroupTitle("PERFORMANCE")
+        RetroGroupTitle(stringResource(R.string.retro_gs_group_performance))
         val rateValues = listOf(-3, -2, -1, 0, 1, 2, 3)
         RetroSettingDropdown(
-            "EE Cycle Rate", listOf("50%", "60%", "75%", "100% (Default)", "130%", "180%", "300%"),
+            stringResource(R.string.retro_gs_ee_cycle_rate),
+            listOf(
+                stringResource(R.string.retro_gs_rate_50),
+                stringResource(R.string.retro_gs_rate_60),
+                stringResource(R.string.retro_gs_rate_75),
+                stringResource(R.string.retro_gs_rate_100_default),
+                stringResource(R.string.retro_gs_rate_130),
+                stringResource(R.string.retro_gs_rate_180),
+                stringResource(R.string.retro_gs_rate_300),
+            ),
             rateValues.indexOf(prefs.getInt("wn.ps2.eeRate", 0).coerceIn(-3, 3)).coerceAtLeast(0),
         ) { putInt("wn.ps2.eeRate", rateValues[it]) }
         RetroSettingDropdown(
-            "EE Cycle Skip", listOf("Off", "1", "2", "3"),
+            stringResource(R.string.retro_gs_ee_cycle_skip),
+            listOf(
+                stringResource(R.string.retro_gs_off),
+                stringResource(R.string.retro_gs_num_1),
+                stringResource(R.string.retro_gs_num_2),
+                stringResource(R.string.retro_gs_num_3),
+            ),
             prefs.getInt("wn.ps2.eeSkip", 0).coerceIn(0, 3),
         ) { putInt("wn.ps2.eeSkip", it) }
-        RetroSettingSwitch("Instant VU1", prefs.getBoolean("wn.ps2.instantVu1", true)) { putBool("wn.ps2.instantVu1", it) }
-        RetroSettingSwitch("Multi-Threaded VU (MTVU)", prefs.getBoolean("wn.ps2.mtvu", true)) { putBool("wn.ps2.mtvu", it) }
-        RetroSettingSwitch("Fast CDVD", prefs.getBoolean("wn.ps2.fastCdvd", false)) { putBool("wn.ps2.fastCdvd", it) }
+        RetroSettingSwitch(stringResource(R.string.retro_gs_instant_vu1), prefs.getBoolean("wn.ps2.instantVu1", true)) { putBool("wn.ps2.instantVu1", it) }
+        RetroSettingSwitch(stringResource(R.string.retro_gs_mtvu), prefs.getBoolean("wn.ps2.mtvu", true)) { putBool("wn.ps2.mtvu", it) }
+        RetroSettingSwitch(stringResource(R.string.retro_gs_fast_cdvd), prefs.getBoolean("wn.ps2.fastCdvd", false)) { putBool("wn.ps2.fastCdvd", it) }
     }
 }
 
@@ -1106,12 +1160,12 @@ private fun RetroPs2HudSection() {
     fun putBool(key: String, value: Boolean) { prefs.edit().putBoolean(key, value).apply(); version++ }
 
     RetroSettingGroup {
-        RetroGroupTitle("PERFORMANCE HUD")
-        RetroSettingSwitch("FPS", prefs.getBoolean("wn.osd.fps", false)) { putBool("wn.osd.fps", it) }
-        RetroSettingSwitch("Emulation Speed", prefs.getBoolean("wn.osd.speed", false)) { putBool("wn.osd.speed", it) }
-        RetroSettingSwitch("CPU Usage", prefs.getBoolean("wn.osd.cpu", false)) { putBool("wn.osd.cpu", it) }
-        RetroSettingSwitch("GPU Usage", prefs.getBoolean("wn.osd.gpu", false)) { putBool("wn.osd.gpu", it) }
-        RetroSettingSwitch("Internal Resolution", prefs.getBoolean("wn.osd.res", false)) { putBool("wn.osd.res", it) }
+        RetroGroupTitle(stringResource(R.string.retro_gs_group_performance_hud))
+        RetroSettingSwitch(stringResource(R.string.retro_gs_hud_fps), prefs.getBoolean("wn.osd.fps", false)) { putBool("wn.osd.fps", it) }
+        RetroSettingSwitch(stringResource(R.string.retro_gs_hud_emulation_speed), prefs.getBoolean("wn.osd.speed", false)) { putBool("wn.osd.speed", it) }
+        RetroSettingSwitch(stringResource(R.string.retro_gs_hud_cpu_usage), prefs.getBoolean("wn.osd.cpu", false)) { putBool("wn.osd.cpu", it) }
+        RetroSettingSwitch(stringResource(R.string.retro_gs_hud_gpu_usage), prefs.getBoolean("wn.osd.gpu", false)) { putBool("wn.osd.gpu", it) }
+        RetroSettingSwitch(stringResource(R.string.retro_gs_hud_internal_resolution), prefs.getBoolean("wn.osd.res", false)) { putBool("wn.osd.res", it) }
     }
 }
 
@@ -1127,23 +1181,32 @@ private fun RetroPs2OnlineSection() {
     fun putStr(key: String, value: String) { prefs.edit().putString(key, value).apply(); version++ }
 
     RetroSettingGroup {
-        RetroGroupTitle("ONLINE (DEV9)")
+        RetroGroupTitle(stringResource(R.string.retro_gs_group_online_dev9))
         val onlineEnabled = prefs.getBoolean("wn.ps2.net.enable", false)
-        RetroSettingSwitch("Enable Online", onlineEnabled) { putBool("wn.ps2.net.enable", it) }
+        RetroSettingSwitch(stringResource(R.string.retro_gs_enable_online), onlineEnabled) { putBool("wn.ps2.net.enable", it) }
         if (onlineEnabled) {
-            val devices = listOf("Auto", "Wi-Fi")
+            val deviceKeys = listOf("Auto", "Wi-Fi")
+            val deviceLabels = listOf(
+                stringResource(R.string.retro_gs_net_auto),
+                stringResource(R.string.retro_gs_net_wifi),
+            )
             RetroSettingDropdown(
-                "Ethernet Device", devices,
-                devices.indexOf(prefs.getString("wn.ps2.net.ethdevice", "Auto")).coerceAtLeast(0),
-            ) { putStr("wn.ps2.net.ethdevice", devices[it]) }
-            val dnsModes = listOf("Manual", "Auto", "Internal")
+                stringResource(R.string.retro_gs_ethernet_device), deviceLabels,
+                deviceKeys.indexOf(prefs.getString("wn.ps2.net.ethdevice", "Auto")).coerceAtLeast(0),
+            ) { putStr("wn.ps2.net.ethdevice", deviceKeys[it]) }
+            val dnsModeKeys = listOf("Manual", "Auto", "Internal")
+            val dnsModeLabels = listOf(
+                stringResource(R.string.retro_gs_dns_manual),
+                stringResource(R.string.retro_gs_net_auto),
+                stringResource(R.string.retro_gs_dns_internal),
+            )
             RetroSettingDropdown(
-                "DNS Mode", dnsModes,
-                dnsModes.indexOf(prefs.getString("wn.ps2.net.dnsmode", "Manual")).coerceAtLeast(0),
-            ) { putStr("wn.ps2.net.dnsmode", dnsModes[it]) }
-            RetroSettingTextField("Primary DNS", prefs.getString("wn.ps2.net.dns1", PS2_DEFAULT_DNS).orEmpty(), PS2_DEFAULT_DNS) { putStr("wn.ps2.net.dns1", it) }
-            RetroSettingTextField("Secondary DNS", prefs.getString("wn.ps2.net.dns2", "").orEmpty(), "optional") { putStr("wn.ps2.net.dns2", it) }
-            RetroSettingSwitch("Auto IP (DHCP)", prefs.getBoolean("wn.ps2.net.dhcp", true)) { putBool("wn.ps2.net.dhcp", it) }
+                stringResource(R.string.retro_gs_dns_mode), dnsModeLabels,
+                dnsModeKeys.indexOf(prefs.getString("wn.ps2.net.dnsmode", "Manual")).coerceAtLeast(0),
+            ) { putStr("wn.ps2.net.dnsmode", dnsModeKeys[it]) }
+            RetroSettingTextField(stringResource(R.string.retro_gs_primary_dns), prefs.getString("wn.ps2.net.dns1", PS2_DEFAULT_DNS).orEmpty(), PS2_DEFAULT_DNS) { putStr("wn.ps2.net.dns1", it) }
+            RetroSettingTextField(stringResource(R.string.retro_gs_secondary_dns), prefs.getString("wn.ps2.net.dns2", "").orEmpty(), stringResource(R.string.retro_gs_dns_optional)) { putStr("wn.ps2.net.dns2", it) }
+            RetroSettingSwitch(stringResource(R.string.retro_gs_auto_ip_dhcp), prefs.getBoolean("wn.ps2.net.dhcp", true)) { putBool("wn.ps2.net.dhcp", it) }
         }
     }
 }
@@ -1157,9 +1220,9 @@ private fun RetroInputSection(state: RetroSettingsState) {
         }
     var haptic by remember { mutableStateOf(prefs.getFloat("retro_haptic_strength", 0.4f)) }
     RetroSettingGroup {
-        RetroGroupTitle("INPUT")
+        RetroGroupTitle(stringResource(R.string.retro_gs_group_input))
         RetroSettingSwitch(
-            label = "On-screen controls",
+            label = stringResource(R.string.retro_gs_on_screen_controls),
             checked = state.touchControls,
             onCheckedChange = { state.touchControls = it },
         )
@@ -1168,7 +1231,7 @@ private fun RetroInputSection(state: RetroSettingsState) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "Haptic Feedback",
+                stringResource(R.string.retro_gs_haptic_feedback),
                 color = TextPrimary,
                 fontSize = ValueSize,
                 modifier = Modifier.weight(1f),
@@ -1200,12 +1263,12 @@ private fun RetroAudioSection(state: RetroSettingsState) {
         @Suppress("UNUSED_EXPRESSION") version
         var vol by remember { mutableStateOf(prefs.getInt("wn.ps2.volume", 100)) }
         RetroSettingGroup {
-            RetroGroupTitle("AUDIO")
+            RetroGroupTitle(stringResource(R.string.retro_gs_group_audio))
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = TightGap),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Volume", color = TextPrimary, fontSize = ValueSize, modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.retro_gs_volume), color = TextPrimary, fontSize = ValueSize, modifier = Modifier.weight(1f))
                 Text("$vol%", color = TextSecondary, fontSize = ValueSize)
             }
             androidx.compose.material3.Slider(
@@ -1215,19 +1278,19 @@ private fun RetroAudioSection(state: RetroSettingsState) {
                 valueRange = 0f..200f,
                 modifier = Modifier.fillMaxWidth().height(26.dp),
             )
-            RetroSettingSwitch("Mute", prefs.getBoolean("wn.ps2.muted", false)) {
+            RetroSettingSwitch(stringResource(R.string.retro_gs_mute), prefs.getBoolean("wn.ps2.muted", false)) {
                 prefs.edit().putBoolean("wn.ps2.muted", it).apply(); version++
             }
-            RetroSettingSwitch("Swap Stereo Channels", prefs.getBoolean("wn.ps2.swap", false)) {
+            RetroSettingSwitch(stringResource(R.string.retro_gs_swap_stereo), prefs.getBoolean("wn.ps2.swap", false)) {
                 prefs.edit().putBoolean("wn.ps2.swap", it).apply(); version++
             }
         }
         return
     }
     RetroSettingGroup {
-        RetroGroupTitle("AUDIO")
+        RetroGroupTitle(stringResource(R.string.retro_gs_group_audio))
         RetroSettingSwitch(
-            label = "Sound",
+            label = stringResource(R.string.retro_gs_sound),
             checked = state.audio,
             onCheckedChange = { state.audio = it },
         )

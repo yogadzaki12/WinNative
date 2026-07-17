@@ -1,21 +1,14 @@
 package com.winlator.cmod.feature.retro
 
 import android.view.KeyEvent
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -60,7 +53,6 @@ import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -86,14 +78,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.boundsInParent
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.winlator.cmod.R
 import com.winlator.cmod.shared.theme.WinNativeBackground
 import com.winlator.cmod.shared.theme.WinNativeOutline
 import com.winlator.cmod.shared.theme.WinNativePanel
@@ -249,13 +242,11 @@ class RetroMenuController {
     var renamePrompt by mutableStateOf<RetroRenamePrompt?>(null)
     var conflictPrompt by mutableStateOf<RetroConflictPrompt?>(null)
 
+    // Settings panes are single-column: the drawer is only 300dp wide, and two
+    // columns force long labels ("Multi-Threaded VU (MTVU)") to wrap, leaving
+    // uneven row heights and gaps between cards.
     val gridColumns: Int
-        get() =
-            when (pane) {
-                null -> 3
-                RetroPane.DISPLAY, RetroPane.PERFORMANCE, RetroPane.HUD -> 2
-                else -> 1
-            }
+        get() = if (pane == null) 3 else 1
 
     fun open() {
         pane = null
@@ -470,22 +461,13 @@ fun RetroDrawerMenu(controller: RetroMenuController) {
                     RetroTopRail(controller, paneScale)
                     ThinDivider()
                     Box(Modifier.weight(1f).fillMaxWidth()) {
-                        AnimatedContent(
-                            targetState = controller.pane,
-                            transitionSpec = {
-                                fadeIn(tween(220, easing = FastOutSlowInEasing)) togetherWith
-                                    fadeOut(tween(220, easing = FastOutSlowInEasing))
-                            },
-                            label = "retroDrawerBody",
-                        ) { pane ->
-                            if (pane == null) {
-                                RetroActionGrid(controller, paneScale)
-                            } else {
-                                RetroPaneList(controller, paneScale)
-                            }
+                        if (controller.pane == null) {
+                            RetroActionGrid(controller, paneScale)
+                        } else {
+                            RetroPaneList(controller, paneScale)
                         }
                     }
-                    AnimatedVisibility(visible = controller.pane == null && controller.bottomEntries.isNotEmpty()) {
+                    if (controller.pane == null && controller.bottomEntries.isNotEmpty()) {
                         Column {
                             ThinDivider()
                             RetroBottomActions(controller, paneScale)
@@ -526,27 +508,10 @@ private fun RetroTopRail(
         }
     val selectedBounds = tileBounds[selectedIndex]
 
-    val indicatorAnimSpec = tween<Dp>(durationMillis = 240, easing = FastOutSlowInEasing)
-    val indicatorX by animateDpAsState(
-        targetValue = selectedBounds?.let { with(density) { it.offsetX.toDp() } } ?: 0.dp,
-        animationSpec = indicatorAnimSpec,
-        label = "retroRailX",
-    )
-    val indicatorWidth by animateDpAsState(
-        targetValue = selectedBounds?.let { with(density) { it.width.toDp() } } ?: 0.dp,
-        animationSpec = indicatorAnimSpec,
-        label = "retroRailW",
-    )
-    val indicatorTileHeight by animateDpAsState(
-        targetValue = selectedBounds?.let { with(density) { it.height.toDp() } } ?: 0.dp,
-        animationSpec = indicatorAnimSpec,
-        label = "retroRailH",
-    )
-    val indicatorAlpha by animateFloatAsState(
-        targetValue = if (selectedBounds != null) 1f else 0f,
-        animationSpec = tween(160),
-        label = "retroRailA",
-    )
+    val indicatorX = selectedBounds?.let { with(density) { it.offsetX.toDp() } } ?: 0.dp
+    val indicatorWidth = selectedBounds?.let { with(density) { it.width.toDp() } } ?: 0.dp
+    val indicatorTileHeight = selectedBounds?.let { with(density) { it.height.toDp() } } ?: 0.dp
+    val indicatorAlpha = if (selectedBounds != null) 1f else 0f
 
     Box(
         modifier =
@@ -852,11 +817,7 @@ private fun RetroPaneList(
                                     },
                                 )
                             is RetroMenuEntry.Choice ->
-                                androidx.compose.animation.AnimatedVisibility(
-                                    visible = entry.visible,
-                                    enter = expandVertically(tween(240, easing = FastOutSlowInEasing)) + fadeIn(tween(240)),
-                                    exit = shrinkVertically(tween(200, easing = FastOutSlowInEasing)) + fadeOut(tween(160)),
-                                ) {
+                                if (entry.visible) {
                                     RetroChoiceRow(
                                         entry = entry,
                                         highlighted = highlighted,
@@ -1008,7 +969,7 @@ private fun RetroBooleanRow(
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                text = entry.subtitle ?: if (entry.checked) "Enabled" else "Disabled",
+                text = entry.subtitle ?: if (entry.checked) stringResource(R.string.retro_scr_enabled) else stringResource(R.string.retro_scr_disabled),
                 color = DrawerTextSecondary,
                 fontSize = (12f * paneScale).sp,
             )
@@ -1283,7 +1244,7 @@ private fun RetroSaveSlotRow(
         if (entry.filled) {
             Icon(
                 imageVector = Icons.Outlined.Edit,
-                contentDescription = "Rename",
+                contentDescription = stringResource(R.string.retro_scr_rename),
                 tint = DrawerTextSecondary,
                 modifier =
                     Modifier
@@ -1345,7 +1306,7 @@ internal fun RetroRenameDialog(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Spacer(Modifier.weight(1f))
                 Text(
-                    text = "Cancel",
+                    text = stringResource(R.string.retro_scr_cancel),
                     color = DrawerTextSecondary,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -1356,7 +1317,7 @@ internal fun RetroRenameDialog(
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                 )
                 Text(
-                    text = "Save",
+                    text = stringResource(R.string.retro_scr_save),
                     color = DrawerActiveAccent,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -1397,7 +1358,7 @@ internal fun RetroConflictDialog(prompt: RetroConflictPrompt) {
                     .padding(16.dp),
         ) {
             Text(
-                text = "Cloud Save Conflict",
+                text = stringResource(R.string.retro_scr_cloud_save_conflict),
                 color = DrawerTextPrimary,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -1446,7 +1407,7 @@ internal fun RetroConflictDialog(prompt: RetroConflictPrompt) {
                 horizontalArrangement = Arrangement.Center,
             ) {
                 Text(
-                    text = "Keep Local Save",
+                    text = stringResource(R.string.retro_scr_keep_local_save),
                     color = DrawerActiveAccent,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -1495,7 +1456,7 @@ private fun RetroColorRow(
             ) {
                 if (entry.color == null) {
                     Text(
-                        text = "A",
+                        text = stringResource(R.string.retro_scr_auto_color_abbrev),
                         color = DrawerTextSecondary,
                         fontSize = (10f * paneScale).sp,
                         fontWeight = FontWeight.SemiBold,
@@ -1567,7 +1528,7 @@ private fun RetroColorSwatch(
     ) {
         if (color == null) {
             Text(
-                text = "A",
+                text = stringResource(R.string.retro_scr_auto_color_abbrev),
                 color = DrawerTextSecondary,
                 fontSize = (11f * paneScale).sp,
                 fontWeight = FontWeight.SemiBold,
@@ -1741,13 +1702,13 @@ private fun ThinDivider() {
 }
 
 object RetroDrawerTabs {
-    fun build(): List<RetroTabSpec> {
+    fun build(context: android.content.Context): List<RetroTabSpec> {
         val tabs = mutableListOf<RetroTabSpec>()
-        tabs += RetroTabSpec(null, Icons.Outlined.Apps, "Menu")
-        tabs += RetroTabSpec(RetroPane.DISPLAY, Icons.Outlined.Monitor, "Display")
-        tabs += RetroTabSpec(RetroPane.HUD, Icons.Outlined.Speed, "HUD")
-        tabs += RetroTabSpec(RetroPane.SOUND, Icons.AutoMirrored.Outlined.VolumeUp, "Sound")
-        tabs += RetroTabSpec(RetroPane.CONTROLS, Icons.Outlined.SportsEsports, "Controls")
+        tabs += RetroTabSpec(null, Icons.Outlined.Apps, context.getString(R.string.retro_tab_menu))
+        tabs += RetroTabSpec(RetroPane.DISPLAY, Icons.Outlined.Monitor, context.getString(R.string.retro_tab_display))
+        tabs += RetroTabSpec(RetroPane.HUD, Icons.Outlined.Speed, context.getString(R.string.retro_tab_hud))
+        tabs += RetroTabSpec(RetroPane.SOUND, Icons.AutoMirrored.Outlined.VolumeUp, context.getString(R.string.retro_tab_sound))
+        tabs += RetroTabSpec(RetroPane.CONTROLS, Icons.Outlined.SportsEsports, context.getString(R.string.retro_tab_controls))
         return tabs
     }
 }
@@ -1764,7 +1725,6 @@ object RetroDrawerIcons {
     val Hud = Icons.Outlined.Speed
     val Achievements = Icons.Outlined.EmojiEvents
     val Cheats = Icons.Outlined.Bolt
-    val Network = Icons.Outlined.Public
     val Add = Icons.Outlined.Add
     val Exit = Icons.AutoMirrored.Outlined.ExitToApp
 }

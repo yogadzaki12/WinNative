@@ -57,11 +57,11 @@ class RetroSettingsDialog(
             if (uri != null) {
                 RetroBiosImport.importFromUri(activity, uri)
                     .onSuccess {
-                        Toast.makeText(activity, "BIOS imported: $it", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(activity, activity.getString(R.string.retro_scr_bios_imported, it), Toast.LENGTH_SHORT).show()
                         state.biosRefresh++
                     }
                     .onFailure {
-                        Toast.makeText(activity, it.message ?: "Invalid BIOS file", Toast.LENGTH_LONG).show()
+                        Toast.makeText(activity, it.message ?: activity.getString(R.string.retro_scr_invalid_bios_file), Toast.LENGTH_LONG).show()
                     }
             }
         }

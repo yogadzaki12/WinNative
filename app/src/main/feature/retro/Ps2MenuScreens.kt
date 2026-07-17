@@ -33,9 +33,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.armsx2.runtime.MainActivityRuntime
+import com.winlator.cmod.R
 import com.winlator.cmod.shared.ui.nav.LocalPaneNav
 import com.winlator.cmod.shared.ui.nav.PaneNavRegistry
 import com.winlator.cmod.shared.ui.nav.bindPaneNav
@@ -131,7 +133,7 @@ fun Ps2CheatsScreen(
             else if (c != null) com.armsx2.PatchRepo.fetchForGame(s, c) else com.armsx2.PatchRepo.fetchForSerial(s)
         }
         if (result == null) {
-            status = "No game serial to look up cheats for."
+            status = context.getString(R.string.retro_scr_no_game_serial)
         } else {
             title = result.gametitle
             serial = result.serial
@@ -167,13 +169,13 @@ fun Ps2CheatsScreen(
                     true
                 }.getOrDefault(false)
             }
-            status = if (ok) "Applied ${chosen.size} cheat(s)." else "Couldn't apply cheats."
+            status = if (ok) context.getString(R.string.retro_scr_applied_cheats, chosen.size) else context.getString(R.string.retro_scr_couldnt_apply_cheats)
         }
     }
 
-    Ps2OverlayScaffold(title = "Cheats", onBack = onBack, action = {
+    Ps2OverlayScaffold(title = stringResource(R.string.retro_scr_cheats), onBack = onBack, action = {
         if (!loading && entries.isNotEmpty()) {
-            TextButton(onClick = { apply() }, modifier = Modifier.paneNavItem(onActivate = { apply() })) { Text("Apply") }
+            TextButton(onClick = { apply() }, modifier = Modifier.paneNavItem(onActivate = { apply() })) { Text(stringResource(R.string.retro_scr_apply)) }
         }
     }) {
         when {
@@ -181,7 +183,7 @@ fun Ps2CheatsScreen(
                 androidx.compose.material3.CircularProgressIndicator()
             }
             entries.isEmpty() -> Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-                Text(status.ifBlank { "No cheats found for this game." }, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(status.ifBlank { stringResource(R.string.retro_scr_no_cheats_found) }, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             else -> Column(Modifier.fillMaxSize()) {
                 if (status.isNotBlank()) {
@@ -273,20 +275,20 @@ fun Ps2AchievementsScreen(
         }
     }
 
-    Ps2OverlayScaffold(title = "Achievements", onBack = onBack) {
+    Ps2OverlayScaffold(title = stringResource(R.string.retro_scr_achievements), onBack = onBack) {
         if (!loggedIn) {
             Column(
                 Modifier.fillMaxSize().padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text("Sign in to RetroAchievements", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
-                OutlinedTextField(value = user, onValueChange = { user = it }, singleLine = true, label = { Text("Username") })
+                Text(stringResource(R.string.retro_scr_sign_in_ra), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                OutlinedTextField(value = user, onValueChange = { user = it }, singleLine = true, label = { Text(stringResource(R.string.retro_scr_username)) })
                 OutlinedTextField(
                     value = pass,
                     onValueChange = { pass = it },
                     singleLine = true,
-                    label = { Text("Password") },
+                    label = { Text(stringResource(R.string.retro_scr_password)) },
                     visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                 )
                 if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -306,7 +308,7 @@ fun Ps2AchievementsScreen(
                                 }
                             } else {
                                 busy = false
-                                error = msg ?: "Login failed"
+                                error = msg ?: context.getString(R.string.retro_scr_login_failed)
                             }
                         }
                     }
@@ -316,7 +318,7 @@ fun Ps2AchievementsScreen(
                     enabled = !busy && user.isNotBlank() && pass.isNotBlank(),
                     modifier = Modifier.paneNavItem(onActivate = doLogin),
                     onClick = doLogin,
-                ) { Text(if (busy) "Signing in…" else "Sign In") }
+                ) { Text(if (busy) stringResource(R.string.retro_scr_signing_in) else stringResource(R.string.retro_scr_sign_in)) }
             }
         } else {
             Column(Modifier.fillMaxSize()) {
@@ -324,13 +326,13 @@ fun Ps2AchievementsScreen(
                     Text(userName, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                     Spacer(Modifier.weight(1f))
                     Text(
-                        "${items.count { it.unlocked }}/${items.size} • $score pts",
+                        stringResource(R.string.retro_scr_ra_score_summary, items.count { it.unlocked }, items.size, score),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 if (items.isEmpty()) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No achievements for this game.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.retro_scr_no_achievements), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
                     LazyColumn(
@@ -396,7 +398,7 @@ fun Ps2OverlayScaffold(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onBack, modifier = Modifier.paneNavItem(onActivate = onBack)) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
+                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.retro_scr_back), tint = MaterialTheme.colorScheme.onSurface)
                 }
                 Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 4.dp))
                 Spacer(Modifier.width(0.dp).weight(1f))

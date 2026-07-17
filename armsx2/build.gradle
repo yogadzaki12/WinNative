@@ -52,6 +52,7 @@ android {
     if (armsx2BuildNative) {
         tasks.register('buildEmucore', Exec) {
             inputs.file("$projectDir/build-emucore.sh")
+            inputs.dir("$projectDir/patches")
             outputs.dir(emucoreOut)
             doFirst { emucoreOut.get().asFile.mkdirs() }
             commandLine 'bash', "$projectDir/build-emucore.sh",

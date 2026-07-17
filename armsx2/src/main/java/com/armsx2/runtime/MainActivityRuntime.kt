@@ -69,7 +69,7 @@ import compose.icons.lineawesomeicons.Android
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.launch
-import kr.co.iefriends.pcsx2.MainActivity
+import kr.co.iefriends.pcsx2.AssetFiles
 import kr.co.iefriends.pcsx2.NativeApp
 import org.libsdl.app.HIDDeviceManager
 import org.libsdl.app.SDLControllerManager
@@ -1183,7 +1183,7 @@ open class MainActivityRuntime : ComponentActivity() {
                 val destPath = rootDir + File.separator + srcPath
                 assetMgr.list(srcPath)?.let {
                     if (it.isEmpty()) {
-                        MainActivity.copyFile(p_context, srcPath, destPath)
+                        AssetFiles.copyFile(p_context, srcPath, destPath)
                     } else {
                         val dir = File(destPath)
                         if (!dir.exists()) dir.mkdirs()

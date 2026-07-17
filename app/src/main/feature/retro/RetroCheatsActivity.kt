@@ -51,11 +51,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.winlator.cmod.R
 import com.winlator.cmod.shared.ui.nav.LocalPaneNav
 import com.winlator.cmod.shared.ui.nav.PaneNavRegistry
 import com.winlator.cmod.shared.ui.nav.bindPaneNav
@@ -157,7 +159,7 @@ private fun RetroCheatsScreen(
                         Icon(Icons.Outlined.VideogameAsset, contentDescription = null, tint = Accent, modifier = Modifier.size(22.dp))
                     }
                     Column(Modifier.weight(1f)) {
-                        Text("CHEATS", color = TextSecondary, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                        Text(stringResource(R.string.retro_che_brand), color = TextSecondary, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                         Text(
                             gameName,
                             style = MaterialTheme.typography.titleMedium,
@@ -193,7 +195,7 @@ private fun RetroCheatsScreen(
                         OutlinedTextField(
                             value = draftName,
                             onValueChange = { draftName = it },
-                            label = { Text("Name") },
+                            label = { Text(stringResource(R.string.retro_che_name)) },
                             singleLine = true,
                             colors = fieldColors,
                             modifier = Modifier.fillMaxWidth(),
@@ -201,7 +203,7 @@ private fun RetroCheatsScreen(
                         OutlinedTextField(
                             value = draftCode,
                             onValueChange = { draftCode = it },
-                            label = { Text("Code") },
+                            label = { Text(stringResource(R.string.retro_che_code)) },
                             colors = fieldColors,
                             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
                             modifier = Modifier.fillMaxWidth(),
@@ -216,10 +218,10 @@ private fun RetroCheatsScreen(
                                 onClick = { editing = false },
                                 colors = ButtonDefaults.buttonColors(containerColor = SurfaceDark, contentColor = TextPrimary),
                                 modifier = Modifier.weight(1f).paneNavItem(onActivate = { editing = false }),
-                            ) { Text("Cancel") }
+                            ) { Text(stringResource(R.string.retro_che_cancel)) }
                             Button(
                                 onClick = {
-                                    val name = draftName.ifBlank { "Cheat ${cheats.size + 1}" }
+                                    val name = draftName.ifBlank { context.getString(R.string.retro_che_default_name, cheats.size + 1) }
                                     val code = draftCode.trim()
                                     if (code.isNotEmpty()) {
                                         val entry = RetroCheat(name, code, true)
@@ -238,7 +240,7 @@ private fun RetroCheatsScreen(
                                     Modifier.weight(1f).paneNavItem(onActivate = {
                                         val code = draftCode.trim()
                                         if (code.isNotEmpty()) {
-                                            val entry = RetroCheat(draftName.ifBlank { "Cheat ${cheats.size + 1}" }, code, true)
+                                            val entry = RetroCheat(draftName.ifBlank { context.getString(R.string.retro_che_default_name, cheats.size + 1) }, code, true)
                                             val next =
                                                 if (editIndex >= 0 && editIndex < cheats.size) {
                                                     cheats.toMutableList().also { it[editIndex] = entry }
@@ -249,12 +251,12 @@ private fun RetroCheatsScreen(
                                         }
                                         editing = false
                                     }),
-                            ) { Text("Save") }
+                            ) { Text(stringResource(R.string.retro_che_save)) }
                         }
                     } else {
                         if (cheats.isEmpty()) {
                             Text(
-                                "No cheats yet. Add a cheat code for this game.",
+                                stringResource(R.string.retro_che_empty),
                                 color = TextSecondary,
                                 style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.padding(vertical = 8.dp),
@@ -295,7 +297,7 @@ private fun RetroCheatsScreen(
                         ) {
                             Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("Add Cheat")
+                            Text(stringResource(R.string.retro_che_add))
                         }
                     }
                 }
