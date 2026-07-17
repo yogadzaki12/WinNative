@@ -2,6 +2,7 @@ package com.winlator.cmod.feature.retro
 
 import android.content.Context
 import android.content.Intent
+import android.widget.Toast
 import com.winlator.cmod.feature.setup.SetupWizardActivity
 import com.winlator.cmod.runtime.container.ContainerManager
 import com.winlator.cmod.runtime.container.Shortcut
@@ -93,6 +94,23 @@ object RetroShortcuts {
         FileUtils.writeString(shortcutFile, content)
         container.saveData()
         return true
+    }
+
+    @JvmStatic
+    fun launch(
+        context: Context,
+        shortcut: Shortcut,
+    ) {
+        val system = systemForShortcut(shortcut)
+        if (system != null && system.isExternal) {
+            Toast.makeText(
+                context,
+                context.getString(com.winlator.cmod.R.string.retro_ps2_coming_soon),
+                Toast.LENGTH_LONG,
+            ).show()
+            return
+        }
+        context.startActivity(launchIntent(context, shortcut))
     }
 
     @JvmStatic

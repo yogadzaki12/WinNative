@@ -1217,7 +1217,7 @@ public class XServerDisplayActivity extends FixedFontScaleAppCompatActivity {
 
         if (shortcut != null
                 && com.winlator.cmod.feature.retro.RetroShortcuts.isRetroShortcut(shortcut)) {
-            startActivity(com.winlator.cmod.feature.retro.RetroShortcuts.launchIntent(this, shortcut));
+            com.winlator.cmod.feature.retro.RetroShortcuts.launch(this, shortcut);
             finish();
             return;
         }

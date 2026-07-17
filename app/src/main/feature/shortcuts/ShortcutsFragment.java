@@ -222,8 +222,7 @@ public class ShortcutsFragment extends Fragment {
     if (activity == null) return;
 
     if (com.winlator.cmod.feature.retro.RetroShortcuts.isRetroShortcut(shortcut)) {
-      activity.startActivity(
-          com.winlator.cmod.feature.retro.RetroShortcuts.launchIntent(activity, shortcut));
+      com.winlator.cmod.feature.retro.RetroShortcuts.launch(activity, shortcut);
       return;
     }
 

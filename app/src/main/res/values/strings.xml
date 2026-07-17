@@ -1081,6 +1081,7 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="retro_save_transfer_none">No save exists yet for this game</string>
     <string name="retro_cheats_title">Cheats</string>
     <string name="retro_cheats_hardcore_blocked">Cheats are disabled in Hardcore mode</string>
+    <string name="retro_ps2_coming_soon">PlayStation 2 support is coming soon</string>
     <string name="settings_debug_wine_logs_title">Enable Wine Debug Logs</string>
     <string name="settings_debug_wine_logs_subtitle">Write Wine debug output to file</string>
     <string name="settings_debug_box_logs_title">Enable Box86/64 Logs</string>
