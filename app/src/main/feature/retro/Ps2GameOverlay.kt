@@ -923,6 +923,20 @@ object Ps2GameOverlay {
                         }
                         return prevCallback.dispatchKeyEvent(event)
                     }
+
+                    override fun dispatchGenericMotionEvent(event: android.view.MotionEvent): Boolean {
+                        if (ps2Screen.value == null && menu.visible &&
+                            event.source and android.view.InputDevice.SOURCE_JOYSTICK == android.view.InputDevice.SOURCE_JOYSTICK
+                        ) {
+                            val x = event.getAxisValue(android.view.MotionEvent.AXIS_HAT_X).takeIf { kotlin.math.abs(it) > 0.5f }
+                                ?: event.getAxisValue(android.view.MotionEvent.AXIS_X)
+                            val y = event.getAxisValue(android.view.MotionEvent.AXIS_HAT_Y).takeIf { kotlin.math.abs(it) > 0.5f }
+                                ?: event.getAxisValue(android.view.MotionEvent.AXIS_Y)
+                            activity.runOnUiThread { menu.handleAxis(x, y) }
+                            return true
+                        }
+                        return prevCallback.dispatchGenericMotionEvent(event)
+                    }
                 }
         }
     }

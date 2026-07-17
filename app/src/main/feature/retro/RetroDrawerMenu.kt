@@ -333,6 +333,30 @@ class RetroMenuController {
         }
     }
 
+    private var axisLatched = false
+
+    fun handleAxis(x: Float, y: Float): Boolean {
+        if (!visible) return false
+        val dz = 0.5f
+        val dir =
+            when {
+                y < -dz -> KeyEvent.KEYCODE_DPAD_UP
+                y > dz -> KeyEvent.KEYCODE_DPAD_DOWN
+                x < -dz -> KeyEvent.KEYCODE_DPAD_LEFT
+                x > dz -> KeyEvent.KEYCODE_DPAD_RIGHT
+                else -> 0
+            }
+        if (dir == 0) {
+            axisLatched = false
+            return true
+        }
+        if (axisLatched) return true
+        axisLatched = true
+        handleKey(dir, KeyEvent.ACTION_DOWN)
+        handleKey(dir, KeyEvent.ACTION_UP)
+        return true
+    }
+
     fun handleKey(
         keyCode: Int,
         action: Int,
