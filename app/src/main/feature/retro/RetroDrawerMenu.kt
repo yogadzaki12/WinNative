@@ -59,6 +59,8 @@ import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.SportsEsports
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -127,7 +129,7 @@ private val DrawerWidth = 300.dp
 private val DrawerStartPadding = 6.dp
 private val DrawerVerticalPadding = 6.dp
 
-enum class RetroPane { DISPLAY, SOUND, CONTROLS, HUD, SAVES, PERFORMANCE, MEMCARDS }
+enum class RetroPane { DISPLAY, SOUND, CONTROLS, HUD, SAVES, PERFORMANCE, MEMCARDS, NETWORK }
 
 class RetroRenamePrompt(
     val title: String,
@@ -208,6 +210,13 @@ sealed class RetroMenuEntry {
         val filled: Boolean,
         val onClick: () -> Unit,
         val onRename: () -> Unit,
+    ) : RetroMenuEntry()
+
+    class TextInput(
+        val label: String,
+        val value: String,
+        val placeholder: String = "",
+        val onOpen: () -> Unit,
     ) : RetroMenuEntry()
 }
 
@@ -309,6 +318,7 @@ class RetroMenuController {
                 entry.onPick(if (next < 0) null else palette[next])
             }
             is RetroMenuEntry.SaveSlot -> if (direction == 0) entry.onClick()
+            is RetroMenuEntry.TextInput -> if (direction == 0) entry.onOpen()
             else -> {}
         }
     }
@@ -887,6 +897,16 @@ private fun RetroPaneList(
                                         entry.onClick()
                                     },
                                 )
+                            is RetroMenuEntry.TextInput ->
+                                RetroTextInputRow(
+                                    entry = entry,
+                                    highlighted = highlighted,
+                                    paneScale = paneScale,
+                                    onClick = {
+                                        controller.contentIndex = index
+                                        entry.onOpen()
+                                    },
+                                )
                         }
                     }
                 }
@@ -974,6 +994,33 @@ private fun RetroBooleanRow(
             onCheckedChange = entry.onChange,
             colors = outlinedSwitchColors(DrawerAccent, DrawerTextSecondary),
         )
+    }
+}
+
+@Composable
+private fun RetroTextInputRow(
+    entry: RetroMenuEntry.TextInput,
+    highlighted: Boolean,
+    paneScale: Float,
+    onClick: () -> Unit,
+) {
+    RetroRowShell(highlighted = highlighted, activeBorder = entry.value.isNotBlank(), paneScale = paneScale, onClick = onClick) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = entry.label,
+                color = DrawerTextPrimary,
+                fontSize = (14f * paneScale).sp,
+                fontWeight = FontWeight.Medium,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = entry.value.ifBlank { entry.placeholder },
+                color = if (entry.value.isBlank()) DrawerTextSecondary else DrawerActiveAccent,
+                fontSize = (12f * paneScale).sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
@@ -1693,5 +1740,7 @@ object RetroDrawerIcons {
     val Hud = Icons.Outlined.Speed
     val Achievements = Icons.Outlined.EmojiEvents
     val Cheats = Icons.Outlined.Bolt
+    val Network = Icons.Outlined.Public
+    val Add = Icons.Outlined.Add
     val Exit = Icons.AutoMirrored.Outlined.ExitToApp
 }

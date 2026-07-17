@@ -36,7 +36,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.sp
+import com.winlator.cmod.shared.ui.nav.paneNavItem
 import java.io.File
 import kotlinx.coroutines.launch
 
@@ -56,6 +59,7 @@ fun RetroDefaultsScreen() {
     var expandedConsole by remember { mutableStateOf<String?>(null) }
     var refresh by remember { mutableIntStateOf(0) }
     var confirmHardcore by remember { mutableStateOf(false) }
+    var creditsTab by remember { mutableIntStateOf(0) }
 
     if (confirmHardcore) {
         RetroHardcoreConfirmDialog(
@@ -110,6 +114,8 @@ fun RetroDefaultsScreen() {
                 .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        RetroSettingsTabBar(creditsTab) { creditsTab = it }
+        if (creditsTab == 0) {
         Text(
             "RETRO DEFAULTS",
             color = PageSub,
@@ -365,7 +371,9 @@ fun RetroDefaultsScreen() {
                 }
             }
         }
+        }
 
+        if (creditsTab == 1) {
         Text(
             "CREDITS & LICENSES",
             color = PageSub,
@@ -405,6 +413,7 @@ fun RetroDefaultsScreen() {
                 }
             }
         }
+        }
     }
 }
 
@@ -414,6 +423,50 @@ private fun scanMessage(result: RetroRomScanner.Result): String {
         if (result.removed > 0) add("removed ${result.removed}")
     }
     return if (parts.isEmpty()) "Library up to date" else "ROMs: ${parts.joinToString(", ")}"
+}
+
+@Composable
+private fun RetroSettingsTabBar(selected: Int, onSelect: (Int) -> Unit) {
+    val tabs = listOf("Defaults", "Credits")
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0xFF1A1A26))
+                .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        tabs.forEachIndexed { index, label ->
+            val active = index == selected
+            Box(
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (active) Color(0xFF1A9FFF).copy(alpha = 0.18f) else Color.Transparent)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { onSelect(index) }
+                        .paneNavItem(
+                            cornerRadius = 8.dp,
+                            onActivate = { onSelect(index) },
+                            highlightColor = Color(0xFF4FC3F7),
+                            tapToSelect = true,
+                        )
+                        .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    label,
+                    color = if (active) Color(0xFF58A6FF) else PageSub,
+                    fontSize = 13.sp,
+                    fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                )
+            }
+        }
+    }
 }
 
 private data class RetroCredit(

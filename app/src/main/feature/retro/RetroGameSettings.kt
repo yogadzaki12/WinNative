@@ -712,6 +712,65 @@ internal fun RetroSettingSwitch(
 }
 
 @Composable
+internal fun RetroSettingTextField(
+    label: String,
+    value: String,
+    placeholder: String,
+    onChange: (String) -> Unit,
+) {
+    var editing by remember { mutableStateOf(false) }
+    var draft by remember(value) { mutableStateOf(value) }
+    if (editing) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { editing = false },
+            title = { Text(label) },
+            text = {
+                androidx.compose.material3.OutlinedTextField(
+                    value = draft,
+                    onValueChange = { draft = it },
+                    singleLine = true,
+                    placeholder = { Text(placeholder) },
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    onChange(draft.trim())
+                    editing = false
+                }) { Text("Save") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { editing = false }) { Text("Cancel") }
+            },
+        )
+    }
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) { draft = value; editing = true }
+                .paneNavItem(
+                    cornerRadius = 8.dp,
+                    onActivate = { draft = value; editing = true },
+                    highlightColor = NavHighlight,
+                    tapToSelect = true,
+                )
+                .padding(vertical = TightGap),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, color = TextPrimary, fontSize = ValueSize, modifier = Modifier.weight(1f))
+        Text(
+            value.ifBlank { placeholder },
+            color = if (value.isBlank()) TextSecondary else AccentBlue,
+            fontSize = ValueSize,
+        )
+    }
+}
+
+@Composable
 private fun RetroGeneralSection(
     state: RetroSettingsState,
     onPickArtwork: ((LibraryShortcutArtwork.LibraryArtworkSlot) -> Unit)? = null,
@@ -993,6 +1052,22 @@ private fun RetroPs2GraphicsSection() {
     RetroSettingGroup {
         RetroGroupTitle("PERFORMANCE HUD")
         RetroSettingSwitch("Show FPS", prefs.getBoolean("wn.osd.fps", false)) { putBool("wn.osd.fps", it) }
+    }
+    Spacer(Modifier.height(12.dp))
+    RetroSettingGroup {
+        RetroGroupTitle("ONLINE (DEV9)")
+        val onlineEnabled = prefs.getBoolean("wn.ps2.net.enable", false)
+        RetroSettingSwitch("Enable Online", onlineEnabled) { putBool("wn.ps2.net.enable", it) }
+        if (onlineEnabled) {
+            val dnsModes = listOf("Manual", "Auto", "Internal")
+            RetroSettingDropdown(
+                "DNS Mode", dnsModes,
+                dnsModes.indexOf(prefs.getString("wn.ps2.net.dnsmode", "Manual")).coerceAtLeast(0),
+            ) { putStr("wn.ps2.net.dnsmode", dnsModes[it]) }
+            RetroSettingTextField("Primary DNS", prefs.getString("wn.ps2.net.dns1", "").orEmpty(), "e.g. 45.33.29.126") { putStr("wn.ps2.net.dns1", it) }
+            RetroSettingTextField("Secondary DNS", prefs.getString("wn.ps2.net.dns2", "").orEmpty(), "optional") { putStr("wn.ps2.net.dns2", it) }
+            RetroSettingSwitch("Intercept DHCP", prefs.getBoolean("wn.ps2.net.dhcp", false)) { putBool("wn.ps2.net.dhcp", it) }
+        }
     }
 }
 

@@ -11,10 +11,19 @@ import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Monitor
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.SportsEsports
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.viewinterop.AndroidView
@@ -23,6 +32,42 @@ import com.armsx2.runtime.MainActivityRuntime
 import com.armsx2.ui.WindowImpl
 import com.winlator.cmod.shared.theme.WinNativeTheme
 import kr.co.iefriends.pcsx2.NativeApp
+
+@Composable
+private fun Ps2NetEditDialog(state: MutableState<Ps2NetEdit?>) {
+    val edit = state.value ?: return
+    var draft by remember(edit) { mutableStateOf(edit.value) }
+    AlertDialog(
+        onDismissRequest = { state.value = null },
+        title = { Text(edit.title) },
+        text = {
+            OutlinedTextField(
+                value = draft,
+                onValueChange = { draft = it },
+                singleLine = true,
+                placeholder = { Text(edit.placeholder) },
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                edit.onSave(draft)
+                state.value = null
+            }) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = { state.value = null }) { Text("Cancel") }
+        },
+    )
+}
+
+data class Ps2NetHost(val url: String, val ip: String)
+
+class Ps2NetEdit(
+    val title: String,
+    val value: String,
+    val placeholder: String,
+    val onSave: (String) -> Unit,
+)
 
 /**
  * Attaches WinNative's standard retro in-game UI — the 3D on-screen pad
@@ -90,6 +135,52 @@ object Ps2GameOverlay {
             }
         }
 
+        val netEdit = mutableStateOf<Ps2NetEdit?>(null)
+
+        fun readHosts(): List<Ps2NetHost> {
+            val raw = prefs.getString("wn.ps2.net.hosts", "") ?: ""
+            if (raw.isBlank()) return emptyList()
+            return runCatching {
+                val arr = org.json.JSONArray(raw)
+                (0 until arr.length()).map { i ->
+                    val o = arr.getJSONObject(i)
+                    Ps2NetHost(o.optString("url"), o.optString("ip", "0.0.0.0"))
+                }.filter { it.url.isNotBlank() }
+            }.getOrDefault(emptyList())
+        }
+
+        fun writeHosts(hosts: List<Ps2NetHost>) {
+            val arr = org.json.JSONArray()
+            hosts.forEach { arr.put(org.json.JSONObject().put("url", it.url).put("ip", it.ip)) }
+            prefs.edit().putString("wn.ps2.net.hosts", arr.toString()).apply()
+        }
+
+        fun writeNetworkSettings() {
+            val on = prefs.getBoolean("wn.ps2.net.enable", false)
+            NativeApp.setSetting("DEV9/Eth", "EthEnable", "bool", on.toString())
+            NativeApp.setSetting("DEV9/Eth", "EthApi", "string", "Sockets")
+            NativeApp.setSetting("DEV9/Eth", "EthDevice", "string", "Auto")
+            NativeApp.setSetting("DEV9/Eth", "InterceptDHCP", "bool", prefs.getBoolean("wn.ps2.net.dhcp", false).toString())
+            val mode = prefs.getString("wn.ps2.net.dnsmode", "Manual") ?: "Manual"
+            NativeApp.setSetting("DEV9/Eth", "ModeDNS1", "string", mode)
+            NativeApp.setSetting("DEV9/Eth", "ModeDNS2", "string", mode)
+            NativeApp.setSetting("DEV9/Eth", "DNS1", "string", (prefs.getString("wn.ps2.net.dns1", "") ?: "").ifBlank { "0.0.0.0" })
+            NativeApp.setSetting("DEV9/Eth", "DNS2", "string", (prefs.getString("wn.ps2.net.dns2", "") ?: "").ifBlank { "0.0.0.0" })
+            val hosts = readHosts()
+            NativeApp.setSetting("DEV9/Eth/Hosts", "Count", "int", hosts.size.toString())
+            hosts.forEachIndexed { i, h ->
+                NativeApp.setSetting("DEV9/Eth/Hosts/Host$i", "Url", "string", h.url)
+                NativeApp.setSetting("DEV9/Eth/Hosts/Host$i", "Desc", "string", "WinNative")
+                NativeApp.setSetting("DEV9/Eth/Hosts/Host$i", "Address", "string", h.ip.ifBlank { "0.0.0.0" })
+                NativeApp.setSetting("DEV9/Eth/Hosts/Host$i", "Enabled", "bool", "true")
+            }
+        }
+
+        fun applyNetwork() = bg {
+            writeNetworkSettings()
+            NativeApp.commitSettings()
+        }
+
         bg {
             NativeApp.setAudioVolume(prefs.getInt("wn.ps2.volume", 100))
             NativeApp.setAudioMuted(prefs.getBoolean("wn.ps2.muted", false))
@@ -113,6 +204,7 @@ object Ps2GameOverlay {
             NativeApp.setSetting("EmuCore/GS", "hw_mipmap", "bool", prefs.getBoolean("wn.ps2.mipmap", true).toString())
             NativeApp.setSetting("EmuCore/Speedhacks", "vuThread", "bool", prefs.getBoolean("wn.ps2.mtvu", true).toString())
             NativeApp.setSetting("EmuCore/Speedhacks", "fastCDVD", "bool", prefs.getBoolean("wn.ps2.fastCdvd", false).toString())
+            writeNetworkSettings()
             NativeApp.commitSettings()
         }
         fun osd(key: String) = prefs.getBoolean("wn.osd.$key", false)
@@ -252,6 +344,87 @@ object Ps2GameOverlay {
                     },
                 )
                 add(RetroMenuEntry.Action("Import Card", RetroDrawerIcons.Load) { launchMemcardImport?.invoke() })
+            }
+
+        fun networkEntries(): List<RetroMenuEntry> =
+            buildList {
+                val enabled = prefs.getBoolean("wn.ps2.net.enable", false)
+                add(
+                    RetroMenuEntry.Toggle(
+                        "Enable Online (DEV9)",
+                        subtitle = "PS2 network adapter — applies on next launch",
+                        checked = enabled,
+                    ) { value ->
+                        prefs.edit().putBoolean("wn.ps2.net.enable", value).apply()
+                        applyNetwork()
+                        menu.rebuild()
+                    },
+                )
+                if (!enabled) return@buildList
+                val dnsModes = listOf("Manual", "Auto", "Internal")
+                add(
+                    RetroMenuEntry.Choice(
+                        "DNS Mode",
+                        dnsModes,
+                        dnsModes.indexOf(prefs.getString("wn.ps2.net.dnsmode", "Manual")).coerceAtLeast(0),
+                    ) { next ->
+                        prefs.edit().putString("wn.ps2.net.dnsmode", dnsModes[next]).apply()
+                        applyNetwork()
+                        menu.rebuild()
+                    },
+                )
+                add(
+                    RetroMenuEntry.TextInput("Primary DNS", prefs.getString("wn.ps2.net.dns1", "").orEmpty(), "e.g. 45.33.29.126") {
+                        netEdit.value = Ps2NetEdit("Primary DNS", prefs.getString("wn.ps2.net.dns1", "").orEmpty(), "0.0.0.0") { v ->
+                            prefs.edit().putString("wn.ps2.net.dns1", v.trim()).apply()
+                            applyNetwork()
+                            menu.rebuild()
+                        }
+                    },
+                )
+                add(
+                    RetroMenuEntry.TextInput("Secondary DNS", prefs.getString("wn.ps2.net.dns2", "").orEmpty(), "optional") {
+                        netEdit.value = Ps2NetEdit("Secondary DNS", prefs.getString("wn.ps2.net.dns2", "").orEmpty(), "0.0.0.0") { v ->
+                            prefs.edit().putString("wn.ps2.net.dns2", v.trim()).apply()
+                            applyNetwork()
+                            menu.rebuild()
+                        }
+                    },
+                )
+                add(
+                    RetroMenuEntry.Toggle("Intercept DHCP", checked = prefs.getBoolean("wn.ps2.net.dhcp", false)) { value ->
+                        prefs.edit().putBoolean("wn.ps2.net.dhcp", value).apply()
+                        applyNetwork()
+                        menu.rebuild()
+                    },
+                )
+                val hosts = readHosts()
+                hosts.forEachIndexed { i, host ->
+                    add(
+                        RetroMenuEntry.TextInput("Server: ${host.url}", host.ip, "tap to set IP (blank removes)") {
+                            netEdit.value = Ps2NetEdit("${host.url} → IP", host.ip, "0.0.0.0") { v ->
+                                val list = readHosts().toMutableList()
+                                if (i < list.size) {
+                                    if (v.isBlank()) list.removeAt(i) else list[i] = list[i].copy(ip = v.trim())
+                                    writeHosts(list)
+                                    applyNetwork()
+                                    menu.rebuild()
+                                }
+                            }
+                        },
+                    )
+                }
+                add(
+                    RetroMenuEntry.Action("Add Server Host", RetroDrawerIcons.Add) {
+                        netEdit.value = Ps2NetEdit("New Server Hostname", "", "e.g. bf2.playbattlefront.com") { v ->
+                            if (v.isNotBlank()) {
+                                writeHosts(readHosts() + Ps2NetHost(v.trim(), "0.0.0.0"))
+                                applyNetwork()
+                                menu.rebuild()
+                            }
+                        }
+                    },
+                )
             }
 
         fun controlsEntries(): List<RetroMenuEntry> =
@@ -515,6 +688,7 @@ object Ps2GameOverlay {
                 RetroTabSpec(RetroPane.PERFORMANCE, Icons.Outlined.Bolt, "Performance"),
                 RetroTabSpec(RetroPane.HUD, Icons.Outlined.Speed, "HUD"),
                 RetroTabSpec(RetroPane.SOUND, Icons.AutoMirrored.Outlined.VolumeUp, "Sound"),
+                RetroTabSpec(RetroPane.NETWORK, Icons.Outlined.Public, "Online"),
                 RetroTabSpec(RetroPane.CONTROLS, Icons.Outlined.SportsEsports, "Controls"),
             )
         menu.entriesProvider = { pane ->
@@ -527,6 +701,7 @@ object Ps2GameOverlay {
                 RetroPane.MEMCARDS -> memcardEntries()
                 RetroPane.CONTROLS -> controlsEntries()
                 RetroPane.HUD -> hudEntries()
+                RetroPane.NETWORK -> networkEntries()
             }
         }
         menu.bottomProvider = {
@@ -657,6 +832,7 @@ object Ps2GameOverlay {
                         }
                         if (!covered) {
                             RetroDrawerMenu(menu)
+                            Ps2NetEditDialog(netEdit)
                         }
                     }
                 }
