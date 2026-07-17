@@ -749,6 +749,26 @@ object GameSaveBackupManager {
         customSaveDir: File?,
         forRestore: Boolean,
     ): List<SaveBackupSource> {
+        val retroShortcut =
+            parseCustomGameId(gameId)?.let { (cid, f) -> findCustomShortcutByContainerAndFile(context, cid, f) }
+                ?: findCustomShortcutByGameId(context, gameId)
+        val retroSystem =
+            retroShortcut?.getExtra(com.winlator.cmod.feature.retro.RetroShortcuts.KEY_SYSTEM)?.takeIf { it.isNotBlank() }
+        if (retroShortcut != null && retroSystem != null) {
+            val dir =
+                if (retroSystem == com.winlator.cmod.feature.retro.RetroSystems.PS2.id) {
+                    File(com.armsx2.runtime.MainActivityRuntime.assetCopyRoot(context), "memcards")
+                } else {
+                    com.winlator.cmod.feature.retro.RetroSaveStates
+                        .cloudDir(context, retroShortcut.getExtra("custom_name", retroShortcut.name))
+                }
+            return if (forRestore || (dir.exists() && !dir.listFiles().isNullOrEmpty())) {
+                listOf(SaveBackupSource("retro/save", dir))
+            } else {
+                emptyList()
+            }
+        }
+
         val sources = linkedMapOf<String, SaveBackupSource>()
 
         val pickerDir = customSaveDir ?: resolveCustomSaveAndroidDir(context, gameId, null)
