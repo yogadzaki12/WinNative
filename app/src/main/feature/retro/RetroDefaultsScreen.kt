@@ -184,6 +184,18 @@ fun RetroDefaultsScreen() {
             ) {
                 Text("Import PS1 BIOS…")
             }
+            if (installed.isNotEmpty()) {
+                OutlinedButton(
+                    onClick = {
+                        val n = RetroBiosImport.deletePs1Bios(context)
+                        Toast.makeText(context, if (n > 0) "PS1 BIOS removed" else "No BIOS to remove", Toast.LENGTH_SHORT).show()
+                        refresh++
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                ) {
+                    Text("Remove PS1 BIOS")
+                }
+            }
         }
 
         RetroSettingGroup {
@@ -202,6 +214,18 @@ fun RetroDefaultsScreen() {
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             ) {
                 Text("Import PS2 BIOS…")
+            }
+            if (ps2Installed.isNotEmpty()) {
+                OutlinedButton(
+                    onClick = {
+                        val n = RetroBiosImport.deletePs2Bios(context)
+                        Toast.makeText(context, if (n > 0) "PS2 BIOS removed" else "No BIOS to remove", Toast.LENGTH_SHORT).show()
+                        refresh++
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                ) {
+                    Text("Remove PS2 BIOS")
+                }
             }
         }
 

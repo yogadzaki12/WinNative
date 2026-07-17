@@ -802,6 +802,17 @@ private fun RetroGeneralSection(
             ) {
                 androidx.compose.material3.Text("Import BIOS…")
             }
+            if (installed.isNotEmpty()) {
+                androidx.compose.material3.OutlinedButton(
+                    onClick = {
+                        installed.forEach { java.io.File(dir, it).delete() }
+                        state.biosRefresh++
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(top = ItemGap),
+                ) {
+                    androidx.compose.material3.Text("Remove BIOS")
+                }
+            }
         }
     }
     if (onPickArtwork != null && onRemoveArtwork != null) {

@@ -47,6 +47,20 @@ object RetroBiosImport {
             .map { it.name }
             .sorted()
 
+    fun deletePs1Bios(context: Context): Int {
+        val dir = RetroCoreManager.systemDir(context)
+        var removed = 0
+        RetroSystems.PSX.biosFiles.forEach { val f = File(dir, it); if (f.isFile && f.delete()) removed++ }
+        return removed
+    }
+
+    fun deletePs2Bios(context: Context): Int {
+        var removed = 0
+        ps2BiosDir(context).listFiles().orEmpty().forEach { if (it.isFile && it.delete()) removed++ }
+        context.getSharedPreferences("ARMSX2", Context.MODE_PRIVATE).edit().remove("bios").apply()
+        return removed
+    }
+
     /** Import a merged single-file PS2 BIOS dump (region-tagged .bin, ~4MB).
      *  ARMSX2 rejects the split .ROM0/.MEC/.NVM dumps, so require a single file
      *  in the 3–8MB range that carries a PS2 region marker. */
