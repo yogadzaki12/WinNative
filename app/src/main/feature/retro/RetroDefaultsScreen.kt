@@ -230,6 +230,18 @@ fun RetroDefaultsScreen() {
         }
 
         RetroSettingGroup {
+            RetroGroupTitle("LIBRARY ARTWORK")
+            RetroSettingSwitch(
+                "Retro case art (cartridge / CD case)",
+                RetroBoxart.caseArtEnabled(context),
+            ) { RetroBoxart.setCaseArtEnabled(context, it); refresh++ }
+            RetroInfoRow(
+                "Box art",
+                "Fetched automatically from thumbnails.libretro.com on import; a custom image always overrides it.",
+            )
+        }
+
+        RetroSettingGroup {
             RetroGroupTitle("ROMS FOLDER")
             val romsDir = RetroDefaults.romsDir(context)
             RetroInfoRow(

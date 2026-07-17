@@ -75,7 +75,14 @@ class RetroSettingsDialog(
         val slot = pendingArtworkSlot
         val previousPath = shortcut.getExtra(slot.extraKey)
         val outputFile = LibraryShortcutArtwork.buildManagedViewArtworkFile(activity, shortcut, slot)
-        if (!FileUtils.saveBitmapToFile(bitmap, outputFile)) {
+        val system = RetroShortcuts.systemForShortcut(shortcut)
+        val saved =
+            if (system != null && RetroBoxart.caseArtEnabled(activity) && slot != LibraryShortcutArtwork.LibraryArtworkSlot.GAME_CARD) {
+                RetroBoxart.composeCustom(activity, system, shortcut.getExtra("custom_name", shortcut.name), bitmap, outputFile)
+            } else {
+                FileUtils.saveBitmapToFile(bitmap, outputFile)
+            }
+        if (!saved) {
             WinToast.show(activity, R.string.shortcuts_library_artwork_failed, Toast.LENGTH_SHORT)
             return
         }

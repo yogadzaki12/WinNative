@@ -71,6 +71,9 @@ object RetroShortcuts {
         val shortcutFile = File(desktopDir, "$safeName.desktop")
         val shortcutUuid = UUID.randomUUID().toString()
 
+        val artFile = com.winlator.cmod.feature.shortcuts.LibraryShortcutArtwork.buildManagedCustomGameArtworkFile(context, shortcutUuid)
+        val artOk = RetroBoxart.fetchAndCompose(context, system, name, artFile)
+
         val content =
             buildString {
                 append("[Desktop Entry]\n")
@@ -85,6 +88,7 @@ object RetroShortcuts {
                 append("$KEY_ROM=$romPath\n")
                 append("$KEY_CORE=${system.coreFileName}\n")
                 append("uuid=$shortcutUuid\n")
+                if (artOk) append("customCoverArtPath=${artFile.absolutePath}\n")
                 append("container_id=${container.id}\n")
                 append("use_container_defaults=1\n")
             }
