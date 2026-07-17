@@ -223,13 +223,9 @@ fun RetroDefaultsScreen() {
                     ) { path ->
                         RetroDefaults.setRomsDir(context, path)
                         Thread {
-                            val count = RetroRomScanner.scan(context, File(path))
+                            val result = RetroRomScanner.scan(context, File(path))
                             activity.runOnUiThread {
-                                Toast.makeText(
-                                    context,
-                                    if (count > 0) "Imported $count game(s)" else "No new games found",
-                                    Toast.LENGTH_SHORT,
-                                ).show()
+                                Toast.makeText(context, scanMessage(result), Toast.LENGTH_SHORT).show()
                                 refresh++
                             }
                         }.start()
@@ -244,13 +240,9 @@ fun RetroDefaultsScreen() {
                     onClick = {
                         val activity = context as? android.app.Activity
                         Thread {
-                            val count = RetroRomScanner.scanConfiguredFolder(context)
+                            val result = RetroRomScanner.scanConfiguredFolder(context)
                             activity?.runOnUiThread {
-                                Toast.makeText(
-                                    context,
-                                    if (count > 0) "Imported $count game(s)" else "No new games found",
-                                    Toast.LENGTH_SHORT,
-                                ).show()
+                                Toast.makeText(context, scanMessage(result), Toast.LENGTH_SHORT).show()
                                 refresh++
                             }
                         }.start()
@@ -414,6 +406,14 @@ fun RetroDefaultsScreen() {
             }
         }
     }
+}
+
+private fun scanMessage(result: RetroRomScanner.Result): String {
+    val parts = buildList {
+        if (result.added > 0) add("added ${result.added}")
+        if (result.removed > 0) add("removed ${result.removed}")
+    }
+    return if (parts.isEmpty()) "Library up to date" else "ROMs: ${parts.joinToString(", ")}"
 }
 
 private data class RetroCredit(

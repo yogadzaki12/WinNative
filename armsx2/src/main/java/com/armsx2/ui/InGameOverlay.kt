@@ -53,6 +53,7 @@ object InGameOverlay {
     }
 
     fun open() {
+        if (com.armsx2.WinNativeHost.enabled()) return
         if (WindowImpl.overlayVisible.value) return
         val serial = MainActivityRuntime.currentGame.value?.settingsKey
             ?: runCatching { NativeApp.getPauseGameSerial() }.getOrNull()?.takeIf(String::isNotBlank)

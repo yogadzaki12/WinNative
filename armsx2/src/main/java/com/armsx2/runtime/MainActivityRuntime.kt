@@ -2840,11 +2840,12 @@ open class MainActivityRuntime : ComponentActivity() {
     // whole app IS the frontend (root library + every manager/settings sub-screen
     // reached from the drawer), so the pad drives it unconditionally.
     private fun controllerDrivesFrontend(): Boolean =
-        WindowImpl.overlayVisible.value ||
-            WindowImpl.inGameScreen.value != null ||
-            WindowImpl.showLibrary.value ||
-            com.armsx2.ui.MemoryCardManager.visible.value ||
-            eState.value != EmuState.RUNNING
+        !com.armsx2.WinNativeHost.enabled() &&
+            (WindowImpl.overlayVisible.value ||
+                WindowImpl.inGameScreen.value != null ||
+                WindowImpl.showLibrary.value ||
+                com.armsx2.ui.MemoryCardManager.visible.value ||
+                eState.value != EmuState.RUNNING)
 
     // B / BACK from any frontend surface EXCEPT the pause overlay, the memcard
     // dialog and the library cover grid (each consumes its own B earlier). Peels

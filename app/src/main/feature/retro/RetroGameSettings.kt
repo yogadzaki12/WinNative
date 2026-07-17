@@ -870,6 +870,10 @@ private fun RetroArtworkActionButton(
 
 @Composable
 private fun RetroGraphicsSection(state: RetroSettingsState) {
+    if (state.system?.isExternal == true) {
+        RetroPs2GraphicsSection()
+        return
+    }
     RetroSettingGroup {
         RetroGroupTitle("VIDEO")
         RetroSettingDropdown(
@@ -919,6 +923,80 @@ private fun RetroGraphicsSection(state: RetroSettingsState) {
 }
 
 @Composable
+private fun RetroPs2GraphicsSection() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember(context) { context.getSharedPreferences("ARMSX2", android.content.Context.MODE_PRIVATE) }
+    var version by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+
+    @Suppress("UNUSED_EXPRESSION") version
+
+    fun putInt(key: String, value: Int) { prefs.edit().putInt(key, value).apply(); version++ }
+    fun putBool(key: String, value: Boolean) { prefs.edit().putBoolean(key, value).apply(); version++ }
+    fun putStr(key: String, value: String) { prefs.edit().putString(key, value).apply(); version++ }
+    fun putFloat(key: String, value: Float) { prefs.edit().putFloat(key, value).apply(); version++ }
+
+    RetroSettingGroup {
+        RetroGroupTitle("VIDEO")
+        val rendererKeys = listOf("vulkan", "opengl", "software")
+        RetroSettingDropdown(
+            "Renderer", listOf("Vulkan", "OpenGL", "Software"),
+            rendererKeys.indexOf(prefs.getString("wn.ps2.renderer", "vulkan")).coerceAtLeast(0),
+        ) { putStr("wn.ps2.renderer", rendererKeys[it]) }
+        val scales = listOf(1f, 1.5f, 2f, 3f, 4f)
+        RetroSettingDropdown(
+            "Resolution Scale", listOf("1x (Native)", "1.5x", "2x", "3x", "4x"),
+            scales.indexOfFirst { kotlin.math.abs(it - prefs.getFloat("wn.ps2.upscale", 1f)) < 0.01f }.coerceAtLeast(0),
+        ) { putFloat("wn.ps2.upscale", scales[it]) }
+        RetroSettingDropdown(
+            "Aspect Ratio", listOf("Stretch", "Auto (Standard)", "4:3", "16:9"),
+            prefs.getInt("wn.ps2.aspect", 1).coerceIn(0, 3),
+        ) { putInt("wn.ps2.aspect", it) }
+        RetroSettingDropdown(
+            "Display Filter", listOf("Nearest", "Bilinear (Smooth)", "Bilinear (Sharp)"),
+            prefs.getInt("wn.ps2.displayfilter", 1).coerceIn(0, 2),
+        ) { putInt("wn.ps2.displayfilter", it) }
+        RetroSettingDropdown(
+            "Texture Filter", listOf("Nearest", "Bilinear (Forced)", "Bilinear (PS2)", "Bilinear (Sprites)"),
+            prefs.getInt("wn.ps2.filter", 2).coerceIn(0, 3),
+        ) { putInt("wn.ps2.filter", it) }
+        RetroSettingDropdown(
+            "Blending Accuracy", listOf("Minimum", "Basic", "Medium", "High", "Full", "Maximum"),
+            prefs.getInt("wn.ps2.blend", 1).coerceIn(0, 5),
+        ) { putInt("wn.ps2.blend", it) }
+        RetroSettingDropdown(
+            "CRT / TV Shader", listOf("Off", "Scanline", "Diagonal", "Triangular", "Wave", "Lottes", "4xRGSS", "NxAGSS"),
+            prefs.getInt("wn.ps2.tvshader", 0).coerceIn(0, 7),
+        ) { putInt("wn.ps2.tvshader", it) }
+        RetroSettingDropdown(
+            "Frame Skip", listOf("Off", "Skip 1", "Skip 2", "Skip 3"),
+            prefs.getInt("wn.ps2.frameskip", 0).coerceIn(0, 3),
+        ) { putInt("wn.ps2.frameskip", it) }
+        RetroSettingSwitch("Mipmapping", prefs.getBoolean("wn.ps2.mipmap", true)) { putBool("wn.ps2.mipmap", it) }
+    }
+    Spacer(Modifier.height(12.dp))
+    RetroSettingGroup {
+        RetroGroupTitle("PERFORMANCE")
+        val rateValues = listOf(-3, -2, -1, 0, 1, 2, 3)
+        RetroSettingDropdown(
+            "EE Cycle Rate", listOf("50%", "60%", "75%", "100% (Default)", "130%", "180%", "300%"),
+            rateValues.indexOf(prefs.getInt("wn.ps2.eeRate", 0).coerceIn(-3, 3)).coerceAtLeast(0),
+        ) { putInt("wn.ps2.eeRate", rateValues[it]) }
+        RetroSettingDropdown(
+            "EE Cycle Skip", listOf("Off", "1", "2", "3"),
+            prefs.getInt("wn.ps2.eeSkip", 0).coerceIn(0, 3),
+        ) { putInt("wn.ps2.eeSkip", it) }
+        RetroSettingSwitch("Instant VU1", prefs.getBoolean("wn.ps2.instantVu1", true)) { putBool("wn.ps2.instantVu1", it) }
+        RetroSettingSwitch("Multi-Threaded VU (MTVU)", prefs.getBoolean("wn.ps2.mtvu", true)) { putBool("wn.ps2.mtvu", it) }
+        RetroSettingSwitch("Fast CDVD", prefs.getBoolean("wn.ps2.fastCdvd", false)) { putBool("wn.ps2.fastCdvd", it) }
+    }
+    Spacer(Modifier.height(12.dp))
+    RetroSettingGroup {
+        RetroGroupTitle("PERFORMANCE HUD")
+        RetroSettingSwitch("Show FPS", prefs.getBoolean("wn.osd.fps", false)) { putBool("wn.osd.fps", it) }
+    }
+}
+
+@Composable
 private fun RetroInputSection(state: RetroSettingsState) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs =
@@ -963,6 +1041,22 @@ private fun RetroInputSection(state: RetroSettingsState) {
 
 @Composable
 private fun RetroAudioSection(state: RetroSettingsState) {
+    if (state.system?.isExternal == true) {
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val prefs = remember(context) { context.getSharedPreferences("ARMSX2", android.content.Context.MODE_PRIVATE) }
+        var version by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+        @Suppress("UNUSED_EXPRESSION") version
+        RetroSettingGroup {
+            RetroGroupTitle("AUDIO")
+            RetroSettingSwitch("Mute", prefs.getBoolean("wn.ps2.muted", false)) {
+                prefs.edit().putBoolean("wn.ps2.muted", it).apply(); version++
+            }
+            RetroSettingSwitch("Swap Stereo Channels", prefs.getBoolean("wn.ps2.swap", false)) {
+                prefs.edit().putBoolean("wn.ps2.swap", it).apply(); version++
+            }
+        }
+        return
+    }
     RetroSettingGroup {
         RetroGroupTitle("AUDIO")
         RetroSettingSwitch(

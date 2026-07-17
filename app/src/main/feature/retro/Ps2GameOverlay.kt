@@ -107,6 +107,13 @@ object Ps2GameOverlay {
             NativeApp.speedhackEecycleskip(prefs.getInt("wn.ps2.eeSkip", 0).coerceIn(0, 3))
             NativeApp.setInstantVU1(prefs.getBoolean("wn.ps2.instantVu1", true))
             NativeApp.renderTvShader(prefs.getInt("wn.ps2.tvshader", 0).coerceIn(0, 7))
+            NativeApp.setSetting("EmuCore/GS", "linear_present_mode", "int", prefs.getInt("wn.ps2.displayfilter", 1).coerceIn(0, 2).toString())
+            NativeApp.setSetting("EmuCore/GS", "filter", "int", prefs.getInt("wn.ps2.filter", 2).coerceIn(0, 3).toString())
+            NativeApp.setSetting("EmuCore/GS", "accurate_blending_unit", "int", prefs.getInt("wn.ps2.blend", 1).coerceIn(0, 5).toString())
+            NativeApp.setSetting("EmuCore/GS", "hw_mipmap", "bool", prefs.getBoolean("wn.ps2.mipmap", true).toString())
+            NativeApp.setSetting("EmuCore/Speedhacks", "vuThread", "bool", prefs.getBoolean("wn.ps2.mtvu", true).toString())
+            NativeApp.setSetting("EmuCore/Speedhacks", "fastCDVD", "bool", prefs.getBoolean("wn.ps2.fastCdvd", false).toString())
+            NativeApp.commitSettings()
         }
         fun osd(key: String) = prefs.getBoolean("wn.osd.$key", false)
         fun setOsd(key: String, value: Boolean, apply: (Boolean) -> Unit) {
@@ -650,17 +657,6 @@ object Ps2GameOverlay {
                         }
                         if (!covered) {
                             RetroDrawerMenu(menu)
-                            BackHandler(enabled = true) {
-                                when {
-                                    pad?.editMode == true -> pad?.finishEdit()
-                                    menu.visible -> menu.handleKey(KeyEvent.KEYCODE_BACK, KeyEvent.ACTION_UP)
-                                    else -> {
-                                        pad?.releaseAll()
-                                        menu.rebuild()
-                                        menu.open()
-                                    }
-                                }
-                            }
                         }
                     }
                 }
@@ -675,6 +671,22 @@ object Ps2GameOverlay {
             activity.window.callback =
                 object : android.view.Window.Callback by prevCallback {
                     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+                        if (ps2Screen.value == null && event.keyCode == KeyEvent.KEYCODE_BACK) {
+                            if (event.action == KeyEvent.ACTION_UP) {
+                                activity.runOnUiThread {
+                                    when {
+                                        pad?.editMode == true -> pad?.finishEdit()
+                                        menu.visible -> menu.handleKey(KeyEvent.KEYCODE_BACK, KeyEvent.ACTION_UP)
+                                        else -> {
+                                            pad?.releaseAll()
+                                            menu.rebuild()
+                                            menu.open()
+                                        }
+                                    }
+                                }
+                            }
+                            return true
+                        }
                         if (ps2Screen.value == null && menu.visible &&
                             menu.handleKey(event.keyCode, event.action)
                         ) {
