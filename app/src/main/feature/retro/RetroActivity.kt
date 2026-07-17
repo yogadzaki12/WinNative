@@ -13,6 +13,8 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
+import androidx.activity.addCallback
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -355,6 +357,21 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
 
         val root = FrameLayout(this)
         rootLayout = root
+
+        val callback = object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (retroReady) {
+                    if (menu.visible) {
+                        menu.close()
+                        return
+                    }
+                    overlay?.releaseAll()
+                    menu.open()
+                }
+            }
+        }
+
+        onBackPressedDispatcher.addCallback(this, callback)
 
         val inputView = RetroInputView(this, this, resolvedSystem)
         inputView.hapticStrength =
