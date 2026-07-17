@@ -1485,20 +1485,19 @@ class RetroInputView(
             ty: Float,
             dxu: Float,
             dyu: Float,
-            engaged: Boolean,
         ) {
             arrowPath(tx, ty + tip * 0.14f, dxu, dyu)
             paint.color = shadowTint(120)
             canvas.drawPath(path, paint)
             arrowPath(tx, ty, dxu, dyu)
-            paint.color = if (engaged) 0xFF53C7FF.toInt() else arrowBase
+            paint.color = arrowBase
             canvas.drawPath(path, paint)
         }
         val arrowDist = r * 0.66f
-        arrow(cx, cy - arrowDist, 0f, -1f, pressedUp)
-        arrow(cx, cy + arrowDist, 0f, 1f, pressedDown)
-        arrow(cx - arrowDist, cy, -1f, 0f, pressedLeft)
-        arrow(cx + arrowDist, cy, 1f, 0f, pressedRight)
+        arrow(cx, cy - arrowDist, 0f, -1f)
+        arrow(cx, cy + arrowDist, 0f, 1f)
+        arrow(cx - arrowDist, cy, -1f, 0f)
+        arrow(cx + arrowDist, cy, 1f, 0f)
     }
 
     private fun drawStick2(canvas: Canvas) {

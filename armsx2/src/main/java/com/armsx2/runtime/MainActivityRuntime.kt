@@ -638,6 +638,23 @@ open class MainActivityRuntime : ComponentActivity() {
                 }
             }
 
+            runCatching {
+                val netOn = prefs.getBoolean("wn.ps2.net.enable", false)
+                NativeApp.setSetting("DEV9/Eth", "EthEnable", "bool", netOn.toString())
+                if (netOn) {
+                    NativeApp.setSetting("DEV9/Eth", "EthApi", "string", "Sockets")
+                    NativeApp.setSetting("DEV9/Eth", "EthDevice", "string", (prefs.getString("wn.ps2.net.ethdevice", "Auto") ?: "Auto").ifBlank { "Auto" })
+                    NativeApp.setSetting("DEV9/Eth", "InterceptDHCP", "bool", prefs.getBoolean("wn.ps2.net.dhcp", true).toString())
+                    NativeApp.setSetting("DEV9/Eth", "AutoMask", "bool", "true")
+                    NativeApp.setSetting("DEV9/Eth", "AutoGateway", "bool", "true")
+                    val dnsMode = prefs.getString("wn.ps2.net.dnsmode", "Manual") ?: "Manual"
+                    NativeApp.setSetting("DEV9/Eth", "ModeDNS1", "string", dnsMode)
+                    NativeApp.setSetting("DEV9/Eth", "ModeDNS2", "string", "Auto")
+                    NativeApp.setSetting("DEV9/Eth", "DNS1", "string", (prefs.getString("wn.ps2.net.dns1", "45.7.228.197") ?: "45.7.228.197").ifBlank { "45.7.228.197" })
+                    NativeApp.setSetting("DEV9/Eth", "DNS2", "string", (prefs.getString("wn.ps2.net.dns2", "") ?: "").ifBlank { "0.0.0.0" })
+                }
+            }
+
             // Settings.applyTo() above writes the persisted FrameLimitEnable
             // into the BASE settings layer; override it here with the
             // in-session overlay toggle so the user's runtime choice sticks
