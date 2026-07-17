@@ -403,6 +403,11 @@ class RetroInputView(
     private var dpadY = 0f
     private var menuLatched = false
 
+    private val pointerButton = HashMap<Int, Int>()
+    private val pointerCButton = HashMap<Int, CButton>()
+    private var dpadPointerId = -1
+    private var menuPointerId = -1
+
     private var strokeWidth = 4f
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val path = Path()
@@ -1878,6 +1883,10 @@ class RetroInputView(
     fun releaseAll() {
         for (keyCode in pressedButtons) listener.onButton(keyCode, false)
         pressedButtons.clear()
+        pointerButton.clear()
+        pointerCButton.clear()
+        dpadPointerId = -1
+        menuPointerId = -1
         if (dpadX != 0f || dpadY != 0f) {
             dpadX = 0f
             dpadY = 0f
@@ -1951,6 +1960,24 @@ class RetroInputView(
             event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL
         val liftedPointer =
             if (event.actionMasked == MotionEvent.ACTION_POINTER_UP) event.actionIndex else -1
+        val downId =
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN ->
+                    event.getPointerId(event.actionIndex)
+                else -> -1
+            }
+
+        val activeIds = HashSet<Int>()
+        if (!released) {
+            for (i in 0 until event.pointerCount) {
+                if (i == liftedPointer) continue
+                activeIds.add(event.getPointerId(i))
+            }
+        }
+        pointerButton.keys.retainAll(activeIds)
+        pointerCButton.keys.retainAll(activeIds)
+        if (dpadPointerId != -1 && dpadPointerId !in activeIds) dpadPointerId = -1
+        if (menuPointerId != -1 && menuPointerId !in activeIds) menuPointerId = -1
 
         val newPressed = HashSet<Int>()
         var newDpadX = 0f
@@ -1971,6 +1998,7 @@ class RetroInputView(
                 val x = event.getX(i)
                 val y = event.getY(i)
                 val pointerId = event.getPointerId(i)
+                val isNewDown = pointerId == downId
 
                 if (config.hasDualSticks && stickVisible) {
                     if (pointerId == stick2PointerId) {
@@ -1979,7 +2007,7 @@ class RetroInputView(
                         newStick2Y = ((y - stick2Cy) / stick2Radius).coerceIn(-1f, 1f)
                         continue
                     }
-                    if (stick2PointerId == -1 &&
+                    if (isNewDown && stick2PointerId == -1 &&
                         hypot(x - stick2Cx, y - stick2Cy) <= stick2Radius * 1.3f
                     ) {
                         stick2PointerId = pointerId
@@ -1998,7 +2026,7 @@ class RetroInputView(
                         newStickY = ((y - stickCy) / stickRadius).coerceIn(-1f, 1f)
                         continue
                     }
-                    if (stickPointerId == -1 &&
+                    if (isNewDown && stickPointerId == -1 &&
                         hypot(x - stickCx, y - stickCy) <= stickRadius * 1.3f
                     ) {
                         stickPointerId = pointerId
@@ -2010,36 +2038,62 @@ class RetroInputView(
                     }
                 }
 
-                if (hitButton(menuButton, x, y)) {
+                if (pointerId == menuPointerId) {
+                    menuTouched = true
+                    continue
+                }
+                if (isNewDown && menuPointerId == -1 && hitButton(menuButton, x, y)) {
+                    menuPointerId = pointerId
                     menuTouched = true
                     continue
                 }
 
-                var cHit = false
-                for (c in cButtons) {
-                    val reach = c.bounds.width() * 0.5f + snap * 1.2f
-                    if (hypot(x - c.bounds.centerX(), y - c.bounds.centerY()) <= reach) {
-                        if (c.dx != 0f) newCX = c.dx
-                        if (c.dy != 0f) newCY = c.dy
-                        cHit = true
-                        break
-                    }
+                val ownedC = pointerCButton[pointerId]
+                if (ownedC != null) {
+                    if (ownedC.dx != 0f) newCX = ownedC.dx
+                    if (ownedC.dy != 0f) newCY = ownedC.dy
+                    continue
                 }
-                if (cHit) continue
-
-                var buttonHit = false
-                for (button in buttons) {
-                    if (hitButton(button, x, y)) {
-                        newPressed.add(button.keyCode)
-                        buttonHit = true
-                        break
+                if (isNewDown) {
+                    var cHit = false
+                    for (c in cButtons) {
+                        val reach = c.bounds.width() * 0.5f + snap * 1.2f
+                        if (hypot(x - c.bounds.centerX(), y - c.bounds.centerY()) <= reach) {
+                            pointerCButton[pointerId] = c
+                            if (c.dx != 0f) newCX = c.dx
+                            if (c.dy != 0f) newCY = c.dy
+                            cHit = true
+                            break
+                        }
                     }
+                    if (cHit) continue
                 }
-                if (buttonHit) continue
 
-                val dxToPad = x - dpadCx
-                val dyToPad = y - dpadCy
-                if (dpadVisible && hypot(dxToPad, dyToPad) <= dpadRadius * 1.4f) {
+                val ownedB = pointerButton[pointerId]
+                if (ownedB != null) {
+                    newPressed.add(ownedB)
+                    continue
+                }
+                if (isNewDown) {
+                    var buttonHit = false
+                    for (button in buttons) {
+                        if (hitButton(button, x, y)) {
+                            pointerButton[pointerId] = button.keyCode
+                            newPressed.add(button.keyCode)
+                            buttonHit = true
+                            break
+                        }
+                    }
+                    if (buttonHit) continue
+                }
+
+                if (dpadVisible && (pointerId == dpadPointerId ||
+                        (isNewDown && dpadPointerId == -1 &&
+                            hypot(x - dpadCx, y - dpadCy) <= dpadRadius * 1.4f))
+                ) {
+                    dpadPointerId = pointerId
+                    val dxToPad = x - dpadCx
+                    val dyToPad = y - dpadCy
                     val dz = dpadRadius * 0.24f
                     if (dxToPad > dz) newDpadX = 1f else if (dxToPad < -dz) newDpadX = -1f
                     if (dyToPad > dz) newDpadY = 1f else if (dyToPad < -dz) newDpadY = -1f
