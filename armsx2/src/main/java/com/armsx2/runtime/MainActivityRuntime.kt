@@ -536,6 +536,11 @@ open class MainActivityRuntime : ComponentActivity() {
         }
 
         private fun applyRendererPrefs() {
+            // WinNative host: push the PS2 boot config (DEV9 NIC/HDD, etc.) into
+            // EmuConfig BEFORE runVMThread, so hardware the game enumerates at
+            // power-on is present. The overlay's own pass runs post-attach — too
+            // late for the boot probe (would leave online games seeing no adapter).
+            instance?.applicationContext?.let { com.armsx2.WinNativeHost.applyBootSettings?.invoke(it) }
             // Resolve per-game (∘ global) settings up front so the renderer backend
             // and internal resolution come from THIS title's tier, not a stale
             // global value. Sync the session state the Renderer UI reads, too.

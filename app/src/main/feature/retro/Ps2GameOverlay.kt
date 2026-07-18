@@ -84,6 +84,85 @@ object Ps2GameOverlay {
 
     fun install() {
         WinNativeHost.attachOverlay = { activity -> attach(activity) }
+        WinNativeHost.applyBootSettings = { ctx -> applyBootConfig(ctx) }
+    }
+
+    private fun ps2Prefs(ctx: android.content.Context) =
+        ctx.getSharedPreferences("ARMSX2", android.content.Context.MODE_PRIVATE)
+
+    // The virtual PS2 HDD image (DEV9). The emucore never auto-creates it —
+    // ATA::Open just fails on a missing file — so we make a sparse 8 GiB image
+    // (ftruncate: near-zero real bytes until written) on internal storage, which
+    // the game formats itself like a fresh physical HDD.
+    private fun hddImageFile(ctx: android.content.Context): java.io.File =
+        java.io.File(ctx.filesDir, "hdd/DEV9hdd.raw")
+
+    private fun ensureHddImage(ctx: android.content.Context) {
+        if (!ps2Prefs(ctx).getBoolean("wn.ps2.hdd", false)) return
+        val img = hddImageFile(ctx)
+        if (img.exists() && img.length() > 0L) return
+        runCatching {
+            img.parentFile?.mkdirs()
+            java.io.RandomAccessFile(img, "rw").use { it.setLength(8L * 1024 * 1024 * 1024) }
+        }
+    }
+
+    private fun readHosts(prefs: android.content.SharedPreferences): List<Ps2NetHost> {
+        val raw = prefs.getString("wn.ps2.net.hosts", "") ?: ""
+        if (raw.isBlank()) return emptyList()
+        return runCatching {
+            val arr = org.json.JSONArray(raw)
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                Ps2NetHost(o.optString("url"), o.optString("ip", "0.0.0.0"))
+            }.filter { it.url.isNotBlank() }
+        }.getOrDefault(emptyList())
+    }
+
+    /** Write the full DEV9 config (Ethernet NIC + virtual HDD) into EmuConfig. */
+    private fun writeDev9Settings(ctx: android.content.Context) {
+        val prefs = ps2Prefs(ctx)
+        val on = prefs.getBoolean("wn.ps2.net.enable", false)
+        NativeApp.setSetting("DEV9/Eth", "EthEnable", "bool", on.toString())
+        NativeApp.setSetting("DEV9/Eth", "EthApi", "string", "Sockets")
+        NativeApp.setSetting("DEV9/Eth", "EthDevice", "string", (prefs.getString("wn.ps2.net.ethdevice", "Auto") ?: "Auto").ifBlank { "Auto" })
+        NativeApp.setSetting("DEV9/Eth", "InterceptDHCP", "bool", prefs.getBoolean("wn.ps2.net.dhcp", true).toString())
+        NativeApp.setSetting("DEV9/Eth", "AutoMask", "bool", "true")
+        NativeApp.setSetting("DEV9/Eth", "AutoGateway", "bool", "true")
+        val hosts = readHosts(prefs)
+        // Custom host overrides are only consulted by the emulator's INTERNAL DNS
+        // server (it answers from the EthHosts table); in Manual/Auto mode the PS2
+        // queries an external resolver and the overrides are ignored. So whenever
+        // the user has any host mappings, force DNS1 to Internal — otherwise honor
+        // their chosen mode (e.g. Manual + a revival DNS like the default).
+        val mode = if (hosts.isNotEmpty()) "Internal" else (prefs.getString("wn.ps2.net.dnsmode", "Manual") ?: "Manual")
+        NativeApp.setSetting("DEV9/Eth", "ModeDNS1", "string", mode)
+        NativeApp.setSetting("DEV9/Eth", "ModeDNS2", "string", "Auto")
+        NativeApp.setSetting("DEV9/Eth", "DNS1", "string", (prefs.getString("wn.ps2.net.dns1", PS2_DEFAULT_DNS) ?: PS2_DEFAULT_DNS).ifBlank { PS2_DEFAULT_DNS })
+        NativeApp.setSetting("DEV9/Eth", "DNS2", "string", (prefs.getString("wn.ps2.net.dns2", "") ?: "").ifBlank { "0.0.0.0" })
+        NativeApp.setSetting("DEV9/Eth/Hosts", "Count", "int", hosts.size.toString())
+        hosts.forEachIndexed { i, h ->
+            NativeApp.setSetting("DEV9/Eth/Hosts/Host$i", "Url", "string", h.url)
+            NativeApp.setSetting("DEV9/Eth/Hosts/Host$i", "Desc", "string", "WinNative")
+            NativeApp.setSetting("DEV9/Eth/Hosts/Host$i", "Address", "string", h.ip.ifBlank { "0.0.0.0" })
+            NativeApp.setSetting("DEV9/Eth/Hosts/Host$i", "Enabled", "bool", "true")
+        }
+        // Virtual PS2 HDD (DEV9/Hdd). Independent of Ethernet — DEV9 activates if
+        // either the NIC or the HDD is enabled.
+        val hddOn = prefs.getBoolean("wn.ps2.hdd", false)
+        NativeApp.setSetting("DEV9/Hdd", "HddEnable", "bool", hddOn.toString())
+        NativeApp.setSetting("DEV9/Hdd", "HddFile", "string", hddImageFile(ctx).absolutePath)
+    }
+
+    /** Pre-boot hook (see WinNativeHost.applyBootSettings): pin the DEV9 NIC/HDD
+     *  into EmuConfig before the VM enumerates hardware, so online play and the
+     *  virtual HDD are detected on the very first boot rather than a frame late. */
+    fun applyBootConfig(ctx: android.content.Context) {
+        runCatching {
+            ensureHddImage(ctx)
+            writeDev9Settings(ctx)
+            NativeApp.commitSettings()
+        }
     }
 
     private fun mapFace(keyCode: Int): Int =
@@ -141,17 +220,7 @@ object Ps2GameOverlay {
 
         val netEdit = mutableStateOf<Ps2NetEdit?>(null)
 
-        fun readHosts(): List<Ps2NetHost> {
-            val raw = prefs.getString("wn.ps2.net.hosts", "") ?: ""
-            if (raw.isBlank()) return emptyList()
-            return runCatching {
-                val arr = org.json.JSONArray(raw)
-                (0 until arr.length()).map { i ->
-                    val o = arr.getJSONObject(i)
-                    Ps2NetHost(o.optString("url"), o.optString("ip", "0.0.0.0"))
-                }.filter { it.url.isNotBlank() }
-            }.getOrDefault(emptyList())
-        }
+        fun readHosts(): List<Ps2NetHost> = readHosts(prefs)
 
         fun writeHosts(hosts: List<Ps2NetHost>) {
             val arr = org.json.JSONArray()
@@ -159,54 +228,9 @@ object Ps2GameOverlay {
             prefs.edit().putString("wn.ps2.net.hosts", arr.toString()).apply()
         }
 
-        // The virtual PS2 HDD image (DEV9). The emucore never auto-creates it —
-        // ATA::Open just fails on a missing file — so we make a sparse 8 GiB image
-        // (ftruncate: near-zero real bytes until written) on internal storage,
-        // which the game formats itself like a fresh physical HDD.
-        fun hddImage(): java.io.File = java.io.File(activity.filesDir, "hdd/DEV9hdd.raw")
+        fun ensureHddImage() = ensureHddImage(activity)
 
-        fun ensureHddImage() {
-            if (!prefs.getBoolean("wn.ps2.hdd", false)) return
-            val img = hddImage()
-            if (img.exists() && img.length() > 0L) return
-            runCatching {
-                img.parentFile?.mkdirs()
-                java.io.RandomAccessFile(img, "rw").use { it.setLength(8L * 1024 * 1024 * 1024) }
-            }
-        }
-
-        fun writeNetworkSettings() {
-            val on = prefs.getBoolean("wn.ps2.net.enable", false)
-            NativeApp.setSetting("DEV9/Eth", "EthEnable", "bool", on.toString())
-            NativeApp.setSetting("DEV9/Eth", "EthApi", "string", "Sockets")
-            NativeApp.setSetting("DEV9/Eth", "EthDevice", "string", (prefs.getString("wn.ps2.net.ethdevice", "Auto") ?: "Auto").ifBlank { "Auto" })
-            NativeApp.setSetting("DEV9/Eth", "InterceptDHCP", "bool", prefs.getBoolean("wn.ps2.net.dhcp", true).toString())
-            NativeApp.setSetting("DEV9/Eth", "AutoMask", "bool", "true")
-            NativeApp.setSetting("DEV9/Eth", "AutoGateway", "bool", "true")
-            val hosts = readHosts()
-            // Custom host overrides are only consulted by the emulator's INTERNAL DNS
-            // server (it answers from the EthHosts table); in Manual/Auto mode the PS2
-            // queries an external resolver and the overrides are ignored. So whenever
-            // the user has any host mappings, force DNS1 to Internal — otherwise honor
-            // their chosen mode (e.g. Manual + a revival DNS like the default).
-            val mode = if (hosts.isNotEmpty()) "Internal" else (prefs.getString("wn.ps2.net.dnsmode", "Manual") ?: "Manual")
-            NativeApp.setSetting("DEV9/Eth", "ModeDNS1", "string", mode)
-            NativeApp.setSetting("DEV9/Eth", "ModeDNS2", "string", "Auto")
-            NativeApp.setSetting("DEV9/Eth", "DNS1", "string", (prefs.getString("wn.ps2.net.dns1", PS2_DEFAULT_DNS) ?: PS2_DEFAULT_DNS).ifBlank { PS2_DEFAULT_DNS })
-            NativeApp.setSetting("DEV9/Eth", "DNS2", "string", (prefs.getString("wn.ps2.net.dns2", "") ?: "").ifBlank { "0.0.0.0" })
-            NativeApp.setSetting("DEV9/Eth/Hosts", "Count", "int", hosts.size.toString())
-            hosts.forEachIndexed { i, h ->
-                NativeApp.setSetting("DEV9/Eth/Hosts/Host$i", "Url", "string", h.url)
-                NativeApp.setSetting("DEV9/Eth/Hosts/Host$i", "Desc", "string", "WinNative")
-                NativeApp.setSetting("DEV9/Eth/Hosts/Host$i", "Address", "string", h.ip.ifBlank { "0.0.0.0" })
-                NativeApp.setSetting("DEV9/Eth/Hosts/Host$i", "Enabled", "bool", "true")
-            }
-            // Virtual PS2 HDD (DEV9/Hdd). Independent of Ethernet — DEV9 activates if
-            // either the NIC or the HDD is enabled.
-            val hddOn = prefs.getBoolean("wn.ps2.hdd", false)
-            NativeApp.setSetting("DEV9/Hdd", "HddEnable", "bool", hddOn.toString())
-            NativeApp.setSetting("DEV9/Hdd", "HddFile", "string", hddImage().absolutePath)
-        }
+        fun writeNetworkSettings() = writeDev9Settings(activity)
 
         fun applyNetwork() = bg {
             writeNetworkSettings()

@@ -12,6 +12,17 @@ object WinNativeHost {
     @Volatile
     var attachOverlay: ((ComponentActivity) -> Unit)? = null
 
+    /**
+     * Applied by MainActivityRuntime BEFORE the VM boots (runVMThread), so
+     * config that the PS2 reads while enumerating hardware at power-on — most
+     * importantly the DEV9 network adapter (EthEnable) and virtual HDD — is
+     * already in place. The overlay's own settings pass runs post-attach, which
+     * is a frame too late for the boot-time hardware probe; a game like NFS
+     * Underground 2 would then report "no network adapter detected".
+     */
+    @Volatile
+    var applyBootSettings: ((android.content.Context) -> Unit)? = null
+
     fun enabled(): Boolean =
         attachOverlay != null &&
             runCatching {
