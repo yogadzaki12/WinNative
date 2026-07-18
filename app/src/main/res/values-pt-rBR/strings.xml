@@ -2136,5 +2136,10 @@ Caminho instalado:
     <string name="retro_gpu_driver">Driver de GPU</string>
     <string name="retro_gpu_driver_system">Sistema (Padrão)</string>
     <string name="retro_gpu_driver_hint">Instale os drivers Turnip em Configurações \u2192 Drivers. Os mesmos drivers funcionam para jogos de PC e de PS2.</string>
+    <!-- PS2 virtual HDD + DNS host hint -->
+    <string name="retro_ps2_hdd">HDD do PS2 (DEV9)</string>
+    <string name="retro_ps2_hdd_subtitle">Unidade interna virtual para jogos baseados em HDD como Final Fantasy XI. Reinicia o jogo.</string>
+    <string name="retro_ps2_hdd_desc">Unidade interna virtual para jogos baseados em HDD como Final Fantasy XI.</string>
+    <string name="retro_ps2_dns_auto_internal">Modo DNS definido como Internal para que seus hosts de servidor personalizados tenham efeito.</string>
 </resources>
 

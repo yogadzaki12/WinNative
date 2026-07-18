@@ -2133,4 +2133,9 @@
     <string name="retro_gpu_driver">GPUドライバー</string>
     <string name="retro_gpu_driver_system">システム（デフォルト）</string>
     <string name="retro_gpu_driver_hint">Turnipドライバーは設定 \u2192 ドライバーからインストールします。同じドライバーがPCとPS2の両方のゲームで動作します。</string>
+    <!-- PS2 virtual HDD + DNS host hint -->
+    <string name="retro_ps2_hdd">PS2 HDD (DEV9)</string>
+    <string name="retro_ps2_hdd_subtitle">Final Fantasy XI などの HDD ベースのゲーム用の仮想内蔵ドライブ。ゲームを再起動します。</string>
+    <string name="retro_ps2_hdd_desc">Final Fantasy XI などの HDD ベースのゲーム用の仮想内蔵ドライブ。</string>
+    <string name="retro_ps2_dns_auto_internal">カスタムサーバーホストを有効にするため、DNS モードを Internal に設定しました。</string>
 </resources>

@@ -2135,5 +2135,10 @@
     <string name="retro_gpu_driver">GPU 驅動程式</string>
     <string name="retro_gpu_driver_system">系統（預設）</string>
     <string name="retro_gpu_driver_hint">在設定 \u2192 驅動程式中安裝 Turnip 驅動程式。同一驅動程式適用於 PC 和 PS2 遊戲。</string>
+    <!-- PS2 virtual HDD + DNS host hint -->
+    <string name="retro_ps2_hdd">PS2 HDD (DEV9)</string>
+    <string name="retro_ps2_hdd_subtitle">用於 Final Fantasy XI 等基於 HDD 的遊戲的虛擬內建磁碟機。將重新啟動遊戲。</string>
+    <string name="retro_ps2_hdd_desc">用於 Final Fantasy XI 等基於 HDD 的遊戲的虛擬內建磁碟機。</string>
+    <string name="retro_ps2_dns_auto_internal">DNS 模式已設為 Internal，讓你的自訂伺服器主機生效。</string>
 </resources>
 

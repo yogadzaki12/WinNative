@@ -2142,5 +2142,10 @@
     <string name="retro_gpu_driver">Драйвер GPU</string>
     <string name="retro_gpu_driver_system">Системний (За замовчуванням)</string>
     <string name="retro_gpu_driver_hint">Встановіть драйвери Turnip у розділі Налаштування \u2192 Драйвери. Одні й ті самі драйвери працюють для ігор PC та PS2.</string>
+    <!-- PS2 virtual HDD + DNS host hint -->
+    <string name="retro_ps2_hdd">HDD PS2 (DEV9)</string>
+    <string name="retro_ps2_hdd_subtitle">Віртуальний внутрішній диск для ігор на HDD, як-от Final Fantasy XI. Перезапускає гру.</string>
+    <string name="retro_ps2_hdd_desc">Віртуальний внутрішній диск для ігор на HDD, як-от Final Fantasy XI.</string>
+    <string name="retro_ps2_dns_auto_internal">Режим DNS встановлено на Internal, щоб ваші власні хости сервера набули чинності.</string>
 </resources>
 

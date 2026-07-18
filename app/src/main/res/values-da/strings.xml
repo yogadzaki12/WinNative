@@ -2137,4 +2137,9 @@ Installeret sti:
     <string name="retro_gpu_driver">GPU-driver</string>
     <string name="retro_gpu_driver_system">System (Standard)</string>
     <string name="retro_gpu_driver_hint">Installer Turnip-drivere under Indstillinger \u2192 Drivere. De samme drivere virker til både PC- og PS2-spil.</string>
+    <!-- PS2 virtual HDD + DNS host hint -->
+    <string name="retro_ps2_hdd">PS2 HDD (DEV9)</string>
+    <string name="retro_ps2_hdd_subtitle">Virtuelt internt drev til HDD-baserede spil som Final Fantasy XI. Genstarter spillet.</string>
+    <string name="retro_ps2_hdd_desc">Virtuelt internt drev til HDD-baserede spil som Final Fantasy XI.</string>
+    <string name="retro_ps2_dns_auto_internal">DNS-tilstand indstillet til Internal, så dine tilpassede serverhosts træder i kraft.</string>
 </resources>

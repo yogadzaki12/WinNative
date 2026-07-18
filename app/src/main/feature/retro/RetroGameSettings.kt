@@ -1201,6 +1201,13 @@ private fun RetroPs2OnlineSection() {
         RetroGroupTitle(stringResource(R.string.retro_gs_group_online_dev9))
         val onlineEnabled = prefs.getBoolean("wn.ps2.net.enable", false)
         RetroSettingSwitch(stringResource(R.string.retro_gs_enable_online), onlineEnabled) { putBool("wn.ps2.net.enable", it) }
+        RetroSettingSwitch(stringResource(R.string.retro_ps2_hdd), prefs.getBoolean("wn.ps2.hdd", false)) { putBool("wn.ps2.hdd", it) }
+        Text(
+            stringResource(R.string.retro_ps2_hdd_desc),
+            color = TextDim,
+            fontSize = LabelSize,
+            modifier = Modifier.padding(top = TightGap),
+        )
         if (onlineEnabled) {
             val deviceKeys = listOf("Auto", "Wi-Fi")
             val deviceLabels = listOf(

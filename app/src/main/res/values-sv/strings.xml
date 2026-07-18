@@ -2133,4 +2133,9 @@ Installerad sökväg:
     <string name="retro_gpu_driver">GPU-drivrutin</string>
     <string name="retro_gpu_driver_system">System (Standard)</string>
     <string name="retro_gpu_driver_hint">Installera Turnip-drivrutiner under Inställningar \u2192 Drivrutiner. Samma drivrutiner fungerar för både PC- och PS2-spel.</string>
+    <!-- PS2 virtual HDD + DNS host hint -->
+    <string name="retro_ps2_hdd">PS2 HDD (DEV9)</string>
+    <string name="retro_ps2_hdd_subtitle">Virtuell intern enhet för HDD-baserade spel som Final Fantasy XI. Startar om spelet.</string>
+    <string name="retro_ps2_hdd_desc">Virtuell intern enhet för HDD-baserade spel som Final Fantasy XI.</string>
+    <string name="retro_ps2_dns_auto_internal">DNS-läge inställt på Internal så att dina anpassade servervärdar träder i kraft.</string>
 </resources>

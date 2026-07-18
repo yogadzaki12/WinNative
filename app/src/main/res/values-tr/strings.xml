@@ -2133,4 +2133,9 @@ Yüklü konum:
     <string name="retro_gpu_driver">GPU Sürücüsü</string>
     <string name="retro_gpu_driver_system">Sistem (Varsayılan)</string>
     <string name="retro_gpu_driver_hint">Turnip sürücülerini Ayarlar \u2192 Sürücüler altından yükleyin. Aynı sürücüler hem PC hem de PS2 oyunları için çalışır.</string>
+    <!-- PS2 virtual HDD + DNS host hint -->
+    <string name="retro_ps2_hdd">PS2 HDD (DEV9)</string>
+    <string name="retro_ps2_hdd_subtitle">Final Fantasy XI gibi HDD tabanlı oyunlar için sanal dahili sürücü. Oyunu yeniden başlatır.</string>
+    <string name="retro_ps2_hdd_desc">Final Fantasy XI gibi HDD tabanlı oyunlar için sanal dahili sürücü.</string>
+    <string name="retro_ps2_dns_auto_internal">Özel sunucu ana bilgisayarlarınızın etkili olması için DNS Modu Internal olarak ayarlandı.</string>
 </resources>

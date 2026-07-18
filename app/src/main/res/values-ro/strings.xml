@@ -2135,5 +2135,10 @@ Cale instalata:
     <string name="retro_gpu_driver">Driver GPU</string>
     <string name="retro_gpu_driver_system">Sistem (Implicit)</string>
     <string name="retro_gpu_driver_hint">Instalează driverele Turnip din Setări \u2192 Drivere. Aceleași drivere funcționează atât pentru jocurile PC, cât și PS2.</string>
+    <!-- PS2 virtual HDD + DNS host hint -->
+    <string name="retro_ps2_hdd">HDD PS2 (DEV9)</string>
+    <string name="retro_ps2_hdd_subtitle">Unitate internă virtuală pentru jocuri bazate pe HDD precum Final Fantasy XI. Repornește jocul.</string>
+    <string name="retro_ps2_hdd_desc">Unitate internă virtuală pentru jocuri bazate pe HDD precum Final Fantasy XI.</string>
+    <string name="retro_ps2_dns_auto_internal">Mod DNS setat pe Internal pentru ca gazdele tale de server personalizate să aibă efect.</string>
 </resources>
 

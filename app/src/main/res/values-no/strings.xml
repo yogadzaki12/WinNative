@@ -2133,4 +2133,9 @@ Installert bane:
     <string name="retro_gpu_driver">GPU-driver</string>
     <string name="retro_gpu_driver_system">System (Standard)</string>
     <string name="retro_gpu_driver_hint">Installer Turnip-drivere under Innstillinger \u2192 Drivere. De samme driverne fungerer for både PC- og PS2-spill.</string>
+    <!-- PS2 virtual HDD + DNS host hint -->
+    <string name="retro_ps2_hdd">PS2 HDD (DEV9)</string>
+    <string name="retro_ps2_hdd_subtitle">Virtuell intern stasjon for HDD-baserte spill som Final Fantasy XI. Starter spillet på nytt.</string>
+    <string name="retro_ps2_hdd_desc">Virtuell intern stasjon for HDD-baserte spill som Final Fantasy XI.</string>
+    <string name="retro_ps2_dns_auto_internal">DNS-modus satt til Internal, slik at dine egendefinerte serververtar trer i kraft.</string>
 </resources>

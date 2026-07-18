@@ -159,6 +159,22 @@ object Ps2GameOverlay {
             prefs.edit().putString("wn.ps2.net.hosts", arr.toString()).apply()
         }
 
+        // The virtual PS2 HDD image (DEV9). The emucore never auto-creates it —
+        // ATA::Open just fails on a missing file — so we make a sparse 8 GiB image
+        // (ftruncate: near-zero real bytes until written) on internal storage,
+        // which the game formats itself like a fresh physical HDD.
+        fun hddImage(): java.io.File = java.io.File(activity.filesDir, "hdd/DEV9hdd.raw")
+
+        fun ensureHddImage() {
+            if (!prefs.getBoolean("wn.ps2.hdd", false)) return
+            val img = hddImage()
+            if (img.exists() && img.length() > 0L) return
+            runCatching {
+                img.parentFile?.mkdirs()
+                java.io.RandomAccessFile(img, "rw").use { it.setLength(8L * 1024 * 1024 * 1024) }
+            }
+        }
+
         fun writeNetworkSettings() {
             val on = prefs.getBoolean("wn.ps2.net.enable", false)
             NativeApp.setSetting("DEV9/Eth", "EthEnable", "bool", on.toString())
@@ -167,12 +183,17 @@ object Ps2GameOverlay {
             NativeApp.setSetting("DEV9/Eth", "InterceptDHCP", "bool", prefs.getBoolean("wn.ps2.net.dhcp", true).toString())
             NativeApp.setSetting("DEV9/Eth", "AutoMask", "bool", "true")
             NativeApp.setSetting("DEV9/Eth", "AutoGateway", "bool", "true")
-            val mode = prefs.getString("wn.ps2.net.dnsmode", "Manual") ?: "Manual"
+            val hosts = readHosts()
+            // Custom host overrides are only consulted by the emulator's INTERNAL DNS
+            // server (it answers from the EthHosts table); in Manual/Auto mode the PS2
+            // queries an external resolver and the overrides are ignored. So whenever
+            // the user has any host mappings, force DNS1 to Internal — otherwise honor
+            // their chosen mode (e.g. Manual + a revival DNS like the default).
+            val mode = if (hosts.isNotEmpty()) "Internal" else (prefs.getString("wn.ps2.net.dnsmode", "Manual") ?: "Manual")
             NativeApp.setSetting("DEV9/Eth", "ModeDNS1", "string", mode)
             NativeApp.setSetting("DEV9/Eth", "ModeDNS2", "string", "Auto")
             NativeApp.setSetting("DEV9/Eth", "DNS1", "string", (prefs.getString("wn.ps2.net.dns1", PS2_DEFAULT_DNS) ?: PS2_DEFAULT_DNS).ifBlank { PS2_DEFAULT_DNS })
             NativeApp.setSetting("DEV9/Eth", "DNS2", "string", (prefs.getString("wn.ps2.net.dns2", "") ?: "").ifBlank { "0.0.0.0" })
-            val hosts = readHosts()
             NativeApp.setSetting("DEV9/Eth/Hosts", "Count", "int", hosts.size.toString())
             hosts.forEachIndexed { i, h ->
                 NativeApp.setSetting("DEV9/Eth/Hosts/Host$i", "Url", "string", h.url)
@@ -180,6 +201,11 @@ object Ps2GameOverlay {
                 NativeApp.setSetting("DEV9/Eth/Hosts/Host$i", "Address", "string", h.ip.ifBlank { "0.0.0.0" })
                 NativeApp.setSetting("DEV9/Eth/Hosts/Host$i", "Enabled", "bool", "true")
             }
+            // Virtual PS2 HDD (DEV9/Hdd). Independent of Ethernet — DEV9 activates if
+            // either the NIC or the HDD is enabled.
+            val hddOn = prefs.getBoolean("wn.ps2.hdd", false)
+            NativeApp.setSetting("DEV9/Hdd", "HddEnable", "bool", hddOn.toString())
+            NativeApp.setSetting("DEV9/Hdd", "HddFile", "string", hddImage().absolutePath)
         }
 
         fun applyNetwork() = bg {
@@ -218,6 +244,7 @@ object Ps2GameOverlay {
                 NativeApp.setSetting("MemoryCards", "Slot2_Filename", "string", name)
                 NativeApp.setSetting("MemoryCards", "Slot2_Enable", "bool", "true")
             }
+            ensureHddImage()
             writeNetworkSettings()
             NativeApp.commitSettings()
         }
@@ -395,6 +422,24 @@ object Ps2GameOverlay {
                         }
                     },
                 )
+                add(
+                    RetroMenuEntry.Toggle(
+                        activity.getString(R.string.retro_ps2_hdd),
+                        subtitle = activity.getString(R.string.retro_ps2_hdd_subtitle),
+                        checked = prefs.getBoolean("wn.ps2.hdd", false),
+                    ) { value ->
+                        prefs.edit().putBoolean("wn.ps2.hdd", value).apply()
+                        bg {
+                            ensureHddImage()
+                            writeNetworkSettings()
+                            NativeApp.commitSettings()
+                            activity.runOnUiThread {
+                                menu.close()
+                                MainActivityRuntime.restart()
+                            }
+                        }
+                    },
+                )
                 if (!enabled) return@buildList
                 val devices = listOf("Auto", "Wi-Fi")
                 add(
@@ -466,6 +511,13 @@ object Ps2GameOverlay {
                         netEdit.value = Ps2NetEdit(activity.getString(R.string.retro_ps2_new_server_hostname), "", activity.getString(R.string.retro_ps2_server_hostname_hint)) { v ->
                             if (v.isNotBlank()) {
                                 writeHosts(readHosts() + Ps2NetHost(v.trim(), "0.0.0.0"))
+                                // Host overrides only resolve via the Internal DNS server —
+                                // flip the mode so the new host actually takes effect, and
+                                // tell the user why their choice changed.
+                                if ((prefs.getString("wn.ps2.net.dnsmode", "Manual") ?: "Manual") != "Internal") {
+                                    prefs.edit().putString("wn.ps2.net.dnsmode", "Internal").apply()
+                                    Toast.makeText(activity, activity.getString(R.string.retro_ps2_dns_auto_internal), Toast.LENGTH_LONG).show()
+                                }
                                 applyNetwork()
                                 menu.rebuild()
                             }

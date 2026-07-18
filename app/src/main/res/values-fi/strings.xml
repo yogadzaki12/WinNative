@@ -2133,4 +2133,9 @@ Asennuspolku:
     <string name="retro_gpu_driver">GPU-ajuri</string>
     <string name="retro_gpu_driver_system">Järjestelmä (Oletus)</string>
     <string name="retro_gpu_driver_hint">Asenna Turnip-ajurit kohdasta Asetukset \u2192 Ajurit. Samat ajurit toimivat sekä PC- että PS2-peleissä.</string>
+    <!-- PS2 virtual HDD + DNS host hint -->
+    <string name="retro_ps2_hdd">PS2 HDD (DEV9)</string>
+    <string name="retro_ps2_hdd_subtitle">Virtuaalinen sisäinen asema HDD-pohjaisille peleille, kuten Final Fantasy XI. Käynnistää pelin uudelleen.</string>
+    <string name="retro_ps2_hdd_desc">Virtuaalinen sisäinen asema HDD-pohjaisille peleille, kuten Final Fantasy XI.</string>
+    <string name="retro_ps2_dns_auto_internal">DNS-tila asetettu Internal-tilaan, jotta mukautetut palvelinisännät tulevat voimaan.</string>
 </resources>

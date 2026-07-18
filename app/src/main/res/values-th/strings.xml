@@ -2133,4 +2133,9 @@
     <string name="retro_gpu_driver">ไดรเวอร์ GPU</string>
     <string name="retro_gpu_driver_system">ระบบ (ค่าเริ่มต้น)</string>
     <string name="retro_gpu_driver_hint">ติดตั้งไดรเวอร์ Turnip ใน การตั้งค่า \u2192 ไดรเวอร์ ไดรเวอร์เดียวกันใช้ได้ทั้งเกม PC และ PS2.</string>
+    <!-- PS2 virtual HDD + DNS host hint -->
+    <string name="retro_ps2_hdd">PS2 HDD (DEV9)</string>
+    <string name="retro_ps2_hdd_subtitle">ไดรฟ์ภายในเสมือนสำหรับเกมที่ใช้ HDD เช่น Final Fantasy XI รีสตาร์ทเกม</string>
+    <string name="retro_ps2_hdd_desc">ไดรฟ์ภายในเสมือนสำหรับเกมที่ใช้ HDD เช่น Final Fantasy XI</string>
+    <string name="retro_ps2_dns_auto_internal">ตั้งค่าโหมด DNS เป็น Internal เพื่อให้โฮสต์เซิร์ฟเวอร์ที่กำหนดเองของคุณมีผล</string>
 </resources>
