@@ -2129,4 +2129,8 @@ Installert bane:
     <string name="retro_che_default_name">Juksekode %1$d</string>
     <string name="retro_che_empty">Ingen juksekoder ennå. Legg til en juksekode for dette spillet.</string>
     <string name="retro_che_add">Legg til juksekode</string>
+    <!-- PS2 GPU driver selection -->
+    <string name="retro_gpu_driver">GPU-driver</string>
+    <string name="retro_gpu_driver_system">System (Standard)</string>
+    <string name="retro_gpu_driver_hint">Installer Turnip-drivere under Innstillinger \u2192 Drivere. De samme driverne fungerer for både PC- og PS2-spill.</string>
 </resources>

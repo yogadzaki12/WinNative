@@ -2133,5 +2133,9 @@
     <string name="retro_che_default_name">치트 %1$d</string>
     <string name="retro_che_empty">아직 치트가 없습니다. 이 게임의 치트 코드를 추가하세요.</string>
     <string name="retro_che_add">치트 추가</string>
+    <!-- PS2 GPU driver selection -->
+    <string name="retro_gpu_driver">GPU 드라이버</string>
+    <string name="retro_gpu_driver_system">시스템(기본값)</string>
+    <string name="retro_gpu_driver_hint">설정 \u2192 드라이버에서 Turnip 드라이버를 설치하세요. 동일한 드라이버가 PC와 PS2 게임 모두에서 작동합니다.</string>
 </resources>
 

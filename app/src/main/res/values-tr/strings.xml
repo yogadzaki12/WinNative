@@ -2129,4 +2129,8 @@ Yüklü konum:
     <string name="retro_che_default_name">Hile %1$d</string>
     <string name="retro_che_empty">Henüz hile yok. Bu oyun için bir hile kodu ekleyin.</string>
     <string name="retro_che_add">Hile Ekle</string>
+    <!-- PS2 GPU driver selection -->
+    <string name="retro_gpu_driver">GPU Sürücüsü</string>
+    <string name="retro_gpu_driver_system">Sistem (Varsayılan)</string>
+    <string name="retro_gpu_driver_hint">Turnip sürücülerini Ayarlar \u2192 Sürücüler altından yükleyin. Aynı sürücüler hem PC hem de PS2 oyunları için çalışır.</string>
 </resources>

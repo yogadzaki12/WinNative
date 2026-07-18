@@ -2133,4 +2133,8 @@ Installierter Pfad:
     <string name="retro_che_default_name">Cheat %1$d</string>
     <string name="retro_che_empty">Noch keine Cheats. Füge einen Cheat-Code für dieses Spiel hinzu.</string>
     <string name="retro_che_add">Cheat hinzufügen</string>
+    <!-- PS2 GPU driver selection -->
+    <string name="retro_gpu_driver">GPU-Treiber</string>
+    <string name="retro_gpu_driver_system">System (Standard)</string>
+    <string name="retro_gpu_driver_hint">Installiere Turnip-Treiber unter Einstellungen \u2192 Treiber. Dieselben Treiber funktionieren für PC- und PS2-Spiele.</string>
 </resources>

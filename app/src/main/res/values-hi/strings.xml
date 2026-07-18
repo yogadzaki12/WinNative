@@ -2068,4 +2068,8 @@
     <string name="retro_che_default_name">चीट %1$d</string>
     <string name="retro_che_empty">अभी तक कोई चीट्स नहीं. इस गेम हेतु एक चीट कोड जोड़ें.</string>
     <string name="retro_che_add">चीट जोड़ें</string>
+    <!-- PS2 GPU driver selection -->
+    <string name="retro_gpu_driver">GPU ड्राइवर</string>
+    <string name="retro_gpu_driver_system">सिस्टम (डिफ़ॉल्ट)</string>
+    <string name="retro_gpu_driver_hint">Turnip ड्राइवर सेटिंग्स \u2192 ड्राइवर्स में इंस्टॉल करें। ये ड्राइवर PC और PS2 दोनों गेम्स के लिए काम करते हैं।</string>
 </resources>

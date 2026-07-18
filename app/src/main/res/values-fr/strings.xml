@@ -2132,5 +2132,9 @@ Chemin installé :
     <string name="retro_che_default_name">Code de triche %1$d</string>
     <string name="retro_che_empty">Aucun code de triche. Ajoutez un code de triche pour ce jeu.</string>
     <string name="retro_che_add">Ajouter un code</string>
+    <!-- PS2 GPU driver selection -->
+    <string name="retro_gpu_driver">Pilote GPU</string>
+    <string name="retro_gpu_driver_system">Système (Par défaut)</string>
+    <string name="retro_gpu_driver_hint">Installez les pilotes Turnip dans Paramètres \u2192 Pilotes. Les mêmes pilotes fonctionnent pour les jeux PC et PS2.</string>
 </resources>
 

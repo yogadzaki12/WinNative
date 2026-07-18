@@ -344,6 +344,24 @@ fun RetroDefaultsScreen() {
                         selectedIndex = rendererKeys.indexOf(ps2Prefs.getString("wn.ps2.renderer", "vulkan")).coerceAtLeast(0),
                         onSelected = { ps2Prefs.edit().putString("wn.ps2.renderer", rendererKeys[it]).apply(); refresh++ },
                     )
+                    val ps2Drivers = remember { com.armsx2.CustomDriver.listInstalled(context) }
+                    val driverIds = listOf("") + ps2Drivers.map { it.id }
+                    val driverLabels = listOf(stringResource(R.string.retro_gpu_driver_system)) + ps2Drivers.map { it.name }
+                    val curDriver = (ps2Prefs.getString("wn.ps2.driver", "") ?: "").let { if (it.equals("system", true)) "" else it }
+                    RetroSettingDropdown(
+                        label = stringResource(R.string.retro_gpu_driver),
+                        entries = driverLabels,
+                        selectedIndex = driverIds.indexOf(curDriver).coerceAtLeast(0),
+                        onSelected = { ps2Prefs.edit().putString("wn.ps2.driver", driverIds[it]).apply(); refresh++ },
+                    )
+                    if (ps2Drivers.isEmpty()) {
+                        Text(
+                            stringResource(R.string.retro_gpu_driver_hint),
+                            color = PageSub,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
                     val ps2Scales = listOf(1f, 1.5f, 2f, 3f, 4f)
                     val ps2ScaleLabels = listOf("1x (Native)", "1.5x", "2x", "3x", "4x")
                     val curScale = ps2Prefs.getFloat("wn.ps2.upscale", 1f)

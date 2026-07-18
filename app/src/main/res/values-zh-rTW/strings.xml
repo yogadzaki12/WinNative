@@ -2131,5 +2131,9 @@
     <string name="retro_che_default_name">金手指 %1$d</string>
     <string name="retro_che_empty">尚無金手指。為此遊戲新增金手指代碼。</string>
     <string name="retro_che_add">新增金手指</string>
+    <!-- PS2 GPU driver selection -->
+    <string name="retro_gpu_driver">GPU 驅動程式</string>
+    <string name="retro_gpu_driver_system">系統（預設）</string>
+    <string name="retro_gpu_driver_hint">在設定 \u2192 驅動程式中安裝 Turnip 驅動程式。同一驅動程式適用於 PC 和 PS2 遊戲。</string>
 </resources>
 

@@ -2131,5 +2131,9 @@ Cale instalata:
     <string name="retro_che_default_name">Cod %1$d</string>
     <string name="retro_che_empty">Niciun cod încă. Adaugă un cod pentru acest joc.</string>
     <string name="retro_che_add">Adaugă cod</string>
+    <!-- PS2 GPU driver selection -->
+    <string name="retro_gpu_driver">Driver GPU</string>
+    <string name="retro_gpu_driver_system">Sistem (Implicit)</string>
+    <string name="retro_gpu_driver_hint">Instalează driverele Turnip din Setări \u2192 Drivere. Aceleași drivere funcționează atât pentru jocurile PC, cât și PS2.</string>
 </resources>
 

@@ -2129,4 +2129,8 @@ Installerad sökväg:
     <string name="retro_che_default_name">Fusk %1$d</string>
     <string name="retro_che_empty">Inget fusk ännu. Lägg till en fuskkod för detta spel.</string>
     <string name="retro_che_add">Lägg till fusk</string>
+    <!-- PS2 GPU driver selection -->
+    <string name="retro_gpu_driver">GPU-drivrutin</string>
+    <string name="retro_gpu_driver_system">System (Standard)</string>
+    <string name="retro_gpu_driver_hint">Installera Turnip-drivrutiner under Inställningar \u2192 Drivrutiner. Samma drivrutiner fungerar för både PC- och PS2-spel.</string>
 </resources>

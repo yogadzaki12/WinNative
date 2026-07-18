@@ -2132,5 +2132,9 @@ Caminho instalado:
     <string name="retro_che_default_name">Trapaça %1$d</string>
     <string name="retro_che_empty">Ainda não há trapaças. Adicione um código de trapaça para este jogo.</string>
     <string name="retro_che_add">Adicionar trapaça</string>
+    <!-- PS2 GPU driver selection -->
+    <string name="retro_gpu_driver">Driver de GPU</string>
+    <string name="retro_gpu_driver_system">Sistema (Padrão)</string>
+    <string name="retro_gpu_driver_hint">Instale os drivers Turnip em Configurações \u2192 Drivers. Os mesmos drivers funcionam para jogos de PC e de PS2.</string>
 </resources>
 

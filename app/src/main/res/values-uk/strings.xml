@@ -2138,5 +2138,9 @@
     <string name="retro_che_default_name">Чит %1$d</string>
     <string name="retro_che_empty">Читів ще немає. Додайте чит-код для цієї гри.</string>
     <string name="retro_che_add">Додати чит</string>
+    <!-- PS2 GPU driver selection -->
+    <string name="retro_gpu_driver">Драйвер GPU</string>
+    <string name="retro_gpu_driver_system">Системний (За замовчуванням)</string>
+    <string name="retro_gpu_driver_hint">Встановіть драйвери Turnip у розділі Налаштування \u2192 Драйвери. Одні й ті самі драйвери працюють для ігор PC та PS2.</string>
 </resources>
 

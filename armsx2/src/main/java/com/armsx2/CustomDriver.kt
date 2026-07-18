@@ -146,30 +146,50 @@ object CustomDriver {
     private fun driversRoot(context: Context): File =
         File(context.filesDir, "drivers").apply { mkdirs() }
 
-    /** Enumerate installed drivers. Skips dirs that don't have a
-     *  meta.json or whose .so file is missing — those are mid-install
-     *  or corrupted and the user can re-download. */
+    /** The PC/Winlator side installs its adrenotools drivers here (managed by
+     *  AdrenotoolsManager). It's the SAME app process family, so `filesDir`
+     *  resolves to the same path from the `:ps2` process — reading it lets a
+     *  user pick, for PS2, the exact Turnip driver they already installed for
+     *  their PC games. Read-only: we never write to this store. */
+    private fun winlatorDriversRoot(context: Context): File =
+        File(context.filesDir, "contents/adrenotools")
+
+    /** Parse one driver directory into an [InstalledDriver], or null if it's
+     *  missing its meta.json / .so (mid-install or corrupted). */
+    private fun parseDriverDir(dir: File): InstalledDriver? {
+        val metaFile = File(dir, "meta.json")
+        if (!metaFile.exists()) return null
+        val text = runCatching { metaFile.readText() }.getOrNull() ?: return null
+        val json = runCatching { JSONObject(text) }.getOrNull() ?: return null
+        val libName = json.optString("libraryName").ifEmpty { DEFAULT_LIBRARY_NAME }
+        if (!File(dir, libName).exists()) return null
+        return InstalledDriver(
+            id = dir.name,
+            name = json.optString("name").ifEmpty { dir.name },
+            description = json.optString("description"),
+            author = json.optString("author"),
+            vendor = json.optString("vendor"),
+            version = json.optString("driverVersion").ifEmpty { json.optString("packageVersion") },
+            libraryName = libName,
+            driverDir = dir,
+        )
+    }
+
+    /** Enumerate installed drivers from BOTH the armsx2 store and the shared
+     *  PC/Winlator adrenotools store, so a Turnip driver installed for PC games
+     *  is selectable for PS2 too. Dedups by id (dir name); skips dirs missing a
+     *  meta.json or .so. */
     fun listInstalled(context: Context): List<InstalledDriver> {
-        val root = driversRoot(context)
-        val dirs = root.listFiles { f -> f.isDirectory } ?: return emptyList()
-        return dirs.mapNotNull { dir ->
-            val metaFile = File(dir, "meta.json")
-            if (!metaFile.exists()) return@mapNotNull null
-            val text = runCatching { metaFile.readText() }.getOrNull() ?: return@mapNotNull null
-            val json = runCatching { JSONObject(text) }.getOrNull() ?: return@mapNotNull null
-            val libName = json.optString("libraryName").ifEmpty { DEFAULT_LIBRARY_NAME }
-            if (!File(dir, libName).exists()) return@mapNotNull null
-            InstalledDriver(
-                id = dir.name,
-                name = json.optString("name").ifEmpty { dir.name },
-                description = json.optString("description"),
-                author = json.optString("author"),
-                vendor = json.optString("vendor"),
-                version = json.optString("driverVersion").ifEmpty { json.optString("packageVersion") },
-                libraryName = libName,
-                driverDir = dir,
-            )
-        }.sortedBy { it.name.lowercase() }
+        val out = mutableListOf<InstalledDriver>()
+        val seen = HashSet<String>()
+        for (root in listOf(driversRoot(context), winlatorDriversRoot(context))) {
+            val dirs = root.listFiles { f -> f.isDirectory } ?: continue
+            for (dir in dirs) {
+                val driver = parseDriverDir(dir) ?: continue
+                if (seen.add(driver.id)) out += driver
+            }
+        }
+        return out.sortedBy { it.name.lowercase() }
     }
 
     /** Recursively remove an installed driver. */

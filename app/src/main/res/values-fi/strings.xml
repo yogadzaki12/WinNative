@@ -2129,4 +2129,8 @@ Asennuspolku:
     <string name="retro_che_default_name">Huijaus %1$d</string>
     <string name="retro_che_empty">Ei vielä huijauksia. Lisää huijauskoodi tälle pelille.</string>
     <string name="retro_che_add">Lisää huijaus</string>
+    <!-- PS2 GPU driver selection -->
+    <string name="retro_gpu_driver">GPU-ajuri</string>
+    <string name="retro_gpu_driver_system">Järjestelmä (Oletus)</string>
+    <string name="retro_gpu_driver_hint">Asenna Turnip-ajurit kohdasta Asetukset \u2192 Ajurit. Samat ajurit toimivat sekä PC- että PS2-peleissä.</string>
 </resources>

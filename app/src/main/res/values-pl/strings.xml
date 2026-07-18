@@ -2138,5 +2138,9 @@ Zainstalowana ścieżka:
     <string name="retro_che_default_name">Kod %1$d</string>
     <string name="retro_che_empty">Brak kodów. Dodaj kod dla tej gry.</string>
     <string name="retro_che_add">Dodaj kod</string>
+    <!-- PS2 GPU driver selection -->
+    <string name="retro_gpu_driver">Sterownik GPU</string>
+    <string name="retro_gpu_driver_system">System (Domyślny)</string>
+    <string name="retro_gpu_driver_hint">Zainstaluj sterowniki Turnip w Ustawienia \u2192 Sterowniki. Te same sterowniki działają zarówno w grach PC, jak i PS2.</string>
 </resources>
 

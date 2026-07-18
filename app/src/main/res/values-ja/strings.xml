@@ -2129,4 +2129,8 @@
     <string name="retro_che_default_name">チート %1$d</string>
     <string name="retro_che_empty">チートはまだありません。このゲームのチートコードを追加してください。</string>
     <string name="retro_che_add">チートを追加</string>
+    <!-- PS2 GPU driver selection -->
+    <string name="retro_gpu_driver">GPUドライバー</string>
+    <string name="retro_gpu_driver_system">システム（デフォルト）</string>
+    <string name="retro_gpu_driver_hint">Turnipドライバーは設定 \u2192 ドライバーからインストールします。同じドライバーがPCとPS2の両方のゲームで動作します。</string>
 </resources>

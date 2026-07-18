@@ -130,11 +130,19 @@ object RetroShortcuts {
         }
         val biosPath = ensurePs2Bios(context)
         val prefs = context.getSharedPreferences("ARMSX2", Context.MODE_PRIVATE)
+        // Resolve the chosen GPU driver (global "wn.ps2.driver": "" / "system" =
+        // stock Vulkan, otherwise an installed driver id) and hand it to ARMSX2's
+        // existing customDriverId boot path, which pins it before the first
+        // MTGS::Open (see MainActivityRuntime.applyRendererPrefs / CustomDriver).
+        val driverPref = (prefs.getString("wn.ps2.driver", "") ?: "").trim()
+        val customDriverId =
+            if (driverPref.isEmpty() || driverPref.equals("system", ignoreCase = true)) "" else driverPref
         prefs.edit().apply {
             putBoolean("setupComplete", true)
             putBoolean("wn.controls", true)
             putString("romsDirs", org.json.JSONArray().put(rom.parent ?: "").toString())
             if (biosPath != null) putString("bios", biosPath)
+            putString("customDriverId", customDriverId)
             apply()
         }
         val uri =

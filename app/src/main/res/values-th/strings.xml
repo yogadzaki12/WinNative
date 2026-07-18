@@ -2129,4 +2129,8 @@
     <string name="retro_che_default_name">สูตรโกง %1$d</string>
     <string name="retro_che_empty">ยังไม่มีสูตรโกง เพิ่มโค้ดสูตรโกงสำหรับเกมนี้</string>
     <string name="retro_che_add">เพิ่มสูตรโกง</string>
+    <!-- PS2 GPU driver selection -->
+    <string name="retro_gpu_driver">ไดรเวอร์ GPU</string>
+    <string name="retro_gpu_driver_system">ระบบ (ค่าเริ่มต้น)</string>
+    <string name="retro_gpu_driver_hint">ติดตั้งไดรเวอร์ Turnip ใน การตั้งค่า \u2192 ไดรเวอร์ ไดรเวอร์เดียวกันใช้ได้ทั้งเกม PC และ PS2.</string>
 </resources>

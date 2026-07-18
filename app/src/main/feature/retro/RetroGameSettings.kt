@@ -1025,6 +1025,23 @@ private fun RetroPs2GraphicsSection() {
             ),
             rendererKeys.indexOf(prefs.getString("wn.ps2.renderer", "vulkan")).coerceAtLeast(0),
         ) { putStr("wn.ps2.renderer", rendererKeys[it]) }
+        val ps2Drivers = remember { com.armsx2.CustomDriver.listInstalled(context) }
+        val driverIds = remember(ps2Drivers) { listOf("") + ps2Drivers.map { it.id } }
+        val driverLabels = listOf(stringResource(R.string.retro_gpu_driver_system)) + ps2Drivers.map { it.name }
+        val curDriver = (prefs.getString("wn.ps2.driver", "") ?: "").let { if (it.equals("system", true)) "" else it }
+        RetroSettingDropdown(
+            stringResource(R.string.retro_gpu_driver),
+            driverLabels,
+            driverIds.indexOf(curDriver).coerceAtLeast(0),
+        ) { putStr("wn.ps2.driver", driverIds[it]) }
+        if (ps2Drivers.isEmpty()) {
+            Text(
+                stringResource(R.string.retro_gpu_driver_hint),
+                color = TextDim,
+                fontSize = LabelSize,
+                modifier = Modifier.padding(top = TightGap),
+            )
+        }
         val scales = listOf(1f, 1.5f, 2f, 3f, 4f)
         RetroSettingDropdown(
             stringResource(R.string.retro_gs_resolution_scale),

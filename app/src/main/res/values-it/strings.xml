@@ -2132,5 +2132,9 @@ Percorso installato:
     <string name="retro_che_default_name">Trucco %1$d</string>
     <string name="retro_che_empty">Nessun trucco. Aggiungi un codice trucco per questo gioco.</string>
     <string name="retro_che_add">Aggiungi trucco</string>
+    <!-- PS2 GPU driver selection -->
+    <string name="retro_gpu_driver">Driver GPU</string>
+    <string name="retro_gpu_driver_system">Sistema (Predefinito)</string>
+    <string name="retro_gpu_driver_hint">Installa i driver Turnip in Impostazioni \u2192 Driver. Gli stessi driver funzionano sia per i giochi PC che PS2.</string>
 </resources>
 

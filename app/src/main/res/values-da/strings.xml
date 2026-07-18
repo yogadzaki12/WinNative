@@ -2133,4 +2133,8 @@ Installeret sti:
     <string name="retro_che_default_name">Snydekode %1$d</string>
     <string name="retro_che_empty">Ingen snydekoder endnu. Tilføj en snydekode til dette spil.</string>
     <string name="retro_che_add">Tilføj snydekode</string>
+    <!-- PS2 GPU driver selection -->
+    <string name="retro_gpu_driver">GPU-driver</string>
+    <string name="retro_gpu_driver_system">System (Standard)</string>
+    <string name="retro_gpu_driver_hint">Installer Turnip-drivere under Indstillinger \u2192 Drivere. De samme drivere virker til både PC- og PS2-spil.</string>
 </resources>

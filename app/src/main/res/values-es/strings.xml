@@ -2132,5 +2132,9 @@ Ruta instalada:
     <string name="retro_che_default_name">Truco %1$d</string>
     <string name="retro_che_empty">Aún no hay trucos. Añade un código de truco para este juego.</string>
     <string name="retro_che_add">Añadir truco</string>
+    <!-- PS2 GPU driver selection -->
+    <string name="retro_gpu_driver">Controlador de GPU</string>
+    <string name="retro_gpu_driver_system">Sistema (Predeterminado)</string>
+    <string name="retro_gpu_driver_hint">Instala los controladores Turnip en Ajustes \u2192 Controladores. Los mismos controladores funcionan para juegos de PC y de PS2.</string>
 </resources>
 
