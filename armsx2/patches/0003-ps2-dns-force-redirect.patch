@@ -1,0 +1,77 @@
+diff --git a/pcsx2/DEV9/Sessions/UDP_Session/UDP_Session.cpp b/pcsx2/DEV9/Sessions/UDP_Session/UDP_Session.cpp
+index 276a2a4..8eb39c7 100644
+--- a/pcsx2/DEV9/Sessions/UDP_Session/UDP_Session.cpp
++++ b/pcsx2/DEV9/Sessions/UDP_Session/UDP_Session.cpp
+@@ -22,6 +22,7 @@
+ #include "UDP_Session.h"
+ #include "UDP_Common.h"
+ #include "DEV9/PacketReader/IP/UDP/UDP_Packet.h"
++#include "Config.h"
+ 
+ using namespace PacketReader;
+ using namespace PacketReader::IP;
+@@ -86,7 +87,13 @@ namespace Sessions
+ 			return std::nullopt;
+ 		}
+ 		else if (ret.has_value())
++		{
++			// The reply actually came from DNS1; present it as coming from the
++			// address the game queried so its network stack accepts it.
++			if (dnsRedirect)
++				ret->sourceIP = destIP;
+ 			return ret;
++		}
+ 
+ 		if (std::chrono::steady_clock::now() - deathClockStart.load() > MAX_IDLE)
+ 		{
+@@ -132,6 +139,22 @@ namespace Sessions
+ 			destPort = udp.destinationPort;
+ 			srcPort = udp.sourcePort;
+ 
++			// Force PS2 DNS to the emulator's configured server (Manual DNS mode):
++			// whatever DNS the game or its memory-card network profile points at,
++			// aim the real socket at DNS1 instead. Recv() restores the reply's
++			// source to the queried address so the game accepts it. This makes the
++			// emulator DNS setting apply without editing per-game network configs.
++			if (destPort == 53 &&
++				EmuConfig.DEV9.ModeDNS1 == Pcsx2Config::DEV9Options::DnsMode::Manual)
++			{
++				const IP_Address dns1 = *(IP_Address*)EmuConfig.DEV9.DNS1;
++				if (dns1.integer != 0 && dns1 != destIP)
++				{
++					dnsRedirect = true;
++					dnsRedirectIP = dns1;
++				}
++			}
++
+ 			client = UDP_Common::CreateSocket(adapterIP, std::nullopt);
+ 			if (client == INVALID_SOCKET)
+ 			{
+@@ -141,7 +164,7 @@ namespace Sessions
+ 
+ 			sockaddr_in endpoint{};
+ 			endpoint.sin_family = AF_INET;
+-			endpoint.sin_addr = std::bit_cast<in_addr>(destIP);
++			endpoint.sin_addr = std::bit_cast<in_addr>(dnsRedirect ? dnsRedirectIP : destIP);
+ 			endpoint.sin_port = htons(destPort);
+ 
+ 			const int ret = connect(client, reinterpret_cast<const sockaddr*>(&endpoint), sizeof(endpoint));
+diff --git a/pcsx2/DEV9/Sessions/UDP_Session/UDP_Session.h b/pcsx2/DEV9/Sessions/UDP_Session/UDP_Session.h
+index 9638e88..2954f99 100644
+--- a/pcsx2/DEV9/Sessions/UDP_Session/UDP_Session.h
++++ b/pcsx2/DEV9/Sessions/UDP_Session/UDP_Session.h
+@@ -28,6 +28,14 @@ namespace Sessions
+ 
+ 		u16 srcPort = 0;
+ 		u16 destPort = 0;
++
++		// PS2 DNS redirect (Manual DNS mode): the actual socket is aimed at the
++		// emulator's configured DNS server, while responses are still presented as
++		// coming from the address the game queried — so the emulator's DNS setting
++		// applies regardless of the DNS baked into the game's memory-card profile.
++		bool dnsRedirect = false;
++		PacketReader::IP::IP_Address dnsRedirectIP{};
++
+ 		// UDP_Session flags
+ 		const bool isBroadcast;
+ 		const bool isMulticast;
