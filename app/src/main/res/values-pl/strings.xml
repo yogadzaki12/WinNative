@@ -2217,5 +2217,24 @@ Zainstalowana ścieżka:
     <string name="retro_gs_adaptive_sticks">Adaptive Sticks</string>
     <string name="retro_gs_adaptive_sticks_subtitle">Sticks stay hidden until you touch their area, then appear where you press</string>
     <string name="retro_lr_adaptive_sticks">Adaptive Sticks</string>
+    <string name="retro_scr_ps2_hdd_images">PS2 HDD Images</string>
+    <string name="retro_scr_ps2_hdd_format">A .raw HDD image, or a .zip containing one (e.g. a game’s downloaded HDD with maps/DLC)</string>
+    <string name="retro_scr_import_hdd_image">Import HDD Image</string>
+    <string name="retro_scr_importing">Importing…</string>
+    <string name="retro_scr_hdd_imported">Imported %1$s</string>
+    <string name="retro_scr_invalid_hdd_file">Could not import HDD image</string>
+    <string name="retro_scr_hdd_removed">Removed %1$s</string>
+    <string name="retro_scr_remove_hdd_image">Remove %1$s</string>
+    <string name="retro_gs_hdd_image">HDD Image</string>
+    <string name="retro_scr_none">None</string>
+    <string name="retro_scr_cheats_section">Cheats</string>
+    <string name="retro_scr_patches_section">Patches</string>
+    <string name="retro_scr_patch_badge">PATCH</string>
+    <string name="retro_scr_custom_patch">Custom</string>
+    <string name="retro_scr_applied_both">Applied %1$d cheat(s), %2$d patch(es).</string>
+    <string name="retro_scr_no_cheats_or_patches">No cheats or patches found for this game.</string>
+    <string name="retro_scr_target_cheat">Cheat</string>
+    <string name="retro_scr_target_patch">Patch</string>
+    <string name="retro_scr_add_item">Add</string>
 </resources>
 

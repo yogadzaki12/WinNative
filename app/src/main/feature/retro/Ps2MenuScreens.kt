@@ -132,6 +132,11 @@ fun Ps2CheatsScreen(
     var crc by remember { mutableStateOf("") }
     var entries by remember { mutableStateOf<List<com.armsx2.PatchRepo.Entry>>(emptyList()) }
     var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
+    // Game PATCHES (widescreen / fixes / DNAS-bypass) — tracked separately from
+    // cheats: they live in the patches/ folder, enable via the patches list, and
+    // do NOT drop RetroAchievements to softcore.
+    var patchEntries by remember { mutableStateOf<List<com.armsx2.PatchRepo.Entry>>(emptyList()) }
+    var selectedPatches by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
         loading = true
@@ -147,9 +152,11 @@ fun Ps2CheatsScreen(
             title = result.gametitle
             serial = result.serial
             crc = result.crc
-            entries = result.entries
+            // Split the fetched repo entries by source: cheats vs patches.
+            entries = result.entries.filter { it.source != "patches" }
+            patchEntries = result.entries.filter { it.source == "patches" }
             status = result.error.orEmpty()
-            val installed = runCatching {
+            val installedCheats = runCatching {
                 val dir = File(MainActivityRuntime.assetCopyRoot(context), "cheats")
                 val f = if (crc.isNotBlank()) File(dir, "${serial}_$crc.pnach") else File(dir, "$serial.pnach")
                 if (f.isFile) com.armsx2.PatchRepo.parseInstalled(f.readText(), "cheats").second else emptyList()
@@ -159,43 +166,80 @@ fun Ps2CheatsScreen(
             // re-toggled instead of being dropped on the next Apply.
             val repoNames = entries.map { it.name }.toSet()
             val customInstalled =
-                installed.filter { it.name !in repoNames }
+                installedCheats.filter { it.name !in repoNames }
                     .map { com.armsx2.PatchRepo.Entry(it.name, context.getString(R.string.retro_scr_custom_cheat), it.body, "custom") }
             if (customInstalled.isNotEmpty()) entries = entries + customInstalled
-            selected = installed.filter { it.enabled }.map { it.name }.toSet()
+            selected = installedCheats.filter { it.enabled }.map { it.name }.toSet()
+
+            // Load installed PATCHES from patches/<serial>_<crc>.pnach (falling back
+            // to patches/<serial>.pnach). These include the auto-written DNAS-bypass
+            // sections and any patches the user added; parse them so they show up and
+            // stay round-trippable.
+            val installedPatches = runCatching {
+                val dir = File(MainActivityRuntime.assetCopyRoot(context), "patches")
+                val f = if (crc.isNotBlank()) File(dir, "${serial}_$crc.pnach") else null
+                val file = f?.takeIf { it.isFile } ?: File(dir, "$serial.pnach")
+                if (file.isFile) com.armsx2.PatchRepo.parseInstalled(file.readText(), "patches").second else emptyList()
+            }.getOrDefault(emptyList())
+            // Merge installed patches not present in the repo results (custom + DNAS)
+            // so their sections persist and can be toggled.
+            val patchRepoNames = patchEntries.map { it.name }.toSet()
+            val customPatches =
+                installedPatches.filter { it.name !in patchRepoNames }
+                    .map { com.armsx2.PatchRepo.Entry(it.name, it.description.ifBlank { context.getString(R.string.retro_scr_custom_patch) }, it.body, "patches") }
+            if (customPatches.isNotEmpty()) patchEntries = patchEntries + customPatches
+            selectedPatches = installedPatches.filter { it.enabled }.map { it.name }.toSet()
         }
         loading = false
     }
 
     fun apply() {
-        val chosen = entries.filter { it.name in selected }
+        val chosenCheats = entries.filter { it.name in selected }
+        val chosenPatches = patchEntries.filter { it.name in selectedPatches }
+        // Snapshot the full patch list up-front so the IO block writes ALL known
+        // patch sections (preserving DNAS-bypass etc.); only the enable list gates
+        // which are active.
+        val allPatches = patchEntries
         scope.launch {
             val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 runCatching {
-                    val dir = File(MainActivityRuntime.assetCopyRoot(context), "cheats").apply { mkdirs() }
                     val fileName = if (crc.isNotBlank()) "${serial}_$crc.pnach" else "$serial.pnach"
-                    File(dir, fileName).writeText(com.armsx2.PatchRepo.buildPnach(title, chosen))
+                    // Cheats (existing behaviour): only the chosen cheats are written.
+                    val cheatsDir = File(MainActivityRuntime.assetCopyRoot(context), "cheats").apply { mkdirs() }
+                    File(cheatsDir, fileName).writeText(com.armsx2.PatchRepo.buildPnach(title, chosenCheats))
+                    // Patches: write ALL known patch sections (not just enabled) so
+                    // toggling one off keeps its block on disk — only the enable list
+                    // decides on/off. This preserves the auto-written DNAS-bypass.
+                    val patchesDir = File(MainActivityRuntime.assetCopyRoot(context), "patches").apply { mkdirs() }
+                    File(patchesDir, fileName).writeText(com.armsx2.PatchRepo.buildPnach(title, allPatches))
+
                     NativeApp.setSetting("EmuCore", "EnableCheats", "bool", "true")
                     NativeApp.commitSettings()
-                    val all = entries.mapNotNull { it.name.takeIf(String::isNotBlank) }.distinct().toTypedArray()
-                    val on = chosen.mapNotNull { it.name.takeIf(String::isNotBlank) }.distinct().toTypedArray()
-                    NativeApp.setEnabledPatches(true, all, on)
+                    val allCheat = entries.mapNotNull { it.name.takeIf(String::isNotBlank) }.distinct().toTypedArray()
+                    val onCheat = chosenCheats.mapNotNull { it.name.takeIf(String::isNotBlank) }.distinct().toTypedArray()
+                    NativeApp.setEnabledPatches(true, allCheat, onCheat)
+                    val allPatch = allPatches.mapNotNull { it.name.takeIf(String::isNotBlank) }.distinct().toTypedArray()
+                    val onPatch = chosenPatches.mapNotNull { it.name.takeIf(String::isNotBlank) }.distinct().toTypedArray()
+                    NativeApp.setEnabledPatches(false, allPatch, onPatch)
                     NativeApp.reloadPatches()
                     true
                 }.getOrDefault(false)
             }
-            status = if (ok) context.getString(R.string.retro_scr_applied_cheats, chosen.size) else context.getString(R.string.retro_scr_couldnt_apply_cheats)
+            status = if (ok) context.getString(R.string.retro_scr_applied_both, chosenCheats.size, chosenPatches.size) else context.getString(R.string.retro_scr_couldnt_apply_cheats)
         }
     }
 
     var showAdd by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
     var newCodes by remember { mutableStateOf("") }
+    // Add-dialog target: false = Cheat (default), true = Patch.
+    var newIsPatch by remember { mutableStateOf(false) }
 
     // Convert pasted raw PS2 codes ("AAAAAAAA VVVVVVVV" per line) into a pnach
     // section. Already-formatted "patch=" lines pass through; the raw lines go
-    // through the emulator's raw-code interpreter via the `extended` type.
-    fun buildCustomEntry(name: String, codes: String): com.armsx2.PatchRepo.Entry? {
+    // through the emulator's raw-code interpreter via the `extended` type. Used for
+    // both cheats and patches (identical conversion; caller sets [source]).
+    fun buildCustomEntry(name: String, codes: String, source: String): com.armsx2.PatchRepo.Entry? {
         val lines =
             codes.lineSequence().mapNotNull { raw ->
                 val t = raw.trim()
@@ -220,12 +264,13 @@ fun Ps2CheatsScreen(
             append("[").append(name.trim()).append("]\n")
             lines.forEach { append(it).append("\n") }
         }
-        return com.armsx2.PatchRepo.Entry(name.trim(), context.getString(R.string.retro_scr_custom_cheat), body, "custom")
+        val desc = context.getString(if (source == "patches") R.string.retro_scr_custom_patch else R.string.retro_scr_custom_cheat)
+        return com.armsx2.PatchRepo.Entry(name.trim(), desc, body, source)
     }
 
     Ps2WindowedScaffold(title = stringResource(R.string.retro_scr_cheats), onBack = onBack, header = {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val openAdd = { newName = ""; newCodes = ""; showAdd = true }
+            val openAdd = { newName = ""; newCodes = ""; newIsPatch = false; showAdd = true }
             OutlinedButton(
                 onClick = openAdd,
                 modifier = Modifier.paneNavItem(onActivate = openAdd),
@@ -235,7 +280,7 @@ fun Ps2CheatsScreen(
                 Spacer(Modifier.width(6.dp))
                 Text(stringResource(R.string.retro_scr_add))
             }
-            if (!loading && (entries.isNotEmpty() || serial.isNotBlank())) {
+            if (!loading && (entries.isNotEmpty() || patchEntries.isNotEmpty() || serial.isNotBlank())) {
                 OutlinedButton(onClick = { apply() }, modifier = Modifier.paneNavItem(onActivate = { apply() })) {
                     Text(stringResource(R.string.retro_scr_apply))
                 }
@@ -246,8 +291,8 @@ fun Ps2CheatsScreen(
             loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 androidx.compose.material3.CircularProgressIndicator()
             }
-            entries.isEmpty() -> Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-                Text(status.ifBlank { stringResource(R.string.retro_scr_no_cheats_found) }, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            entries.isEmpty() && patchEntries.isEmpty() -> Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+                Text(status.ifBlank { stringResource(R.string.retro_scr_no_cheats_or_patches) }, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             else -> Column(Modifier.fillMaxSize()) {
                 if (status.isNotBlank()) {
@@ -257,45 +302,20 @@ fun Ps2CheatsScreen(
                     Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    items(entries) { entry ->
-                        val checked = entry.name in selected
-                        val toggle = { selected = if (entry.name in selected) selected - entry.name else selected + entry.name }
-                        // Whole-row toggle button: the container color and border
-                        // shift to secondaryContainer when the cheat is enabled.
-                        Surface(
-                            onClick = toggle,
-                            modifier = Modifier.fillMaxWidth().paneNavItem(cornerRadius = 12.dp, onActivate = { toggle() }),
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (checked) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                            border = if (checked) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                        ) {
-                            Row(
-                                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        entry.name,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = if (checked) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
-                                    )
-                                    if (entry.description.isNotBlank()) {
-                                        Text(
-                                            entry.description,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = if (checked) MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.75f) else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                }
-                                if (checked) {
-                                    Spacer(Modifier.width(12.dp))
-                                    Icon(
-                                        Icons.Filled.Check,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    )
-                                }
-                            }
+                    if (entries.isNotEmpty()) {
+                        item(key = "hdr_cheats") { Ps2SectionHeader(stringResource(R.string.retro_scr_cheats_section)) }
+                        items(entries, key = { "cheat_" + it.name }) { entry ->
+                            val checked = entry.name in selected
+                            val toggle = { selected = if (entry.name in selected) selected - entry.name else selected + entry.name }
+                            Ps2CheatRow(entry, checked, isPatch = false, onToggle = toggle)
+                        }
+                    }
+                    if (patchEntries.isNotEmpty()) {
+                        item(key = "hdr_patches") { Ps2SectionHeader(stringResource(R.string.retro_scr_patches_section)) }
+                        items(patchEntries, key = { "patch_" + it.name }) { entry ->
+                            val checked = entry.name in selectedPatches
+                            val toggle = { selectedPatches = if (entry.name in selectedPatches) selectedPatches - entry.name else selectedPatches + entry.name }
+                            Ps2CheatRow(entry, checked, isPatch = true, onToggle = toggle)
                         }
                     }
                 }
@@ -309,6 +329,27 @@ fun Ps2CheatsScreen(
             title = { Text(stringResource(R.string.retro_scr_add_cheat)) },
             text = {
                 Column {
+                    // Target selector: Cheat (default) vs Patch. Two toggle buttons
+                    // reusing the highlight style — the active one fills.
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        val selCheat = { newIsPatch = false }
+                        val selPatch = { newIsPatch = true }
+                        OutlinedButton(
+                            onClick = selCheat,
+                            modifier = Modifier.weight(1f).paneNavItem(onActivate = selCheat),
+                            colors = if (!newIsPatch)
+                                androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer)
+                            else androidx.compose.material3.ButtonDefaults.outlinedButtonColors(),
+                        ) { Text(stringResource(R.string.retro_scr_target_cheat)) }
+                        OutlinedButton(
+                            onClick = selPatch,
+                            modifier = Modifier.weight(1f).paneNavItem(onActivate = selPatch),
+                            colors = if (newIsPatch)
+                                androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer)
+                            else androidx.compose.material3.ButtonDefaults.outlinedButtonColors(),
+                        ) { Text(stringResource(R.string.retro_scr_target_patch)) }
+                    }
+                    androidx.compose.foundation.layout.Spacer(Modifier.padding(4.dp))
                     OutlinedTextField(
                         value = newName,
                         onValueChange = { newName = it },
@@ -329,10 +370,15 @@ fun Ps2CheatsScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    val entry = buildCustomEntry(newName, newCodes)
+                    val entry = buildCustomEntry(newName, newCodes, if (newIsPatch) "patches" else "custom")
                     if (entry != null) {
-                        entries = entries.filterNot { it.name == entry.name } + entry
-                        selected = selected + entry.name
+                        if (newIsPatch) {
+                            patchEntries = patchEntries.filterNot { it.name == entry.name } + entry
+                            selectedPatches = selectedPatches + entry.name
+                        } else {
+                            entries = entries.filterNot { it.name == entry.name } + entry
+                            selected = selected + entry.name
+                        }
                         status = ""
                         showAdd = false
                     } else {
@@ -344,6 +390,83 @@ fun Ps2CheatsScreen(
                 TextButton(onClick = { showAdd = false }) { Text(stringResource(R.string.retro_scr_cancel)) }
             },
         )
+    }
+}
+
+/** Small section-label row separating the Cheats and Patches groups. */
+@Composable
+private fun Ps2SectionHeader(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
+    )
+}
+
+/**
+ * A whole-row toggle button used for both cheats and patches. The container color
+ * and border shift to secondaryContainer when [checked]. A "PATCH" pill marks
+ * patch rows so they read as distinct from cheats. Carries its own `.paneNavItem`.
+ */
+@Composable
+private fun Ps2CheatRow(
+    entry: com.armsx2.PatchRepo.Entry,
+    checked: Boolean,
+    isPatch: Boolean,
+    onToggle: () -> Unit,
+) {
+    Surface(
+        onClick = onToggle,
+        modifier = Modifier.fillMaxWidth().paneNavItem(cornerRadius = 12.dp, onActivate = onToggle),
+        shape = RoundedCornerShape(12.dp),
+        color = if (checked) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+        border = if (checked) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (isPatch) {
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = if (checked) MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.15f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                        ) {
+                            Text(
+                                stringResource(R.string.retro_scr_patch_badge),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (checked) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                            )
+                        }
+                    }
+                    Text(
+                        entry.name,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (checked) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                if (entry.description.isNotBlank()) {
+                    Text(
+                        entry.description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (checked) MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.75f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (checked) {
+                Spacer(Modifier.width(12.dp))
+                Icon(
+                    Icons.Filled.Check,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
+        }
     }
 }
 

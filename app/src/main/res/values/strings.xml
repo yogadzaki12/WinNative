@@ -2134,6 +2134,15 @@ Installed path:
     <string name="retro_scr_cheat_invalid">Enter a name and at least one valid code</string>
     <string name="retro_scr_add">Add</string>
     <string name="retro_scr_no_cheats_found">No cheats found for this game.</string>
+    <string name="retro_scr_cheats_section">Cheats</string>
+    <string name="retro_scr_patches_section">Patches</string>
+    <string name="retro_scr_patch_badge">PATCH</string>
+    <string name="retro_scr_custom_patch">Custom</string>
+    <string name="retro_scr_applied_both">Applied %1$d cheat(s), %2$d patch(es).</string>
+    <string name="retro_scr_no_cheats_or_patches">No cheats or patches found for this game.</string>
+    <string name="retro_scr_add_item">Add</string>
+    <string name="retro_scr_target_cheat">Cheat</string>
+    <string name="retro_scr_target_patch">Patch</string>
     <string name="retro_scr_achievements">Achievements</string>
     <string name="retro_scr_sign_in_ra">Sign in to RetroAchievements</string>
     <string name="retro_scr_username">Username</string>
@@ -2228,4 +2237,14 @@ Installed path:
     <string name="retro_ps2_hdd_subtitle">Virtual internal drive for HDD-based games like Final Fantasy XI. Restarts the game.</string>
     <string name="retro_ps2_hdd_desc">Virtual internal drive for HDD-based games like Final Fantasy XI.</string>
     <string name="retro_ps2_dns_auto_internal">DNS Mode set to Internal so your custom server hosts take effect.</string>
+    <string name="retro_scr_ps2_hdd_images">PS2 HDD Images</string>
+    <string name="retro_scr_ps2_hdd_format">A .raw HDD image, or a .zip containing one (e.g. a game’s downloaded HDD with maps/DLC)</string>
+    <string name="retro_scr_import_hdd_image">Import HDD Image</string>
+    <string name="retro_scr_importing">Importing…</string>
+    <string name="retro_scr_hdd_imported">Imported %1$s</string>
+    <string name="retro_scr_invalid_hdd_file">Could not import HDD image</string>
+    <string name="retro_scr_hdd_removed">Removed %1$s</string>
+    <string name="retro_scr_remove_hdd_image">Remove %1$s</string>
+    <string name="retro_gs_hdd_image">HDD Image</string>
+    <string name="retro_scr_none">None</string>
 </resources>
