@@ -150,9 +150,6 @@ object Ps2GameOverlay {
         NativeApp.setSetting("DEV9/Eth", "InterceptDHCP", "bool", prefs.getBoolean("wn.ps2.net.dhcp", true).toString())
         NativeApp.setSetting("DEV9/Eth", "AutoMask", "bool", "true")
         NativeApp.setSetting("DEV9/Eth", "AutoGateway", "bool", "true")
-        // Force ALL PS2 TCP/UDP traffic (not just DNS lookups) to the configured
-        // DNS1 server — for all-in-one revival servers that answer every request.
-        NativeApp.setSetting("DEV9/Eth", "EthForceAllTraffic", "bool", prefs.getBoolean("wn.ps2.net.forceall", false).toString())
         val hosts = readHosts(prefs)
         // These DNS settings are the source of truth: the emucore patches redirect
         // EVERY PS2 DNS query here, regardless of the DNS baked into the game's
@@ -221,7 +218,30 @@ object Ps2GameOverlay {
         val ps2Screen = mutableStateOf<String?>(null)
         var savesLoadMode = false
         var pad: RetroInputView? = null
-        val touchVisible = mutableStateOf(RetroDefaults.touchControls(activity, RetroSystems.PS2.id))
+        // Per-game on-screen-controls setting: RetroShortcuts.launchEmbeddedPs2
+        // resolves the shortcut override (falling back to the Settings > Retro > PS2
+        // default) into this pref, so the shortcut toggle properly overrides the
+        // global default here.
+        val touchVisible =
+            mutableStateOf(
+                ps2Prefs(activity).getBoolean("wn.ps2.touchcontrols", RetroDefaults.touchControls(activity, RetroSystems.PS2.id)),
+            )
+        // A connected physical game controller auto-hides the on-screen controls
+        // (restored when it disconnects) — mirrors RetroActivity's libretro path.
+        fun anyGameController(): Boolean =
+            android.view.InputDevice.getDeviceIds().any {
+                com.winlator.cmod.runtime.input.controls.ExternalController.isGameController(android.view.InputDevice.getDevice(it))
+            }
+        val controllerConnected = mutableStateOf(anyGameController())
+        val inputManager = activity.getSystemService(android.hardware.input.InputManager::class.java)
+        inputManager?.registerInputDeviceListener(
+            object : android.hardware.input.InputManager.InputDeviceListener {
+                override fun onInputDeviceAdded(deviceId: Int) { controllerConnected.value = anyGameController() }
+                override fun onInputDeviceRemoved(deviceId: Int) { controllerConnected.value = anyGameController() }
+                override fun onInputDeviceChanged(deviceId: Int) { controllerConnected.value = anyGameController() }
+            },
+            null,
+        )
         var customColors = RetroControlLayouts.loadColors(activity, RetroSystems.PS2.id)
         var wnPaused = false
 
@@ -573,17 +593,6 @@ object Ps2GameOverlay {
                             applyNetwork()
                             menu.rebuild()
                         }
-                    },
-                )
-                add(
-                    RetroMenuEntry.Toggle(
-                        activity.getString(R.string.retro_ps2_force_all_dns),
-                        subtitle = activity.getString(R.string.retro_ps2_force_all_dns_subtitle),
-                        checked = prefs.getBoolean("wn.ps2.net.forceall", false),
-                    ) { value ->
-                        prefs.edit().putBoolean("wn.ps2.net.forceall", value).apply()
-                        applyNetwork()
-                        menu.rebuild()
                     },
                 )
                 add(
@@ -1244,7 +1253,10 @@ object Ps2GameOverlay {
                             return@WinNativeTheme
                         }
                         val covered = WindowImpl.frontendCovers
-                        if (!covered && touchVisible.value) {
+                        // Hide the on-screen pad when a physical controller is
+                        // connected (unless the user is editing the layout).
+                        val showPad = touchVisible.value && (pad?.editMode == true || !controllerConnected.value)
+                        if (!covered && showPad) {
                             AndroidView(
                                 modifier = Modifier.fillMaxSize(),
                                 factory = { ctx ->

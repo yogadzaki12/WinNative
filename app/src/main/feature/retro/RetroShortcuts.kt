@@ -102,7 +102,7 @@ object RetroShortcuts {
         val system = systemForShortcut(shortcut)
         if (system != null && system.isExternal) {
             recordLaunchStats(context, shortcut.getExtra("custom_name", shortcut.name))
-            launchEmbeddedPs2(context, romPath(shortcut))
+            launchEmbeddedPs2(context, shortcut)
             return
         }
         context.startActivity(launchIntent(context, shortcut))
@@ -121,15 +121,22 @@ object RetroShortcuts {
 
     private fun launchEmbeddedPs2(
         context: Context,
-        romPath: String,
+        shortcut: Shortcut,
     ) {
-        val rom = File(romPath)
+        val rom = File(romPath(shortcut))
         if (!rom.isFile) {
             Toast.makeText(context, context.getString(com.winlator.cmod.R.string.retro_rom_missing), Toast.LENGTH_LONG).show()
             return
         }
         val biosPath = ensurePs2Bios(context)
         val prefs = context.getSharedPreferences("ARMSX2", Context.MODE_PRIVATE)
+        // Resolve the per-game on-screen-controls setting: the shortcut's own
+        // override wins; if it has none, fall back to the Settings > Retro > PS2
+        // default. Written to a pref the embedded overlay reads at attach, so the
+        // shortcut setting properly overrides the global default.
+        val touchControls =
+            shortcut.getExtra(KEY_TOUCH_CONTROLS)
+                .ifEmpty { if (RetroDefaults.touchControls(context, RetroSystems.PS2.id)) "1" else "0" } != "0"
         // Resolve the chosen GPU driver (global "wn.ps2.driver": "" / "system" =
         // stock Vulkan, otherwise an installed driver id) and hand it to ARMSX2's
         // existing customDriverId boot path, which pins it before the first
@@ -140,6 +147,7 @@ object RetroShortcuts {
         prefs.edit().apply {
             putBoolean("setupComplete", true)
             putBoolean("wn.controls", true)
+            putBoolean("wn.ps2.touchcontrols", touchControls)
             putString("romsDirs", org.json.JSONArray().put(rom.parent ?: "").toString())
             if (biosPath != null) putString("bios", biosPath)
             putString("customDriverId", customDriverId)
