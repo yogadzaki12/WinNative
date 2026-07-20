@@ -561,24 +561,9 @@ object Ps2GameOverlay {
                         }
                     },
                 )
-                add(
-                    RetroMenuEntry.Toggle(
-                        activity.getString(R.string.retro_ps2_hdd),
-                        subtitle = activity.getString(R.string.retro_ps2_hdd_subtitle),
-                        checked = prefs.getBoolean("wn.ps2.hdd", false),
-                    ) { value ->
-                        prefs.edit().putBoolean("wn.ps2.hdd", value).apply()
-                        bg {
-                            ensureHddImage()
-                            writeNetworkSettings()
-                            NativeApp.commitSettings()
-                            activity.runOnUiThread {
-                                menu.close()
-                                MainActivityRuntime.restart()
-                            }
-                        }
-                    },
-                )
+                // The virtual PS2 HDD is a per-game, boot-time device — it's configured
+                // in each game's Shortcut Settings (Online → HDD Image / PS2 HDD), NOT
+                // here, so toggling it globally mid-session can't leak across games.
                 if (!enabled) return@buildList
                 val devices = listOf("Auto", "Wi-Fi")
                 add(

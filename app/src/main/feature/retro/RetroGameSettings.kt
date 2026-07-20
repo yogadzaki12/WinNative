@@ -132,6 +132,9 @@ class RetroSettingsState(
             .ifEmpty { if (context != null && sysId != null) (if (RetroDefaults.adaptiveSticks(context, sysId)) "1" else "0") else "0" } == "1",
     )
     var hddImage by mutableStateOf(shortcut.getExtra(RetroShortcuts.KEY_HDD_IMAGE))
+    // Per-game self-format (blank) HDD enable. Kept on the shortcut, NOT a global
+    // pref, so enabling the HDD for one game never turns it on for the others.
+    var hddEnable by mutableStateOf(shortcut.getExtra(RetroShortcuts.KEY_HDD_ENABLE) == "1")
     var audio by mutableStateOf(
         shortcut.getExtra(RetroShortcuts.KEY_AUDIO)
             .ifEmpty { if (context != null && sysId != null) (if (RetroDefaults.audio(context, sysId)) "1" else "0") else "1" } != "0",
@@ -196,6 +199,7 @@ class RetroSettingsState(
         shortcut.putExtra(RetroShortcuts.KEY_TOUCH_CONTROLS, if (touchControls) "1" else "0")
         shortcut.putExtra(RetroShortcuts.KEY_ADAPTIVE_STICKS, if (adaptiveSticks) "1" else "0")
         shortcut.putExtra(RetroShortcuts.KEY_HDD_IMAGE, hddImage)
+        shortcut.putExtra(RetroShortcuts.KEY_HDD_ENABLE, if (hddEnable) "1" else "0")
         shortcut.putExtra(RetroShortcuts.KEY_AUDIO, if (audio) "1" else "0")
         shortcut.putExtra(RetroShortcuts.KEY_HUD, if (hud) "1" else "0")
         coreOptions.forEach { option ->
@@ -1333,7 +1337,7 @@ private fun RetroPs2OnlineSection(state: RetroSettingsState) {
                 ) { Text(stringResource(R.string.retro_gs_hdd_remove_short), fontSize = ValueSize) }
             }
         }
-        RetroSettingSwitch(stringResource(R.string.retro_ps2_hdd), prefs.getBoolean("wn.ps2.hdd", false)) { putBool("wn.ps2.hdd", it) }
+        RetroSettingSwitch(stringResource(R.string.retro_ps2_hdd), state.hddEnable) { state.hddEnable = it; version++ }
         Text(
             stringResource(R.string.retro_ps2_hdd_desc),
             color = TextDim,

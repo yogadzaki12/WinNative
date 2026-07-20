@@ -19,6 +19,7 @@ object RetroShortcuts {
     const val KEY_TOUCH_CONTROLS = "retro_touch_controls"
     const val KEY_ADAPTIVE_STICKS = "retro_adaptive_sticks"
     const val KEY_HDD_IMAGE = "retro_ps2_hdd_image"
+    const val KEY_HDD_ENABLE = "retro_ps2_hdd_enable"
     const val KEY_AUDIO = "retro_audio"
     const val KEY_HUD = "retro_hud"
     const val VAR_PREFIX = "retro_var_"
@@ -150,9 +151,12 @@ object RetroShortcuts {
             putBoolean("wn.controls", true)
             putBoolean("wn.ps2.touchcontrols", touchControls)
             putBoolean("wn.ps2.adaptivesticks", adaptiveSticks)
-            // Per-game HDD image (name of a file imported via RetroHddImport, or
-            // empty for none / the self-formatting blank image).
+            // Per-game HDD: the image (name of a file imported via RetroHddImport, or
+            // empty for none) and the self-format blank-HDD enable — both belong to
+            // THIS shortcut, so the virtual HDD never leaks across games or into the
+            // global console defaults.
             putString("wn.ps2.hddimage", shortcut.getExtra(KEY_HDD_IMAGE))
+            putBoolean("wn.ps2.hdd", shortcut.getExtra(KEY_HDD_ENABLE) == "1")
             putString("romsDirs", org.json.JSONArray().put(rom.parent ?: "").toString())
             if (biosPath != null) putString("bios", biosPath)
             putString("customDriverId", customDriverId)
