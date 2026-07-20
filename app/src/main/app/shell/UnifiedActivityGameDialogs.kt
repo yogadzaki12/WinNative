@@ -1265,6 +1265,7 @@ internal fun UnifiedActivity.GameSettingsDialog(
                     gameId = gameIdStr,
                     gameName = app.name,
                     shortcut = shortcut,
+                    retroSaveDir = com.winlator.cmod.feature.sync.google.GameSaveBackupManager.retroSaveDir(context, shortcut),
                     onCloudSyncToggle = { enabled ->
                         cloudSyncEnabled = enabled
                         setShortcutCloudSyncEnabled(shortcut, enabled)
@@ -2787,6 +2788,7 @@ internal fun UnifiedActivity.LibraryGameDetailDialog(
                                 gameId = detailGameId,
                                 gameName = app.name,
                                 shortcut = detailShortcut,
+                                retroSaveDir = com.winlator.cmod.feature.sync.google.GameSaveBackupManager.retroSaveDir(context, detailShortcut),
                                 onCloudSyncToggle = { enabled ->
                                     cloudSyncEnabled = enabled
                                     setShortcutCloudSyncEnabled(detailShortcut, enabled)
@@ -2980,6 +2982,7 @@ internal fun UnifiedActivity.LibraryGameDetailDialog(
                                     gameId = detailGameId,
                                     gameName = app.name,
                                     shortcut = detailShortcut,
+                                    retroSaveDir = com.winlator.cmod.feature.sync.google.GameSaveBackupManager.retroSaveDir(context, detailShortcut),
                                     onCloudSyncToggle = { enabled ->
                                         cloudSyncEnabled = enabled
                                         setShortcutCloudSyncEnabled(detailShortcut, enabled)

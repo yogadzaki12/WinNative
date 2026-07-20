@@ -742,6 +742,23 @@ object GameSaveBackupManager {
         }
     }
 
+    /** The known local save directory for a retro shortcut — PS2 memory cards, or
+     *  the ROM's SRAM/cloud dir for libretro cores — or null when [shortcut] isn't a
+     *  retro shortcut. Single source of truth shared by the backup backend and the
+     *  Cloud Saves UI, so retro games auto-sync per console instead of prompting for
+     *  a save folder like a custom Wine game. */
+    fun retroSaveDir(context: Context, shortcut: Shortcut?): File? {
+        val system = shortcut
+            ?.getExtra(com.winlator.cmod.feature.retro.RetroShortcuts.KEY_SYSTEM)
+            ?.takeIf { it.isNotBlank() } ?: return null
+        return if (system == com.winlator.cmod.feature.retro.RetroSystems.PS2.id) {
+            File(com.armsx2.runtime.MainActivityRuntime.assetCopyRoot(context), "memcards")
+        } else {
+            com.winlator.cmod.feature.retro.RetroSaveStates
+                .cloudDir(context, shortcut.getExtra("custom_name", shortcut.name))
+        }
+    }
+
     /** Custom-game save sources in priority order: explicit customSaveDir, then the customSaveWindowsPath extra, then the legacy custom_game_folder extra, then the prefix's users/xuser/{Documents,Saved Games,AppData}. */
     private fun getCustomSaveSources(
         context: Context,
@@ -752,16 +769,8 @@ object GameSaveBackupManager {
         val retroShortcut =
             parseCustomGameId(gameId)?.let { (cid, f) -> findCustomShortcutByContainerAndFile(context, cid, f) }
                 ?: findCustomShortcutByGameId(context, gameId)
-        val retroSystem =
-            retroShortcut?.getExtra(com.winlator.cmod.feature.retro.RetroShortcuts.KEY_SYSTEM)?.takeIf { it.isNotBlank() }
-        if (retroShortcut != null && retroSystem != null) {
-            val dir =
-                if (retroSystem == com.winlator.cmod.feature.retro.RetroSystems.PS2.id) {
-                    File(com.armsx2.runtime.MainActivityRuntime.assetCopyRoot(context), "memcards")
-                } else {
-                    com.winlator.cmod.feature.retro.RetroSaveStates
-                        .cloudDir(context, retroShortcut.getExtra("custom_name", retroShortcut.name))
-                }
+        val dir = retroSaveDir(context, retroShortcut)
+        if (dir != null) {
             return if (forRestore || (dir.exists() && !dir.listFiles().isNullOrEmpty())) {
                 listOf(SaveBackupSource("retro/save", dir))
             } else {
