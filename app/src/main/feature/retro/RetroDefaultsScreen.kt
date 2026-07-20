@@ -337,7 +337,11 @@ fun RetroDefaultsScreen() {
                 if (expanded && console.isExternal) {
                     val ps2Prefs = context.getSharedPreferences("ARMSX2", android.content.Context.MODE_PRIVATE)
                     val rendererKeys = listOf("vulkan", "opengl", "software")
-                    val rendererLabels = listOf("Vulkan", "OpenGL", "Software")
+                    val rendererLabels = listOf(
+                        stringResource(R.string.retro_ps2_renderer_vulkan),
+                        stringResource(R.string.retro_ps2_renderer_opengl),
+                        stringResource(R.string.retro_ps2_renderer_software),
+                    )
                     RetroSettingDropdown(
                         label = stringResource(R.string.retro_scr_renderer),
                         entries = rendererLabels,
@@ -363,7 +367,13 @@ fun RetroDefaultsScreen() {
                         )
                     }
                     val ps2Scales = listOf(1f, 1.5f, 2f, 3f, 4f)
-                    val ps2ScaleLabels = listOf("1x (Native)", "1.5x", "2x", "3x", "4x")
+                    val ps2ScaleLabels = listOf(
+                        stringResource(R.string.retro_gs_scale_1x_native),
+                        stringResource(R.string.retro_gs_scale_1_5x),
+                        stringResource(R.string.retro_gs_scale_2x),
+                        stringResource(R.string.retro_gs_scale_3x),
+                        stringResource(R.string.retro_gs_scale_4x),
+                    )
                     val curScale = ps2Prefs.getFloat("wn.ps2.upscale", 1f)
                     RetroSettingDropdown(
                         label = stringResource(R.string.retro_scr_upscale_resolution),
@@ -381,6 +391,34 @@ fun RetroDefaultsScreen() {
                         ),
                         selectedIndex = ps2Prefs.getInt("wn.ps2.aspect", 1).coerceIn(0, 3),
                         onSelected = { ps2Prefs.edit().putInt("wn.ps2.aspect", it).apply(); refresh++ },
+                    )
+                    RetroSettingDropdown(
+                        label = stringResource(R.string.retro_gs_fmv_aspect_ratio),
+                        entries = listOf(
+                            stringResource(R.string.retro_gs_off),
+                            stringResource(R.string.retro_gs_aspect_auto_standard),
+                            stringResource(R.string.retro_gs_aspect_4_3),
+                            stringResource(R.string.retro_gs_aspect_16_9),
+                        ),
+                        selectedIndex = ps2Prefs.getInt("wn.ps2.fmvaspect", 0).coerceIn(0, 3),
+                        onSelected = { ps2Prefs.edit().putInt("wn.ps2.fmvaspect", it).apply(); refresh++ },
+                    )
+                    RetroSettingDropdown(
+                        label = stringResource(R.string.retro_gs_deinterlace_mode),
+                        entries = listOf(
+                            stringResource(R.string.retro_gs_deint_auto),
+                            stringResource(R.string.retro_gs_deint_off),
+                            stringResource(R.string.retro_gs_deint_weave_tff),
+                            stringResource(R.string.retro_gs_deint_weave_bff),
+                            stringResource(R.string.retro_gs_deint_bob_tff),
+                            stringResource(R.string.retro_gs_deint_bob_bff),
+                            stringResource(R.string.retro_gs_deint_blend_tff),
+                            stringResource(R.string.retro_gs_deint_blend_bff),
+                            stringResource(R.string.retro_gs_deint_adaptive_tff),
+                            stringResource(R.string.retro_gs_deint_adaptive_bff),
+                        ),
+                        selectedIndex = ps2Prefs.getInt("wn.ps2.deinterlace", 0).coerceIn(0, 9),
+                        onSelected = { ps2Prefs.edit().putInt("wn.ps2.deinterlace", it).apply(); refresh++ },
                     )
                     RetroSettingDropdown(
                         label = stringResource(R.string.retro_scr_display_filter),
@@ -403,6 +441,9 @@ fun RetroDefaultsScreen() {
                         selectedIndex = ps2Prefs.getInt("wn.ps2.filter", 2).coerceIn(0, 3),
                         onSelected = { ps2Prefs.edit().putInt("wn.ps2.filter", it).apply(); refresh++ },
                     )
+                    RetroSettingSwitch(stringResource(R.string.retro_scr_mipmapping), ps2Prefs.getBoolean("wn.ps2.mipmap", true)) {
+                        ps2Prefs.edit().putBoolean("wn.ps2.mipmap", it).apply(); refresh++
+                    }
                     RetroSettingDropdown(
                         label = stringResource(R.string.retro_scr_blending_accuracy),
                         entries = listOf(
@@ -416,6 +457,9 @@ fun RetroDefaultsScreen() {
                         selectedIndex = ps2Prefs.getInt("wn.ps2.blend", 1).coerceIn(0, 5),
                         onSelected = { ps2Prefs.edit().putInt("wn.ps2.blend", it).apply(); refresh++ },
                     )
+                    RetroSettingSwitch(stringResource(R.string.retro_gs_anti_blur), ps2Prefs.getBoolean("wn.ps2.antiblur", true)) {
+                        ps2Prefs.edit().putBoolean("wn.ps2.antiblur", it).apply(); refresh++
+                    }
                     RetroSettingDropdown(
                         label = stringResource(R.string.retro_scr_crt_tv_shader),
                         entries = listOf(
@@ -442,8 +486,11 @@ fun RetroDefaultsScreen() {
                         selectedIndex = ps2Prefs.getInt("wn.ps2.frameskip", 0).coerceIn(0, 3),
                         onSelected = { ps2Prefs.edit().putInt("wn.ps2.frameskip", it).apply(); refresh++ },
                     )
-                    RetroSettingSwitch(stringResource(R.string.retro_scr_mipmapping), ps2Prefs.getBoolean("wn.ps2.mipmap", true)) {
-                        ps2Prefs.edit().putBoolean("wn.ps2.mipmap", it).apply(); refresh++
+                    RetroSettingSwitch(stringResource(R.string.retro_gs_widescreen_patches), ps2Prefs.getBoolean("wn.ps2.widescreen", false)) {
+                        ps2Prefs.edit().putBoolean("wn.ps2.widescreen", it).apply(); refresh++
+                    }
+                    RetroSettingSwitch(stringResource(R.string.retro_gs_no_interlace_patches), ps2Prefs.getBoolean("wn.ps2.nointerlace", false)) {
+                        ps2Prefs.edit().putBoolean("wn.ps2.nointerlace", it).apply(); refresh++
                     }
                     val eeRates = listOf(-3, -2, -1, 0, 1, 2, 3)
                     RetroSettingDropdown(
@@ -471,14 +518,26 @@ fun RetroDefaultsScreen() {
                         selectedIndex = ps2Prefs.getInt("wn.ps2.eeSkip", 0).coerceIn(0, 3),
                         onSelected = { ps2Prefs.edit().putInt("wn.ps2.eeSkip", it).apply(); refresh++ },
                     )
-                    RetroSettingSwitch(stringResource(R.string.retro_scr_instant_vu1), ps2Prefs.getBoolean("wn.ps2.instantVu1", true)) {
-                        ps2Prefs.edit().putBoolean("wn.ps2.instantVu1", it).apply(); refresh++
-                    }
                     RetroSettingSwitch(stringResource(R.string.retro_scr_mtvu), ps2Prefs.getBoolean("wn.ps2.mtvu", true)) {
                         ps2Prefs.edit().putBoolean("wn.ps2.mtvu", it).apply(); refresh++
                     }
+                    RetroSettingSwitch(stringResource(R.string.retro_scr_instant_vu1), ps2Prefs.getBoolean("wn.ps2.instantVu1", true)) {
+                        ps2Prefs.edit().putBoolean("wn.ps2.instantVu1", it).apply(); refresh++
+                    }
+                    RetroSettingSwitch(stringResource(R.string.retro_gs_vu_flag_hack), ps2Prefs.getBoolean("wn.ps2.vuFlagHack", true)) {
+                        ps2Prefs.edit().putBoolean("wn.ps2.vuFlagHack", it).apply(); refresh++
+                    }
+                    RetroSettingSwitch(stringResource(R.string.retro_gs_intc_spin), ps2Prefs.getBoolean("wn.ps2.intc", true)) {
+                        ps2Prefs.edit().putBoolean("wn.ps2.intc", it).apply(); refresh++
+                    }
+                    RetroSettingSwitch(stringResource(R.string.retro_gs_wait_loop), ps2Prefs.getBoolean("wn.ps2.waitloop", true)) {
+                        ps2Prefs.edit().putBoolean("wn.ps2.waitloop", it).apply(); refresh++
+                    }
                     RetroSettingSwitch(stringResource(R.string.retro_scr_fast_cdvd), ps2Prefs.getBoolean("wn.ps2.fastCdvd", false)) {
                         ps2Prefs.edit().putBoolean("wn.ps2.fastCdvd", it).apply(); refresh++
+                    }
+                    RetroSettingSwitch(stringResource(R.string.retro_gs_fast_boot), ps2Prefs.getBoolean("wn.ps2.fastboot", true)) {
+                        ps2Prefs.edit().putBoolean("wn.ps2.fastboot", it).apply(); refresh++
                     }
                     RetroSettingSwitch(
                         stringResource(R.string.retro_scr_touch_controls),
@@ -493,6 +552,24 @@ fun RetroDefaultsScreen() {
                         ps2Prefs.getBoolean("wn.ps2.swap", false),
                     ) { ps2Prefs.edit().putBoolean("wn.ps2.swap", it).apply(); refresh++ }
                     RetroSettingSwitch(
+                        stringResource(R.string.retro_gs_time_stretch),
+                        ps2Prefs.getBoolean("wn.ps2.timestretch", true),
+                    ) { ps2Prefs.edit().putBoolean("wn.ps2.timestretch", it).apply(); refresh++ }
+                    val bufferValues = listOf(40, 50, 60, 80, 100, 120, 160, 200)
+                    RetroSettingDropdown(
+                        label = stringResource(R.string.retro_gs_audio_buffer),
+                        entries = bufferValues.map { context.getString(R.string.retro_gs_ms, it) },
+                        selectedIndex = bufferValues.indexOf(ps2Prefs.getInt("wn.ps2.audiobuffer", 50)).coerceAtLeast(0),
+                        onSelected = { ps2Prefs.edit().putInt("wn.ps2.audiobuffer", bufferValues[it]).apply(); refresh++ },
+                    )
+                    val latencyValues = listOf(10, 15, 20, 30, 40, 60, 80, 100)
+                    RetroSettingDropdown(
+                        label = stringResource(R.string.retro_gs_audio_latency),
+                        entries = latencyValues.map { context.getString(R.string.retro_gs_ms, it) },
+                        selectedIndex = latencyValues.indexOf(ps2Prefs.getInt("wn.ps2.audiolatency", 20)).coerceAtLeast(0),
+                        onSelected = { ps2Prefs.edit().putInt("wn.ps2.audiolatency", latencyValues[it]).apply(); refresh++ },
+                    )
+                    RetroSettingSwitch(
                         stringResource(R.string.retro_scr_hud_fps),
                         ps2Prefs.getBoolean("wn.osd.fps", false),
                     ) { ps2Prefs.edit().putBoolean("wn.osd.fps", it).apply(); refresh++ }
@@ -500,6 +577,10 @@ fun RetroDefaultsScreen() {
                         stringResource(R.string.retro_scr_hud_emulation_speed),
                         ps2Prefs.getBoolean("wn.osd.speed", false),
                     ) { ps2Prefs.edit().putBoolean("wn.osd.speed", it).apply(); refresh++ }
+                    RetroSettingSwitch(
+                        stringResource(R.string.retro_scr_hud_internal_resolution),
+                        ps2Prefs.getBoolean("wn.osd.res", false),
+                    ) { ps2Prefs.edit().putBoolean("wn.osd.res", it).apply(); refresh++ }
                     RetroSettingSwitch(
                         stringResource(R.string.retro_scr_hud_cpu_usage),
                         ps2Prefs.getBoolean("wn.osd.cpu", false),
@@ -509,9 +590,25 @@ fun RetroDefaultsScreen() {
                         ps2Prefs.getBoolean("wn.osd.gpu", false),
                     ) { ps2Prefs.edit().putBoolean("wn.osd.gpu", it).apply(); refresh++ }
                     RetroSettingSwitch(
-                        stringResource(R.string.retro_scr_hud_internal_resolution),
-                        ps2Prefs.getBoolean("wn.osd.res", false),
-                    ) { ps2Prefs.edit().putBoolean("wn.osd.res", it).apply(); refresh++ }
+                        "HUD: " + stringResource(R.string.retro_gs_hud_frame_times),
+                        ps2Prefs.getBoolean("wn.osd.frametimes", false),
+                    ) { ps2Prefs.edit().putBoolean("wn.osd.frametimes", it).apply(); refresh++ }
+                    RetroSettingSwitch(
+                        "HUD: " + stringResource(R.string.retro_gs_hud_gs_stats),
+                        ps2Prefs.getBoolean("wn.osd.gsstats", false),
+                    ) { ps2Prefs.edit().putBoolean("wn.osd.gsstats", it).apply(); refresh++ }
+                    RetroSettingSwitch(
+                        "HUD: " + stringResource(R.string.retro_gs_hud_input_display),
+                        ps2Prefs.getBoolean("wn.osd.inputs", false),
+                    ) { ps2Prefs.edit().putBoolean("wn.osd.inputs", it).apply(); refresh++ }
+                    RetroSettingSwitch(
+                        "HUD: " + stringResource(R.string.retro_gs_hud_hw_info),
+                        ps2Prefs.getBoolean("wn.osd.hwinfo", false),
+                    ) { ps2Prefs.edit().putBoolean("wn.osd.hwinfo", it).apply(); refresh++ }
+                    RetroSettingSwitch(
+                        "HUD: " + stringResource(R.string.retro_gs_hud_version),
+                        ps2Prefs.getBoolean("wn.osd.version", false),
+                    ) { ps2Prefs.edit().putBoolean("wn.osd.version", it).apply(); refresh++ }
                     RetroSettingSwitch(
                         stringResource(R.string.retro_scr_enable_online_dev9),
                         ps2Prefs.getBoolean("wn.ps2.net.enable", false),
