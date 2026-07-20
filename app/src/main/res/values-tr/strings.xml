@@ -2193,10 +2193,6 @@ Yüklü konum:
     <string name="retro_ps2_hdd_subtitle">Final Fantasy XI gibi HDD tabanlı oyunlar için sanal dahili sürücü. Oyunu yeniden başlatır.</string>
     <string name="retro_ps2_hdd_desc">Final Fantasy XI gibi HDD tabanlı oyunlar için sanal dahili sürücü.</string>
     <string name="retro_ps2_dns_auto_internal">Özel sunucu ana bilgisayarlarınızın etkili olması için DNS Modu Internal olarak ayarlandı.</string>
-    <string name="retro_ps2_force_all_dns">Route All Traffic Through DNS</string>
-    <string name="retro_ps2_force_all_dns_subtitle">ADVANCED - breaks normal online (ps2online, PSRewired). Leave OFF unless your service uses ONE all-in-one server.</string>
-    <string name="retro_gs_force_all_dns">Route All Traffic Through DNS</string>
-    <string name="retro_gs_force_all_dns_subtitle">ADVANCED - breaks normal online (ps2online, PSRewired). Leave OFF unless your service uses ONE all-in-one server.</string>
     <string name="retro_ps2_dnas_bypass">DNAS Auth Bypass</string>
     <string name="retro_ps2_dnas_bypass_subtitle">Auto-skip Sony\'s dead DNAS login for supported online games (SOCOM, Syphon Filter, etc.)</string>
     <string name="retro_gs_dnas_bypass">DNAS Auth Bypass</string>

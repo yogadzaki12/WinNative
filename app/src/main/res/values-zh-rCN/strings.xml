@@ -2196,10 +2196,6 @@
     <string name="retro_ps2_hdd_subtitle">用于 Final Fantasy XI 等基于 HDD 的游戏的虚拟内置驱动器。将重启游戏。</string>
     <string name="retro_ps2_hdd_desc">用于 Final Fantasy XI 等基于 HDD 的游戏的虚拟内置驱动器。</string>
     <string name="retro_ps2_dns_auto_internal">DNS 模式已设为 Internal，以便你的自定义服务器主机生效。</string>
-    <string name="retro_ps2_force_all_dns">Route All Traffic Through DNS</string>
-    <string name="retro_ps2_force_all_dns_subtitle">ADVANCED - breaks normal online (ps2online, PSRewired). Leave OFF unless your service uses ONE all-in-one server.</string>
-    <string name="retro_gs_force_all_dns">Route All Traffic Through DNS</string>
-    <string name="retro_gs_force_all_dns_subtitle">ADVANCED - breaks normal online (ps2online, PSRewired). Leave OFF unless your service uses ONE all-in-one server.</string>
     <string name="retro_ps2_dnas_bypass">DNAS Auth Bypass</string>
     <string name="retro_ps2_dnas_bypass_subtitle">Auto-skip Sony\'s dead DNAS login for supported online games (SOCOM, Syphon Filter, etc.)</string>
     <string name="retro_gs_dnas_bypass">DNAS Auth Bypass</string>

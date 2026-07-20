@@ -2193,10 +2193,6 @@ Installerad sökväg:
     <string name="retro_ps2_hdd_subtitle">Virtuell intern enhet för HDD-baserade spel som Final Fantasy XI. Startar om spelet.</string>
     <string name="retro_ps2_hdd_desc">Virtuell intern enhet för HDD-baserade spel som Final Fantasy XI.</string>
     <string name="retro_ps2_dns_auto_internal">DNS-läge inställt på Internal så att dina anpassade servervärdar träder i kraft.</string>
-    <string name="retro_ps2_force_all_dns">Route All Traffic Through DNS</string>
-    <string name="retro_ps2_force_all_dns_subtitle">ADVANCED - breaks normal online (ps2online, PSRewired). Leave OFF unless your service uses ONE all-in-one server.</string>
-    <string name="retro_gs_force_all_dns">Route All Traffic Through DNS</string>
-    <string name="retro_gs_force_all_dns_subtitle">ADVANCED - breaks normal online (ps2online, PSRewired). Leave OFF unless your service uses ONE all-in-one server.</string>
     <string name="retro_ps2_dnas_bypass">DNAS Auth Bypass</string>
     <string name="retro_ps2_dnas_bypass_subtitle">Auto-skip Sony\'s dead DNAS login for supported online games (SOCOM, Syphon Filter, etc.)</string>
     <string name="retro_gs_dnas_bypass">DNAS Auth Bypass</string>

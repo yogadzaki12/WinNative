@@ -2196,10 +2196,6 @@ Ruta instalada:
     <string name="retro_ps2_hdd_subtitle">Unidad interna virtual para juegos basados en HDD como Final Fantasy XI. Reinicia el juego.</string>
     <string name="retro_ps2_hdd_desc">Unidad interna virtual para juegos basados en HDD como Final Fantasy XI.</string>
     <string name="retro_ps2_dns_auto_internal">Modo DNS configurado en Internal para que tus hosts de servidor personalizados surtan efecto.</string>
-    <string name="retro_ps2_force_all_dns">Route All Traffic Through DNS</string>
-    <string name="retro_ps2_force_all_dns_subtitle">ADVANCED - breaks normal online (ps2online, PSRewired). Leave OFF unless your service uses ONE all-in-one server.</string>
-    <string name="retro_gs_force_all_dns">Route All Traffic Through DNS</string>
-    <string name="retro_gs_force_all_dns_subtitle">ADVANCED - breaks normal online (ps2online, PSRewired). Leave OFF unless your service uses ONE all-in-one server.</string>
     <string name="retro_ps2_dnas_bypass">DNAS Auth Bypass</string>
     <string name="retro_ps2_dnas_bypass_subtitle">Auto-skip Sony\'s dead DNAS login for supported online games (SOCOM, Syphon Filter, etc.)</string>
     <string name="retro_gs_dnas_bypass">DNAS Auth Bypass</string>

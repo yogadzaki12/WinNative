@@ -2197,10 +2197,6 @@
     <string name="retro_ps2_hdd_subtitle">Final Fantasy XI 같은 HDD 기반 게임용 가상 내장 드라이브. 게임을 다시 시작합니다.</string>
     <string name="retro_ps2_hdd_desc">Final Fantasy XI 같은 HDD 기반 게임용 가상 내장 드라이브.</string>
     <string name="retro_ps2_dns_auto_internal">사용자 지정 서버 호스트가 적용되도록 DNS 모드를 Internal로 설정했습니다.</string>
-    <string name="retro_ps2_force_all_dns">Route All Traffic Through DNS</string>
-    <string name="retro_ps2_force_all_dns_subtitle">ADVANCED - breaks normal online (ps2online, PSRewired). Leave OFF unless your service uses ONE all-in-one server.</string>
-    <string name="retro_gs_force_all_dns">Route All Traffic Through DNS</string>
-    <string name="retro_gs_force_all_dns_subtitle">ADVANCED - breaks normal online (ps2online, PSRewired). Leave OFF unless your service uses ONE all-in-one server.</string>
     <string name="retro_ps2_dnas_bypass">DNAS Auth Bypass</string>
     <string name="retro_ps2_dnas_bypass_subtitle">Auto-skip Sony\'s dead DNAS login for supported online games (SOCOM, Syphon Filter, etc.)</string>
     <string name="retro_gs_dnas_bypass">DNAS Auth Bypass</string>
