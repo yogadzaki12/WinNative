@@ -1051,6 +1051,59 @@ private fun RetroGraphicsSection(state: RetroSettingsState) {
     }
 }
 
+// Curated Turnip (Mesa) TU_DEBUG flags that help with flickering / rendering
+// artifacts on PS2 games, mirroring the PC side's TU_DEBUG env var. flag -> hint.
+internal val PS2_TURNIP_FLAGS: List<Pair<String, String>> = listOf(
+    "sysmem" to "Force system-memory rendering (fixes tiling flicker)",
+    "flushall" to "Flush all caches every draw",
+    "nolrz" to "Disable low-resolution Z (LRZ)",
+    "nolrzfc" to "Disable LRZ fast-clear",
+    "noubwc" to "Disable bandwidth compression (UBWC)",
+    "noconform" to "Skip non-conformant fast paths",
+    "syncdraw" to "Synchronise every draw",
+    "forcebin" to "Force binning (tiled) mode",
+)
+
+/** TU_DEBUG flag toggles for the Turnip GPU driver. Content-only (no group wrapper);
+ *  writes a comma-separated wn.ps2.turnipflags pref that Ps2GameOverlay pushes into
+ *  the :ps2 process's TU_DEBUG env var before the driver initializes. Shared by
+ *  Shortcut Settings and Settings > Retro > PS2 (Graphics). */
+@Composable
+internal fun Ps2TurnipFlags(prefs: android.content.SharedPreferences, refreshKey: Int, bump: () -> Unit) {
+    Text(
+        stringResource(R.string.retro_ps2_turnip_flags),
+        color = TextSecondary,
+        fontSize = LabelSize,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(top = ItemGap, bottom = TightGap),
+    )
+    // refreshKey is the caller's version/refresh counter — re-read the prefs (which
+    // are mutated imperatively) whenever it changes so the toggles stay in sync.
+    val usingTurnip = remember(refreshKey) {
+        val driver = (prefs.getString("wn.ps2.driver", "") ?: "").trim()
+        driver.isNotEmpty() && !driver.equals("system", ignoreCase = true)
+    }
+    if (!usingTurnip) {
+        Text(
+            stringResource(R.string.retro_ps2_turnip_flags_note),
+            color = TextDim,
+            fontSize = LabelSize,
+            modifier = Modifier.padding(bottom = TightGap),
+        )
+    }
+    val active = remember(refreshKey) {
+        (prefs.getString("wn.ps2.turnipflags", "") ?: "")
+            .split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+    }
+    PS2_TURNIP_FLAGS.forEach { (flag, hint) ->
+        RetroSettingSwitch(flag, flag in active, subtitle = hint) { on ->
+            val next = if (on) active + flag else active - flag
+            prefs.edit().putString("wn.ps2.turnipflags", next.joinToString(",")).apply()
+            bump()
+        }
+    }
+}
+
 @Composable
 private fun RetroPs2GraphicsSection() {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -1093,6 +1146,7 @@ private fun RetroPs2GraphicsSection() {
                 modifier = Modifier.padding(top = TightGap),
             )
         }
+        Ps2TurnipFlags(prefs, version) { version++ }
         val scales = listOf(1f, 1.5f, 2f, 3f, 4f)
         RetroSettingDropdown(
             stringResource(R.string.retro_gs_resolution_scale),

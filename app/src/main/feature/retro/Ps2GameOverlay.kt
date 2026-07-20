@@ -211,10 +211,31 @@ object Ps2GameOverlay {
      *  virtual HDD are detected on the very first boot rather than a frame late. */
     fun applyBootConfig(ctx: android.content.Context) {
         runCatching {
+            applyTurnipDebug(ctx)
             ensureHddImage(ctx)
             writeDev9Settings(ctx)
             writePatchSettings(ctx)
             NativeApp.commitSettings()
+        }
+    }
+
+    /** Set the Turnip (Mesa) TU_DEBUG env var for THIS :ps2 process before the GPU
+     *  driver initializes, so debug flags (sysmem, flushall, nolrz, …) that fix
+     *  flickering/artifacts take effect — mirroring how the PC side sets TU_DEBUG.
+     *  Only meaningful when a custom Turnip driver is selected; the stock Qualcomm
+     *  driver ignores it. Must run before the first Vulkan device is created (this
+     *  boot hook runs before runVMThread's MTGS::Open). */
+    private fun applyTurnipDebug(ctx: android.content.Context) {
+        val prefs = ps2Prefs(ctx)
+        val driver = (prefs.getString("wn.ps2.driver", "") ?: "").trim()
+        val usingTurnip = driver.isNotEmpty() && !driver.equals("system", ignoreCase = true)
+        val flags = (prefs.getString("wn.ps2.turnipflags", "") ?: "").trim()
+        runCatching {
+            if (usingTurnip && flags.isNotEmpty()) {
+                android.system.Os.setenv("TU_DEBUG", flags, true)
+            } else {
+                android.system.Os.unsetenv("TU_DEBUG")
+            }
         }
     }
 

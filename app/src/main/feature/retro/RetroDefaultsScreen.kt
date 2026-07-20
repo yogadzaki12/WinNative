@@ -370,6 +370,7 @@ fun RetroDefaultsScreen() {
                             modifier = Modifier.padding(top = 2.dp),
                         )
                     }
+                    com.winlator.cmod.feature.retro.Ps2TurnipFlags(ps2Prefs, refresh) { refresh++ }
                     val ps2Scales = listOf(1f, 1.5f, 2f, 3f, 4f)
                     val ps2ScaleLabels = listOf(
                         stringResource(R.string.retro_gs_scale_1x_native),
