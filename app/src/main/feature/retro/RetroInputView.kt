@@ -424,6 +424,26 @@ class RetroInputView(
     private var stick2OriginX = 0f
     private var stick2OriginY = 0f
 
+    // Double-tap-to-click: a quick tap of a stick followed by a second touch within
+    // DOUBLE_TAP_MS holds L3 (left) / R3 (right) for the duration of that touch, so
+    // the user can click-and-drag the stick. Tracked per stick.
+    private val DOUBLE_TAP_MS = 500L // window between the two taps
+    private val TAP_MAX_MS = 300L // first tap must be this short to count
+    private val TAP_MAX_MAG = 0.35f // ...and barely moved (stick magnitude)
+    private val DEAD_ZONE_PX = 10f // no floating stick within 10px of any button
+    private val FACE_KEYCODES = setOf(
+        KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_BUTTON_B,
+        KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_BUTTON_Y,
+    )
+    private var stickDownTime = 0L
+    private var stickMaxMag = 0f
+    private var stickLastTapTime = 0L
+    private var stickL3Held = false
+    private var stick2DownTime = 0L
+    private var stick2MaxMag = 0f
+    private var stick2LastTapTime = 0L
+    private var stickR3Held = false
+
     private val pressedButtons = HashSet<Int>()
     private var dpadX = 0f
     private var dpadY = 0f
@@ -797,16 +817,19 @@ class RetroInputView(
             stick2Cx = width - stickCx
             stick2Cy = stickCy
 
-            // L3 / R3 stick-click buttons (PS2). L3 sits just below the D-Pad on the
-            // left; R3 below the face buttons on the right — both at the SAME height
-            // (mirrored left vs right). The native pad maps THUMBL/THUMBR -> L3/R3.
-            val l3r = faceRadius * 0.8f
-            val l3cy = dpadCy + dpadRadius + l3r + snap * 1.4f
-            val l3 = GlassButton(KeyEvent.KEYCODE_BUTTON_THUMBL, "L3", GlassShape.CIRCLE, textScale = 0.85f)
-            l3.bounds.set(dpadCx - l3r, l3cy - l3r, dpadCx + l3r, l3cy + l3r)
+            // L3 / R3 stick-click buttons (PS2). Tucked into the lower corners — L3
+            // down-and-left below the D-Pad, R3 down-and-right below the face buttons
+            // — at the SAME height, clear of the sticks and each other. The native
+            // pad maps THUMBL/THUMBR -> L3/R3. (Also toggled by double-tapping a stick.)
+            val l3r = faceRadius * 0.82f
+            val l3cy = height - snap * 3.2f - l3r
+            val l3cx = margin + l3r + snap * 0.5f
+            val r3cx = width - margin - l3r - snap * 0.5f
+            val l3 = GlassButton(KeyEvent.KEYCODE_BUTTON_THUMBL, "L3", GlassShape.CIRCLE, textScale = 0.8f)
+            l3.bounds.set(l3cx - l3r, l3cy - l3r, l3cx + l3r, l3cy + l3r)
             buttons += l3
-            val r3 = GlassButton(KeyEvent.KEYCODE_BUTTON_THUMBR, "R3", GlassShape.CIRCLE, textScale = 0.85f)
-            r3.bounds.set(clusterCx - l3r, l3cy - l3r, clusterCx + l3r, l3cy + l3r)
+            val r3 = GlassButton(KeyEvent.KEYCODE_BUTTON_THUMBR, "R3", GlassShape.CIRCLE, textScale = 0.8f)
+            r3.bounds.set(r3cx - l3r, l3cy - l3r, r3cx + l3r, l3cy + l3r)
             buttons += r3
         }
 
@@ -1991,6 +2014,10 @@ class RetroInputView(
             listener.onStick(0f, 0f)
         }
         stickActive = false
+        if (stickL3Held) {
+            stickL3Held = false
+            listener.onButton(KeyEvent.KEYCODE_BUTTON_THUMBL, false)
+        }
         if (cStickX != 0f || cStickY != 0f) {
             cStickX = 0f
             cStickY = 0f
@@ -2003,6 +2030,10 @@ class RetroInputView(
             listener.onRightStick(0f, 0f)
         }
         stick2Active = false
+        if (stickR3Held) {
+            stickR3Held = false
+            listener.onButton(KeyEvent.KEYCODE_BUTTON_THUMBR, false)
+        }
         menuLatched = false
         invalidate()
     }
@@ -2069,26 +2100,41 @@ class RetroInputView(
         return inHalf && y >= top
     }
 
-    // Whether a touch lands on a non-stick control (button, C-button, menu, or dpad). Used in
-    // adaptive mode so a floating stick does not spawn on top of another control.
+    // Whether a touch lands on (or within a 10px dead-zone of) a non-stick control —
+    // button, C-button, menu, or dpad. Used in adaptive mode so a floating stick
+    // never spawns on top of, or hugging, another control.
     private fun hitsOtherControl(
         x: Float,
         y: Float,
     ): Boolean {
-        if (menuPointerId == -1 && hitButton(menuButton, x, y)) return true
+        val pad = DEAD_ZONE_PX
+        fun inPadded(b: RectF): Boolean =
+            x >= b.left - pad && x <= b.right + pad && y >= b.top - pad && y <= b.bottom + pad
+        if (menuPointerId == -1 && inPadded(menuButton.bounds)) return true
         for (button in buttons) {
-            if (hitButton(button, x, y)) return true
+            if (inPadded(button.bounds)) return true
+        }
+        // Face-button cluster (△ ○ □ ✕): block the WHOLE bounding box + margin so the
+        // stick can't spawn in the gaps between the four buttons either.
+        val face = buttons.filter { it.keyCode in FACE_KEYCODES }
+        if (face.size >= 3) {
+            val l = face.minOf { it.bounds.left } - pad
+            val t = face.minOf { it.bounds.top } - pad
+            val r = face.maxOf { it.bounds.right } + pad
+            val b = face.maxOf { it.bounds.bottom } + pad
+            if (x in l..r && y in t..b) return true
         }
         for (c in cButtons) {
-            val reach = c.bounds.width() * 0.5f + snap * 1.2f
+            val reach = c.bounds.width() * 0.5f + snap * 1.2f + pad
             if (hypot(x - c.bounds.centerX(), y - c.bounds.centerY()) <= reach) return true
         }
-        if (dpadVisible && hypot(x - dpadCx, y - dpadCy) <= dpadRadius * 1.4f) return true
+        if (dpadVisible && hypot(x - dpadCx, y - dpadCy) <= dpadRadius * 1.4f + pad) return true
         return false
     }
 
     private fun recompute(event: MotionEvent) {
         val adaptive = adaptiveSticks
+        val now = event.eventTime
         val released =
             event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL
         val liftedPointer =
@@ -2140,9 +2186,11 @@ class RetroInputView(
                         val ocy = if (stick2Active) stick2OriginY else stick2Cy
                         newStick2X = ((x - ocx) / stick2Radius).coerceIn(-1f, 1f)
                         newStick2Y = ((y - ocy) / stick2Radius).coerceIn(-1f, 1f)
+                        stick2MaxMag = max(stick2MaxMag, hypot(newStick2X, newStick2Y))
                         continue
                     }
                     if (isNewDown && stick2PointerId == -1) {
+                        var grabbed = false
                         if (adaptive) {
                             if (inStickHomeZone(x, y, rightHalf = true) && !hitsOtherControl(x, y)) {
                                 stick2PointerId = pointerId
@@ -2153,7 +2201,7 @@ class RetroInputView(
                                 hapticTick()
                                 newStick2X = 0f
                                 newStick2Y = 0f
-                                continue
+                                grabbed = true
                             }
                         } else if (hypot(x - stick2Cx, y - stick2Cy) <= stick2Radius * 1.3f) {
                             stick2PointerId = pointerId
@@ -2161,6 +2209,17 @@ class RetroInputView(
                             hapticTick()
                             newStick2X = ((x - stick2Cx) / stick2Radius).coerceIn(-1f, 1f)
                             newStick2Y = ((y - stick2Cy) / stick2Radius).coerceIn(-1f, 1f)
+                            grabbed = true
+                        }
+                        if (grabbed) {
+                            stick2DownTime = now
+                            stick2MaxMag = 0f
+                            if (stick2LastTapTime != 0L && now - stick2LastTapTime <= DOUBLE_TAP_MS) {
+                                stickR3Held = true
+                                stick2LastTapTime = 0L
+                                listener.onButton(KeyEvent.KEYCODE_BUTTON_THUMBR, true)
+                                hapticTick()
+                            }
                             continue
                         }
                     }
@@ -2173,9 +2232,11 @@ class RetroInputView(
                         val ocy = if (stickActive) stickOriginY else stickCy
                         newStickX = ((x - ocx) / stickRadius).coerceIn(-1f, 1f)
                         newStickY = ((y - ocy) / stickRadius).coerceIn(-1f, 1f)
+                        stickMaxMag = max(stickMaxMag, hypot(newStickX, newStickY))
                         continue
                     }
                     if (isNewDown && stickPointerId == -1) {
+                        var grabbed = false
                         if (adaptive) {
                             if (inStickHomeZone(x, y, rightHalf = false) && !hitsOtherControl(x, y)) {
                                 stickPointerId = pointerId
@@ -2186,7 +2247,7 @@ class RetroInputView(
                                 hapticTick()
                                 newStickX = 0f
                                 newStickY = 0f
-                                continue
+                                grabbed = true
                             }
                         } else if (hypot(x - stickCx, y - stickCy) <= stickRadius * 1.3f) {
                             stickPointerId = pointerId
@@ -2194,6 +2255,17 @@ class RetroInputView(
                             hapticTick()
                             newStickX = ((x - stickCx) / stickRadius).coerceIn(-1f, 1f)
                             newStickY = ((y - stickCy) / stickRadius).coerceIn(-1f, 1f)
+                            grabbed = true
+                        }
+                        if (grabbed) {
+                            stickDownTime = now
+                            stickMaxMag = 0f
+                            if (stickLastTapTime != 0L && now - stickLastTapTime <= DOUBLE_TAP_MS) {
+                                stickL3Held = true
+                                stickLastTapTime = 0L
+                                listener.onButton(KeyEvent.KEYCODE_BUTTON_THUMBL, true)
+                                hapticTick()
+                            }
                             continue
                         }
                     }
@@ -2274,6 +2346,13 @@ class RetroInputView(
             stickActive = false
             newStickX = 0f
             newStickY = 0f
+            // Record a genuine quick tap (short + barely moved) so a following touch
+            // within DOUBLE_TAP_MS registers as a double-tap → L3. Dragging resets it.
+            stickLastTapTime = if (now - stickDownTime < TAP_MAX_MS && stickMaxMag < TAP_MAX_MAG) now else 0L
+            if (stickL3Held) {
+                stickL3Held = false
+                listener.onButton(KeyEvent.KEYCODE_BUTTON_THUMBL, false)
+            }
         }
         if (newStickX != stickX || newStickY != stickY) {
             stickX = newStickX
@@ -2286,6 +2365,11 @@ class RetroInputView(
             stick2Active = false
             newStick2X = 0f
             newStick2Y = 0f
+            stick2LastTapTime = if (now - stick2DownTime < TAP_MAX_MS && stick2MaxMag < TAP_MAX_MAG) now else 0L
+            if (stickR3Held) {
+                stickR3Held = false
+                listener.onButton(KeyEvent.KEYCODE_BUTTON_THUMBR, false)
+            }
         }
         if (newStick2X != stick2X || newStick2Y != stick2Y) {
             stick2X = newStick2X
