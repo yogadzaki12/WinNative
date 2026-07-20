@@ -1986,6 +1986,11 @@ Installed path:
     <string name="retro_gs_dnas_bypass_subtitle">Auto-skip Sony\'s dead DNAS login for supported online games (SOCOM, Syphon Filter, etc.)</string>
     <string name="retro_gs_group_input">INPUT</string>
     <string name="retro_gs_on_screen_controls">On-screen controls</string>
+    <string name="retro_ps2_adaptive_sticks">Adaptive Sticks</string>
+    <string name="retro_ps2_adaptive_sticks_subtitle">Sticks stay hidden until you touch their area, then appear where you press</string>
+    <string name="retro_gs_adaptive_sticks">Adaptive Sticks</string>
+    <string name="retro_gs_adaptive_sticks_subtitle">Sticks stay hidden until you touch their area, then appear where you press</string>
+    <string name="retro_lr_adaptive_sticks">Adaptive Sticks</string>
     <string name="retro_gs_haptic_feedback">Haptic Feedback</string>
     <string name="retro_gs_group_audio">AUDIO</string>
     <string name="retro_gs_volume">Volume</string>

@@ -52,6 +52,14 @@ object RetroDefaults {
     fun setTouchControls(context: Context, systemId: String, value: Boolean) =
         prefs(context).edit().putBoolean(key("touch", systemId), value).apply()
 
+    /** Adaptive (floating) analog sticks: hidden until the user touches the
+     *  stick's home area, where the stick then appears. Default off. */
+    fun adaptiveSticks(context: Context, systemId: String): Boolean =
+        prefs(context).getBoolean(key("adaptive", systemId), false)
+
+    fun setAdaptiveSticks(context: Context, systemId: String, value: Boolean) =
+        prefs(context).edit().putBoolean(key("adaptive", systemId), value).apply()
+
     fun hud(context: Context, systemId: String): Boolean =
         prefs(context).getBoolean(key("hud", systemId), false)
 

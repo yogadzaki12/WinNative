@@ -17,6 +17,7 @@ object RetroShortcuts {
     const val KEY_UPSCALE = "retro_upscale"
     const val KEY_SGSR = "retro_sgsr"
     const val KEY_TOUCH_CONTROLS = "retro_touch_controls"
+    const val KEY_ADAPTIVE_STICKS = "retro_adaptive_sticks"
     const val KEY_AUDIO = "retro_audio"
     const val KEY_HUD = "retro_hud"
     const val VAR_PREFIX = "retro_var_"
@@ -137,6 +138,9 @@ object RetroShortcuts {
         val touchControls =
             shortcut.getExtra(KEY_TOUCH_CONTROLS)
                 .ifEmpty { if (RetroDefaults.touchControls(context, RetroSystems.PS2.id)) "1" else "0" } != "0"
+        val adaptiveSticks =
+            shortcut.getExtra(KEY_ADAPTIVE_STICKS)
+                .ifEmpty { if (RetroDefaults.adaptiveSticks(context, RetroSystems.PS2.id)) "1" else "0" } == "1"
         // Resolve the chosen GPU driver (global "wn.ps2.driver": "" / "system" =
         // stock Vulkan, otherwise an installed driver id) and hand it to ARMSX2's
         // existing customDriverId boot path, which pins it before the first
@@ -148,6 +152,7 @@ object RetroShortcuts {
             putBoolean("setupComplete", true)
             putBoolean("wn.controls", true)
             putBoolean("wn.ps2.touchcontrols", touchControls)
+            putBoolean("wn.ps2.adaptivesticks", adaptiveSticks)
             putString("romsDirs", org.json.JSONArray().put(rom.parent ?: "").toString())
             if (biosPath != null) putString("bios", biosPath)
             putString("customDriverId", customDriverId)
@@ -220,6 +225,10 @@ object RetroShortcuts {
             putExtra(
                 RetroActivity.EXTRA_TOUCH_CONTROLS,
                 shortcut.getExtra(KEY_TOUCH_CONTROLS).ifEmpty { if (RetroDefaults.touchControls(context, sysId)) "1" else "0" } != "0",
+            )
+            putExtra(
+                RetroActivity.EXTRA_ADAPTIVE_STICKS,
+                shortcut.getExtra(KEY_ADAPTIVE_STICKS).ifEmpty { if (RetroDefaults.adaptiveSticks(context, sysId)) "1" else "0" } == "1",
             )
             putExtra(
                 RetroActivity.EXTRA_AUDIO,

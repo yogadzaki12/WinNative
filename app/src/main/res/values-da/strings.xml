@@ -2207,4 +2207,9 @@ Installeret sti:
     <string name="retro_scr_custom_cheat">Custom</string>
     <string name="retro_scr_cheat_invalid">Enter a name and at least one valid code</string>
     <string name="retro_scr_add">Add</string>
+    <string name="retro_ps2_adaptive_sticks">Adaptive Sticks</string>
+    <string name="retro_ps2_adaptive_sticks_subtitle">Sticks stay hidden until you touch their area, then appear where you press</string>
+    <string name="retro_gs_adaptive_sticks">Adaptive Sticks</string>
+    <string name="retro_gs_adaptive_sticks_subtitle">Sticks stay hidden until you touch their area, then appear where you press</string>
+    <string name="retro_lr_adaptive_sticks">Adaptive Sticks</string>
 </resources>

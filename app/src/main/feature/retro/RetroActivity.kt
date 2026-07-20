@@ -52,6 +52,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         const val EXTRA_CONTAINER_ID = "retro_container_id"
         const val EXTRA_SHADER = "retro_shader"
         const val EXTRA_TOUCH_CONTROLS = "retro_touch_controls"
+        const val EXTRA_ADAPTIVE_STICKS = "retro_adaptive_sticks"
         const val EXTRA_AUDIO = "retro_audio"
         const val EXTRA_HUD = "retro_hud"
         const val EXTRA_VARIABLES = "retro_variables"
@@ -80,6 +81,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
     private var fastForward = false
     private var audioEnabledSetting = true
     private var touchControlsSetting = true
+    private var adaptiveSticksSetting = false
     private var currentShaderKey = "default"
     private var sgsrEnabled = false
     private var coreVars = HashMap<String, String>()
@@ -354,6 +356,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         if (currentUpscaleKey !in UPSCALE_KEYS) currentUpscaleKey = "native"
         audioEnabledSetting = intent.getBooleanExtra(EXTRA_AUDIO, true)
         touchControlsSetting = intent.getBooleanExtra(EXTRA_TOUCH_CONTROLS, true)
+        adaptiveSticksSetting = intent.getBooleanExtra(EXTRA_ADAPTIVE_STICKS, false)
         @Suppress("UNCHECKED_CAST", "DEPRECATION")
         coreVars = (intent.getSerializableExtra(EXTRA_VARIABLES) as? HashMap<String, String>) ?: HashMap()
         RetroCoreOptions.defaultVariables(resolvedSystem).forEach { (key, value) ->
@@ -384,6 +387,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             androidx.preference.PreferenceManager
                 .getDefaultSharedPreferences(this)
                 .getFloat("retro_haptic_strength", 0.4f)
+        inputView.adaptiveSticks = adaptiveSticksSetting
         customColors = RetroControlLayouts.loadColors(this, resolvedSystem.id)
         inputView.setCustomColors(customColors)
         inputView.onEditStateChanged = { editing ->
@@ -1002,6 +1006,14 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                     touchControlsSetting = value
                     updateOverlayVisibility()
                     persistExtra(RetroShortcuts.KEY_TOUCH_CONTROLS, if (value) "1" else "0")
+                    menu.rebuild()
+                },
+            )
+            add(
+                RetroMenuEntry.Toggle(getString(R.string.retro_lr_adaptive_sticks), checked = adaptiveSticksSetting) { value ->
+                    adaptiveSticksSetting = value
+                    overlay?.adaptiveSticks = value
+                    persistExtra(RetroShortcuts.KEY_ADAPTIVE_STICKS, if (value) "1" else "0")
                     menu.rebuild()
                 },
             )

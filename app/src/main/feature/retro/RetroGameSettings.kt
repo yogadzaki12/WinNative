@@ -126,6 +126,10 @@ class RetroSettingsState(
         shortcut.getExtra(RetroShortcuts.KEY_TOUCH_CONTROLS)
             .ifEmpty { if (context != null && sysId != null) (if (RetroDefaults.touchControls(context, sysId)) "1" else "0") else "1" } != "0",
     )
+    var adaptiveSticks by mutableStateOf(
+        shortcut.getExtra(RetroShortcuts.KEY_ADAPTIVE_STICKS)
+            .ifEmpty { if (context != null && sysId != null) (if (RetroDefaults.adaptiveSticks(context, sysId)) "1" else "0") else "0" } == "1",
+    )
     var audio by mutableStateOf(
         shortcut.getExtra(RetroShortcuts.KEY_AUDIO)
             .ifEmpty { if (context != null && sysId != null) (if (RetroDefaults.audio(context, sysId)) "1" else "0") else "1" } != "0",
@@ -169,6 +173,7 @@ class RetroSettingsState(
         shortcut.putExtra(RetroShortcuts.KEY_SGSR, if (sgsr) "1" else "0")
         shortcut.putExtra(RetroShortcuts.KEY_UPSCALE, upscale)
         shortcut.putExtra(RetroShortcuts.KEY_TOUCH_CONTROLS, if (touchControls) "1" else "0")
+        shortcut.putExtra(RetroShortcuts.KEY_ADAPTIVE_STICKS, if (adaptiveSticks) "1" else "0")
         shortcut.putExtra(RetroShortcuts.KEY_AUDIO, if (audio) "1" else "0")
         shortcut.putExtra(RetroShortcuts.KEY_HUD, if (hud) "1" else "0")
         coreOptions.forEach { option ->
@@ -1305,6 +1310,12 @@ private fun RetroInputSection(state: RetroSettingsState) {
             label = stringResource(R.string.retro_gs_on_screen_controls),
             checked = state.touchControls,
             onCheckedChange = { state.touchControls = it },
+        )
+        RetroSettingSwitch(
+            label = stringResource(R.string.retro_gs_adaptive_sticks),
+            checked = state.adaptiveSticks,
+            subtitle = stringResource(R.string.retro_gs_adaptive_sticks_subtitle),
+            onCheckedChange = { state.adaptiveSticks = it },
         )
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = TightGap),

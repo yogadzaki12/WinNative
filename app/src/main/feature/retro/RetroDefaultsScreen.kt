@@ -543,6 +543,11 @@ fun RetroDefaultsScreen() {
                         stringResource(R.string.retro_scr_touch_controls),
                         RetroDefaults.touchControls(context, sys),
                     ) { RetroDefaults.setTouchControls(context, sys, it); refresh++ }
+                        RetroSettingSwitch(
+                            stringResource(R.string.retro_gs_adaptive_sticks),
+                            RetroDefaults.adaptiveSticks(context, sys),
+                            subtitle = stringResource(R.string.retro_gs_adaptive_sticks_subtitle),
+                        ) { RetroDefaults.setAdaptiveSticks(context, sys, it); refresh++ }
                     RetroSettingSwitch(
                         stringResource(R.string.retro_scr_sound),
                         !ps2Prefs.getBoolean("wn.ps2.muted", false),
@@ -676,6 +681,11 @@ fun RetroDefaultsScreen() {
                         stringResource(R.string.retro_scr_touch_controls),
                         RetroDefaults.touchControls(context, sys),
                     ) { RetroDefaults.setTouchControls(context, sys, it); refresh++ }
+                        RetroSettingSwitch(
+                            stringResource(R.string.retro_gs_adaptive_sticks),
+                            RetroDefaults.adaptiveSticks(context, sys),
+                            subtitle = stringResource(R.string.retro_gs_adaptive_sticks_subtitle),
+                        ) { RetroDefaults.setAdaptiveSticks(context, sys, it); refresh++ }
                     RetroSettingSwitch(
                         stringResource(R.string.retro_scr_sound),
                         RetroDefaults.audio(context, sys),

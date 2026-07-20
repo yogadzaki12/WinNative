@@ -659,6 +659,19 @@ object Ps2GameOverlay {
                     },
                 )
                 add(
+                    RetroMenuEntry.Toggle(
+                        activity.getString(R.string.retro_ps2_adaptive_sticks),
+                        subtitle = activity.getString(R.string.retro_ps2_adaptive_sticks_subtitle),
+                        checked = ps2Prefs(activity).getBoolean("wn.ps2.adaptivesticks", false),
+                    ) { value ->
+                        ps2Prefs(activity).edit().putBoolean("wn.ps2.adaptivesticks", value).apply()
+                        RetroDefaults.setAdaptiveSticks(activity, RetroSystems.PS2.id, value)
+                        pad?.adaptiveSticks = value
+                        pad?.invalidate()
+                        menu.rebuild()
+                    },
+                )
+                add(
                     RetroMenuEntry.Action(activity.getString(R.string.retro_ps2_edit_layout), RetroDrawerIcons.EditLayout) {
                         menu.close()
                         touchVisible.value = true
@@ -1262,6 +1275,7 @@ object Ps2GameOverlay {
                                 factory = { ctx ->
                                     RetroInputView(ctx, listener, RetroSystems.PS2).also { view ->
                                         view.loadStickInversion()
+                                        view.adaptiveSticks = ps2Prefs(ctx).getBoolean("wn.ps2.adaptivesticks", false)
                                         view.hapticStrength =
                                             androidx.preference.PreferenceManager
                                                 .getDefaultSharedPreferences(ctx)

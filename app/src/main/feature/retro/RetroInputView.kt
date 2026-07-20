@@ -275,6 +275,7 @@ class RetroInputView(
 
     private var gameArea: RectF? = null
     var hapticStrength = 0f
+    var adaptiveSticks: Boolean = false
     var invertLX = false
     var invertLY = false
     var invertRX = false
@@ -310,6 +311,7 @@ class RetroInputView(
     private var swallowInput = false
     private var dpadVisible = true
     private var stickVisible = true
+    private var stick2Visible = true
     private val hiddenControls = mutableListOf<Pair<String, String>>()
     private val toolbarPills = mutableListOf<Triple<String, String, RectF>>()
     private val trayPills = mutableListOf<Triple<String, String, RectF>>()
@@ -413,6 +415,15 @@ class RetroInputView(
     private var stick2X = 0f
     private var stick2Y = 0f
 
+    // Adaptive (floating) stick spawn origins — only meaningful while a pointer owns that stick
+    // in adaptive mode. The base is fixed at the spawn point for the duration of the touch.
+    private var stickActive = false
+    private var stickOriginX = 0f
+    private var stickOriginY = 0f
+    private var stick2Active = false
+    private var stick2OriginX = 0f
+    private var stick2OriginY = 0f
+
     private val pressedButtons = HashSet<Int>()
     private var dpadX = 0f
     private var dpadY = 0f
@@ -503,6 +514,7 @@ class RetroInputView(
     ) {
         dpadVisible = true
         stickVisible = true
+        stick2Visible = true
         hiddenControls.clear()
         var hideCpad = false
         overrides.forEach { (id, o) ->
@@ -517,14 +529,25 @@ class RetroInputView(
                         dpadRadius *= o.scale
                     }
                 "stick" ->
-                    if (config.hasStick) {
+                    if (config.hasStick || config.hasDualSticks) {
                         if (!o.visible) {
                             stickVisible = false
-                            hiddenControls += id to "STICK"
+                            hiddenControls += id to if (config.hasDualSticks) "L-STICK" else "STICK"
                         } else {
                             stickCx = o.x * w
                             stickCy = o.y * h
                             stickRadius *= o.scale
+                        }
+                    }
+                "stick2" ->
+                    if (config.hasDualSticks) {
+                        if (!o.visible) {
+                            stick2Visible = false
+                            hiddenControls += id to "R-STICK"
+                        } else {
+                            stick2Cx = o.x * w
+                            stick2Cy = o.y * h
+                            stick2Radius *= o.scale
                         }
                     }
                 "cpad" ->
@@ -570,8 +593,19 @@ class RetroInputView(
                     null
                 }
             "stick" ->
-                if (config.hasStick && stickVisible && stickRadius > 0f) {
+                if ((config.hasStick || config.hasDualSticks) && stickVisible && stickRadius > 0f) {
                     RectF(stickCx - stickRadius, stickCy - stickRadius, stickCx + stickRadius, stickCy + stickRadius)
+                } else {
+                    null
+                }
+            "stick2" ->
+                if (config.hasDualSticks && stick2Visible && stick2Radius > 0f) {
+                    RectF(
+                        stick2Cx - stick2Radius,
+                        stick2Cy - stick2Radius,
+                        stick2Cx + stick2Radius,
+                        stick2Cy + stick2Radius,
+                    )
                 } else {
                     null
                 }
@@ -595,7 +629,8 @@ class RetroInputView(
             addAll(buttons.map { idFor(it) })
             add("menu")
             add("dpad")
-            if (config.hasStick) add("stick")
+            if (config.hasStick || config.hasDualSticks) add("stick")
+            if (config.hasDualSticks) add("stick2")
             add("cpad")
         }
 
@@ -1123,8 +1158,13 @@ class RetroInputView(
         drawClusterPlate(canvas)
         drawFacePlate(canvas)
         if (dpadVisible) drawDpad(canvas)
-        if ((config.hasStick || config.hasDualSticks) && stickVisible) drawStick(canvas)
-        if (config.hasDualSticks && stickVisible) drawStick2(canvas)
+        val adaptive = adaptiveSticks && !editMode
+        if ((config.hasStick || config.hasDualSticks) && stickVisible && (!adaptive || stickActive)) {
+            drawStick(canvas, if (adaptive) stickOriginX else stickCx, if (adaptive) stickOriginY else stickCy)
+        }
+        if (config.hasDualSticks && stick2Visible && (!adaptive || stick2Active)) {
+            drawStick2(canvas, adaptive)
+        }
         buttons.forEach { drawThemedButton(canvas, it, pressedButtons.contains(it.keyCode)) }
         cButtons.forEach { drawCButton(canvas, it) }
         drawThemedButton(canvas, menuButton, menuLatched)
@@ -1520,7 +1560,10 @@ class RetroInputView(
         arrow(cx + arrowDist, cy, 1f, 0f)
     }
 
-    private fun drawStick2(canvas: Canvas) {
+    private fun drawStick2(
+        canvas: Canvas,
+        adaptive: Boolean = false,
+    ) {
         val ocx = stickCx
         val ocy = stickCy
         val orad = stickRadius
@@ -1533,7 +1576,11 @@ class RetroInputView(
         stickX = stick2X
         stickY = stick2Y
         stickPointerId = stick2PointerId
-        drawStick(canvas)
+        if (adaptive) {
+            drawStick(canvas, stick2OriginX, stick2OriginY)
+        } else {
+            drawStick(canvas)
+        }
         stickCx = ocx
         stickCy = ocy
         stickRadius = orad
@@ -1542,7 +1589,11 @@ class RetroInputView(
         stickPointerId = op
     }
 
-    private fun drawPsStick(canvas: Canvas) {
+    private fun drawPsStick(
+        canvas: Canvas,
+        cx: Float = stickCx,
+        cy: Float = stickCy,
+    ) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         val engaged = stickPointerId != -1
         val wellColor = darken(customColors.body ?: theme.body, 0.16f)
@@ -1551,22 +1602,22 @@ class RetroInputView(
         paint.alpha = 255
         paint.shader =
             RadialGradient(
-                stickCx,
-                stickCy,
+                cx,
+                cy,
                 stickRadius,
                 intArrayOf(darken(wellColor, 0.32f), wellColor, lighten(wellColor, 0.1f)),
                 floatArrayOf(0f, 0.78f, 1f),
                 Shader.TileMode.CLAMP,
             )
-        canvas.drawCircle(stickCx, stickCy, stickRadius, paint)
+        canvas.drawCircle(cx, cy, stickRadius, paint)
         paint.shader = null
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = strokeWidth
         paint.color = darken(wellColor, 0.4f)
-        canvas.drawCircle(stickCx, stickCy, stickRadius, paint)
+        canvas.drawCircle(cx, cy, stickRadius, paint)
 
-        val thumbX = stickCx + stickX * stickRadius * 0.5f
-        val thumbY = stickCy + stickY * stickRadius * 0.5f
+        val thumbX = cx + stickX * stickRadius * 0.5f
+        val thumbY = cy + stickY * stickRadius * 0.5f
         val thumbRadius = stickRadius * 0.6f
         val capColor = customColors.button ?: 0xFF33333A.toInt()
         paint.style = Paint.Style.FILL
@@ -1619,9 +1670,13 @@ class RetroInputView(
         canvas.drawCircle(thumbX, thumbY, thumbRadius * 0.72f, paint)
     }
 
-    private fun drawStick(canvas: Canvas) {
+    private fun drawStick(
+        canvas: Canvas,
+        cx: Float = stickCx,
+        cy: Float = stickCy,
+    ) {
         if (config.hasDualSticks) {
-            drawPsStick(canvas)
+            drawPsStick(canvas, cx, cy)
             return
         }
         val engaged = stickPointerId != -1
@@ -1633,15 +1688,15 @@ class RetroInputView(
         path.reset()
         for (i in 0 until 8) {
             val angle = Math.toRadians((i * 45 - 22.5).toDouble())
-            val px = stickCx + stickRadius * Math.cos(angle).toFloat()
-            val py = stickCy + stickRadius * Math.sin(angle).toFloat()
+            val px = cx + stickRadius * Math.cos(angle).toFloat()
+            val py = cy + stickRadius * Math.sin(angle).toFloat()
             if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
         }
         path.close()
         paint.shader =
             RadialGradient(
-                stickCx,
-                stickCy,
+                cx,
+                cy,
                 stickRadius,
                 intArrayOf(darken(wellColor, 0.35f), wellColor, lighten(wellColor, 0.08f)),
                 floatArrayOf(0f, 0.75f, 1f),
@@ -1654,8 +1709,8 @@ class RetroInputView(
         paint.color = darken(wellColor, 0.4f)
         canvas.drawPath(path, paint)
 
-        val thumbX = stickCx + stickX * stickRadius * 0.5f
-        val thumbY = stickCy + stickY * stickRadius * 0.5f
+        val thumbX = cx + stickX * stickRadius * 0.5f
+        val thumbY = cy + stickY * stickRadius * 0.5f
         val thumbRadius = stickRadius * 0.5f
         val capColor = customColors.button ?: theme.stickCap
         paint.style = Paint.Style.FILL
@@ -1921,6 +1976,7 @@ class RetroInputView(
             stickY = 0f
             listener.onStick(0f, 0f)
         }
+        stickActive = false
         if (cStickX != 0f || cStickY != 0f) {
             cStickX = 0f
             cStickY = 0f
@@ -1932,6 +1988,7 @@ class RetroInputView(
             stick2Y = 0f
             listener.onRightStick(0f, 0f)
         }
+        stick2Active = false
         menuLatched = false
         invalidate()
     }
@@ -1978,7 +2035,46 @@ class RetroInputView(
         }
     }
 
+    // Adaptive "home zone" for a stick: a generous rectangle biased toward the screen half
+    // where that stick's default lives (lower-left for the left stick, lower-right for the
+    // right stick). Centered on the current stickCx/stickCy (which reflect any edited default).
+    private fun inStickHomeZone(
+        x: Float,
+        y: Float,
+        rightHalf: Boolean,
+    ): Boolean {
+        val w = width.toFloat()
+        val h = height.toFloat()
+        if (w <= 0f || h <= 0f) return false
+        // Bottom portion of the screen, on the matching horizontal half. This keeps the left
+        // stick in the lower-left and the right stick in the lower-right, away from where the
+        // dpad/face buttons live and matching each stick's default position.
+        val top = h * 0.42f
+        val midX = w * 0.5f
+        val inHalf = if (rightHalf) x >= midX else x < midX
+        return inHalf && y >= top
+    }
+
+    // Whether a touch lands on a non-stick control (button, C-button, menu, or dpad). Used in
+    // adaptive mode so a floating stick does not spawn on top of another control.
+    private fun hitsOtherControl(
+        x: Float,
+        y: Float,
+    ): Boolean {
+        if (menuPointerId == -1 && hitButton(menuButton, x, y)) return true
+        for (button in buttons) {
+            if (hitButton(button, x, y)) return true
+        }
+        for (c in cButtons) {
+            val reach = c.bounds.width() * 0.5f + snap * 1.2f
+            if (hypot(x - c.bounds.centerX(), y - c.bounds.centerY()) <= reach) return true
+        }
+        if (dpadVisible && hypot(x - dpadCx, y - dpadCy) <= dpadRadius * 1.4f) return true
+        return false
+    }
+
     private fun recompute(event: MotionEvent) {
+        val adaptive = adaptiveSticks
         val released =
             event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL
         val liftedPointer =
@@ -2023,41 +2119,69 @@ class RetroInputView(
                 val pointerId = event.getPointerId(i)
                 val isNewDown = pointerId == downId
 
-                if (config.hasDualSticks && stickVisible) {
+                if (config.hasDualSticks && stick2Visible) {
                     if (pointerId == stick2PointerId) {
                         stick2Seen = true
-                        newStick2X = ((x - stick2Cx) / stick2Radius).coerceIn(-1f, 1f)
-                        newStick2Y = ((y - stick2Cy) / stick2Radius).coerceIn(-1f, 1f)
+                        val ocx = if (stick2Active) stick2OriginX else stick2Cx
+                        val ocy = if (stick2Active) stick2OriginY else stick2Cy
+                        newStick2X = ((x - ocx) / stick2Radius).coerceIn(-1f, 1f)
+                        newStick2Y = ((y - ocy) / stick2Radius).coerceIn(-1f, 1f)
                         continue
                     }
-                    if (isNewDown && stick2PointerId == -1 &&
-                        hypot(x - stick2Cx, y - stick2Cy) <= stick2Radius * 1.3f
-                    ) {
-                        stick2PointerId = pointerId
-                        stick2Seen = true
-                        hapticTick()
-                        newStick2X = ((x - stick2Cx) / stick2Radius).coerceIn(-1f, 1f)
-                        newStick2Y = ((y - stick2Cy) / stick2Radius).coerceIn(-1f, 1f)
-                        continue
+                    if (isNewDown && stick2PointerId == -1) {
+                        if (adaptive) {
+                            if (inStickHomeZone(x, y, rightHalf = true) && !hitsOtherControl(x, y)) {
+                                stick2PointerId = pointerId
+                                stick2Seen = true
+                                stick2Active = true
+                                stick2OriginX = x
+                                stick2OriginY = y
+                                hapticTick()
+                                newStick2X = 0f
+                                newStick2Y = 0f
+                                continue
+                            }
+                        } else if (hypot(x - stick2Cx, y - stick2Cy) <= stick2Radius * 1.3f) {
+                            stick2PointerId = pointerId
+                            stick2Seen = true
+                            hapticTick()
+                            newStick2X = ((x - stick2Cx) / stick2Radius).coerceIn(-1f, 1f)
+                            newStick2Y = ((y - stick2Cy) / stick2Radius).coerceIn(-1f, 1f)
+                            continue
+                        }
                     }
                 }
 
                 if ((config.hasStick || config.hasDualSticks) && stickVisible) {
                     if (pointerId == stickPointerId) {
                         stickSeen = true
-                        newStickX = ((x - stickCx) / stickRadius).coerceIn(-1f, 1f)
-                        newStickY = ((y - stickCy) / stickRadius).coerceIn(-1f, 1f)
+                        val ocx = if (stickActive) stickOriginX else stickCx
+                        val ocy = if (stickActive) stickOriginY else stickCy
+                        newStickX = ((x - ocx) / stickRadius).coerceIn(-1f, 1f)
+                        newStickY = ((y - ocy) / stickRadius).coerceIn(-1f, 1f)
                         continue
                     }
-                    if (isNewDown && stickPointerId == -1 &&
-                        hypot(x - stickCx, y - stickCy) <= stickRadius * 1.3f
-                    ) {
-                        stickPointerId = pointerId
-                        stickSeen = true
-                        hapticTick()
-                        newStickX = ((x - stickCx) / stickRadius).coerceIn(-1f, 1f)
-                        newStickY = ((y - stickCy) / stickRadius).coerceIn(-1f, 1f)
-                        continue
+                    if (isNewDown && stickPointerId == -1) {
+                        if (adaptive) {
+                            if (inStickHomeZone(x, y, rightHalf = false) && !hitsOtherControl(x, y)) {
+                                stickPointerId = pointerId
+                                stickSeen = true
+                                stickActive = true
+                                stickOriginX = x
+                                stickOriginY = y
+                                hapticTick()
+                                newStickX = 0f
+                                newStickY = 0f
+                                continue
+                            }
+                        } else if (hypot(x - stickCx, y - stickCy) <= stickRadius * 1.3f) {
+                            stickPointerId = pointerId
+                            stickSeen = true
+                            hapticTick()
+                            newStickX = ((x - stickCx) / stickRadius).coerceIn(-1f, 1f)
+                            newStickY = ((y - stickCy) / stickRadius).coerceIn(-1f, 1f)
+                            continue
+                        }
                     }
                 }
 
@@ -2133,6 +2257,7 @@ class RetroInputView(
 
         if (!stickSeen && stickPointerId != -1) {
             stickPointerId = -1
+            stickActive = false
             newStickX = 0f
             newStickY = 0f
         }
@@ -2144,6 +2269,7 @@ class RetroInputView(
 
         if (!stick2Seen && stick2PointerId != -1) {
             stick2PointerId = -1
+            stick2Active = false
             newStick2X = 0f
             newStick2Y = 0f
         }
