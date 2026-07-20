@@ -17,6 +17,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -143,11 +145,17 @@ fun Ps2CheatsScreen(
             val installed = runCatching {
                 val dir = File(MainActivityRuntime.assetCopyRoot(context), "cheats")
                 val f = if (crc.isNotBlank()) File(dir, "${serial}_$crc.pnach") else File(dir, "$serial.pnach")
-                if (f.isFile) com.armsx2.PatchRepo.parseInstalled(f.readText(), "cheats").second
-                    .filter { it.enabled }.map { it.name }.toSet()
-                else emptySet()
-            }.getOrDefault(emptySet())
-            selected = installed
+                if (f.isFile) com.armsx2.PatchRepo.parseInstalled(f.readText(), "cheats").second else emptyList()
+            }.getOrDefault(emptyList())
+            // Merge installed cheats that aren't in the online repo (i.e. custom
+            // cheats the user added) back into the list so they persist and can be
+            // re-toggled instead of being dropped on the next Apply.
+            val repoNames = entries.map { it.name }.toSet()
+            val customInstalled =
+                installed.filter { it.name !in repoNames }
+                    .map { com.armsx2.PatchRepo.Entry(it.name, context.getString(R.string.retro_scr_custom_cheat), it.body, "custom") }
+            if (customInstalled.isNotEmpty()) entries = entries + customInstalled
+            selected = installed.filter { it.enabled }.map { it.name }.toSet()
         }
         loading = false
     }
@@ -173,9 +181,50 @@ fun Ps2CheatsScreen(
         }
     }
 
+    var showAdd by remember { mutableStateOf(false) }
+    var newName by remember { mutableStateOf("") }
+    var newCodes by remember { mutableStateOf("") }
+
+    // Convert pasted raw PS2 codes ("AAAAAAAA VVVVVVVV" per line) into a pnach
+    // section. Already-formatted "patch=" lines pass through; the raw lines go
+    // through the emulator's raw-code interpreter via the `extended` type.
+    fun buildCustomEntry(name: String, codes: String): com.armsx2.PatchRepo.Entry? {
+        val lines =
+            codes.lineSequence().mapNotNull { raw ->
+                val t = raw.trim()
+                when {
+                    t.isEmpty() || t.startsWith("//") -> null
+                    t.startsWith("patch=") -> t
+                    else -> {
+                        val parts = t.split(Regex("\\s+"))
+                        if (parts.size == 2 && parts[0].length == 8 && parts[1].length == 8 &&
+                            parts[0].all { it.isDigit() || it.uppercaseChar() in 'A'..'F' } &&
+                            parts[1].all { it.isDigit() || it.uppercaseChar() in 'A'..'F' }
+                        ) {
+                            "patch=1,EE,${parts[0].uppercase()},extended,${parts[1].uppercase()}"
+                        } else {
+                            null
+                        }
+                    }
+                }
+            }.toList()
+        if (name.isBlank() || lines.isEmpty()) return null
+        val body = buildString {
+            append("[").append(name.trim()).append("]\n")
+            lines.forEach { append(it).append("\n") }
+        }
+        return com.armsx2.PatchRepo.Entry(name.trim(), context.getString(R.string.retro_scr_custom_cheat), body, "custom")
+    }
+
     Ps2OverlayScaffold(title = stringResource(R.string.retro_scr_cheats), onBack = onBack, action = {
-        if (!loading && entries.isNotEmpty()) {
-            TextButton(onClick = { apply() }, modifier = Modifier.paneNavItem(onActivate = { apply() })) { Text(stringResource(R.string.retro_scr_apply)) }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.IconButton(
+                onClick = { newName = ""; newCodes = ""; showAdd = true },
+                modifier = Modifier.paneNavItem(onActivate = { newName = ""; newCodes = ""; showAdd = true }),
+            ) { Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.retro_scr_add_cheat)) }
+            if (!loading && (entries.isNotEmpty() || serial.isNotBlank())) {
+                TextButton(onClick = { apply() }, modifier = Modifier.paneNavItem(onActivate = { apply() })) { Text(stringResource(R.string.retro_scr_apply)) }
+            }
         }
     }) {
         when {
@@ -223,6 +272,49 @@ fun Ps2CheatsScreen(
                 }
             }
         }
+    }
+
+    if (showAdd) {
+        AlertDialog(
+            onDismissRequest = { showAdd = false },
+            title = { Text(stringResource(R.string.retro_scr_add_cheat)) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = newName,
+                        onValueChange = { newName = it },
+                        label = { Text(stringResource(R.string.retro_scr_cheat_name)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    androidx.compose.foundation.layout.Spacer(Modifier.padding(4.dp))
+                    OutlinedTextField(
+                        value = newCodes,
+                        onValueChange = { newCodes = it },
+                        label = { Text(stringResource(R.string.retro_scr_cheat_codes)) },
+                        placeholder = { Text("2021A268 00000000") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val entry = buildCustomEntry(newName, newCodes)
+                    if (entry != null) {
+                        entries = entries.filterNot { it.name == entry.name } + entry
+                        selected = selected + entry.name
+                        status = ""
+                        showAdd = false
+                    } else {
+                        status = context.getString(R.string.retro_scr_cheat_invalid)
+                    }
+                }) { Text(stringResource(R.string.retro_scr_add)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAdd = false }) { Text(stringResource(R.string.retro_scr_cancel)) }
+            },
+        )
     }
 }
 

@@ -2200,5 +2200,11 @@ Percorso installato:
     <string name="retro_ps2_dnas_bypass_subtitle">Auto-skip Sony\'s dead DNAS login for supported online games (SOCOM, Syphon Filter, etc.)</string>
     <string name="retro_gs_dnas_bypass">DNAS Auth Bypass</string>
     <string name="retro_gs_dnas_bypass_subtitle">Auto-skip Sony\'s dead DNAS login for supported online games (SOCOM, Syphon Filter, etc.)</string>
+    <string name="retro_scr_add_cheat">Add Cheat</string>
+    <string name="retro_scr_cheat_name">Cheat name</string>
+    <string name="retro_scr_cheat_codes">Codes (one per line, e.g. 2021A268 00000000)</string>
+    <string name="retro_scr_custom_cheat">Custom</string>
+    <string name="retro_scr_cheat_invalid">Enter a name and at least one valid code</string>
+    <string name="retro_scr_add">Add</string>
 </resources>
 
