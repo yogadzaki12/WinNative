@@ -567,10 +567,15 @@ open class MainActivityRuntime : ComponentActivity() {
                     com.armsx2.CustomDriver.listInstalled(ctx).firstOrNull { it.id == id }
                 } else null
             if (ctx != null) com.armsx2.CustomDriver.applyToNative(ctx, picked)
-            when (renderer.value) {
-                "vulkan" -> NativeApp.renderVulkan()
-                "opengl" -> NativeApp.renderOpenGL()
-                "software" -> NativeApp.renderSoftware()
+            when {
+                // A custom GPU driver (Turnip/adrenotools) is Vulkan-only, and it must
+                // be picked up by the VERY FIRST GS open (LoadVulkanLibrary reads the
+                // pinned driver path once). So force Vulkan at boot here — otherwise
+                // 'auto' can open the GS on OpenGL and the driver is never loaded.
+                picked != null -> NativeApp.renderVulkan()
+                renderer.value == "vulkan" -> NativeApp.renderVulkan()
+                renderer.value == "opengl" -> NativeApp.renderOpenGL()
+                renderer.value == "software" -> NativeApp.renderSoftware()
                 else -> NativeApp.renderAuto()
             }
             resolved.applyTo()
