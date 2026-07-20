@@ -2132,4 +2132,8 @@
     <string name="retro_ps2_hdd_subtitle">Final Fantasy XI जैसे HDD-आधारित गेम के लिए वर्चुअल आंतरिक ड्राइव। गेम को पुनः आरंभ करता है।</string>
     <string name="retro_ps2_hdd_desc">Final Fantasy XI जैसे HDD-आधारित गेम के लिए वर्चुअल आंतरिक ड्राइव।</string>
     <string name="retro_ps2_dns_auto_internal">DNS मोड को Internal पर सेट किया गया ताकि आपके कस्टम सर्वर होस्ट प्रभावी हों।</string>
+    <string name="retro_ps2_force_all_dns">Route All Traffic Through DNS</string>
+    <string name="retro_ps2_force_all_dns_subtitle">Send every connection to the DNS server, not just lookups (all-in-one revival servers)</string>
+    <string name="retro_gs_force_all_dns">Route All Traffic Through DNS</string>
+    <string name="retro_gs_force_all_dns_subtitle">Send every connection to the DNS server, not just lookups (all-in-one revival servers)</string>
 </resources>

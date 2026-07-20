@@ -2196,5 +2196,9 @@ Percorso installato:
     <string name="retro_ps2_hdd_subtitle">Unità interna virtuale per giochi basati su HDD come Final Fantasy XI. Riavvia il gioco.</string>
     <string name="retro_ps2_hdd_desc">Unità interna virtuale per giochi basati su HDD come Final Fantasy XI.</string>
     <string name="retro_ps2_dns_auto_internal">Modalità DNS impostata su Internal affinché i tuoi host server personalizzati abbiano effetto.</string>
+    <string name="retro_ps2_force_all_dns">Route All Traffic Through DNS</string>
+    <string name="retro_ps2_force_all_dns_subtitle">Send every connection to the DNS server, not just lookups (all-in-one revival servers)</string>
+    <string name="retro_gs_force_all_dns">Route All Traffic Through DNS</string>
+    <string name="retro_gs_force_all_dns_subtitle">Send every connection to the DNS server, not just lookups (all-in-one revival servers)</string>
 </resources>
 

@@ -2197,4 +2197,8 @@ Installierter Pfad:
     <string name="retro_ps2_hdd_subtitle">Virtuelles internes Laufwerk für HDD-basierte Spiele wie Final Fantasy XI. Startet das Spiel neu.</string>
     <string name="retro_ps2_hdd_desc">Virtuelles internes Laufwerk für HDD-basierte Spiele wie Final Fantasy XI.</string>
     <string name="retro_ps2_dns_auto_internal">DNS-Modus auf Internal gesetzt, damit deine benutzerdefinierten Server-Hosts wirksam werden.</string>
+    <string name="retro_ps2_force_all_dns">Route All Traffic Through DNS</string>
+    <string name="retro_ps2_force_all_dns_subtitle">Send every connection to the DNS server, not just lookups (all-in-one revival servers)</string>
+    <string name="retro_gs_force_all_dns">Route All Traffic Through DNS</string>
+    <string name="retro_gs_force_all_dns_subtitle">Send every connection to the DNS server, not just lookups (all-in-one revival servers)</string>
 </resources>

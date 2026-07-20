@@ -2193,4 +2193,8 @@
     <string name="retro_ps2_hdd_subtitle">ไดรฟ์ภายในเสมือนสำหรับเกมที่ใช้ HDD เช่น Final Fantasy XI รีสตาร์ทเกม</string>
     <string name="retro_ps2_hdd_desc">ไดรฟ์ภายในเสมือนสำหรับเกมที่ใช้ HDD เช่น Final Fantasy XI</string>
     <string name="retro_ps2_dns_auto_internal">ตั้งค่าโหมด DNS เป็น Internal เพื่อให้โฮสต์เซิร์ฟเวอร์ที่กำหนดเองของคุณมีผล</string>
+    <string name="retro_ps2_force_all_dns">Route All Traffic Through DNS</string>
+    <string name="retro_ps2_force_all_dns_subtitle">Send every connection to the DNS server, not just lookups (all-in-one revival servers)</string>
+    <string name="retro_gs_force_all_dns">Route All Traffic Through DNS</string>
+    <string name="retro_gs_force_all_dns_subtitle">Send every connection to the DNS server, not just lookups (all-in-one revival servers)</string>
 </resources>

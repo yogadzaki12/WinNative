@@ -2196,5 +2196,9 @@ Chemin installé :
     <string name="retro_ps2_hdd_subtitle">Lecteur interne virtuel pour les jeux sur HDD comme Final Fantasy XI. Redémarre le jeu.</string>
     <string name="retro_ps2_hdd_desc">Lecteur interne virtuel pour les jeux sur HDD comme Final Fantasy XI.</string>
     <string name="retro_ps2_dns_auto_internal">Mode DNS réglé sur Internal pour que vos hôtes de serveur personnalisés prennent effet.</string>
+    <string name="retro_ps2_force_all_dns">Route All Traffic Through DNS</string>
+    <string name="retro_ps2_force_all_dns_subtitle">Send every connection to the DNS server, not just lookups (all-in-one revival servers)</string>
+    <string name="retro_gs_force_all_dns">Route All Traffic Through DNS</string>
+    <string name="retro_gs_force_all_dns_subtitle">Send every connection to the DNS server, not just lookups (all-in-one revival servers)</string>
 </resources>
 

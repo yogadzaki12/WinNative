@@ -1623,6 +1623,8 @@ Installed path:
     <string name="retro_ps2_secondary_dns">Secondary DNS</string>
     <string name="retro_ps2_optional">optional</string>
     <string name="retro_ps2_auto_ip_dhcp">Auto IP (DHCP)</string>
+    <string name="retro_ps2_force_all_dns">Route All Traffic Through DNS</string>
+    <string name="retro_ps2_force_all_dns_subtitle">Send every connection to the DNS server, not just lookups (all-in-one revival servers)</string>
     <string name="retro_ps2_server_host">Server: %1$s</string>
     <string name="retro_ps2_tap_to_set_ip">tap to set IP (blank removes)</string>
     <string name="retro_ps2_host_to_ip">%1$s → IP</string>
@@ -1980,6 +1982,8 @@ Installed path:
     <string name="retro_gs_secondary_dns">Secondary DNS</string>
     <string name="retro_gs_dns_optional">optional</string>
     <string name="retro_gs_auto_ip_dhcp">Auto IP (DHCP)</string>
+    <string name="retro_gs_force_all_dns">Route All Traffic Through DNS</string>
+    <string name="retro_gs_force_all_dns_subtitle">Send every connection to the DNS server, not just lookups (all-in-one revival servers)</string>
     <string name="retro_gs_group_input">INPUT</string>
     <string name="retro_gs_on_screen_controls">On-screen controls</string>
     <string name="retro_gs_haptic_feedback">Haptic Feedback</string>

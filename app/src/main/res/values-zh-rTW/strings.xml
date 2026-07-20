@@ -2195,5 +2195,9 @@
     <string name="retro_ps2_hdd_subtitle">用於 Final Fantasy XI 等基於 HDD 的遊戲的虛擬內建磁碟機。將重新啟動遊戲。</string>
     <string name="retro_ps2_hdd_desc">用於 Final Fantasy XI 等基於 HDD 的遊戲的虛擬內建磁碟機。</string>
     <string name="retro_ps2_dns_auto_internal">DNS 模式已設為 Internal，讓你的自訂伺服器主機生效。</string>
+    <string name="retro_ps2_force_all_dns">Route All Traffic Through DNS</string>
+    <string name="retro_ps2_force_all_dns_subtitle">Send every connection to the DNS server, not just lookups (all-in-one revival servers)</string>
+    <string name="retro_gs_force_all_dns">Route All Traffic Through DNS</string>
+    <string name="retro_gs_force_all_dns_subtitle">Send every connection to the DNS server, not just lookups (all-in-one revival servers)</string>
 </resources>
 

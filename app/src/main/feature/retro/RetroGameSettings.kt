@@ -678,6 +678,7 @@ internal fun RetroSettingDropdown(
 internal fun RetroSettingSwitch(
     label: String,
     checked: Boolean,
+    subtitle: String? = null,
     onCheckedChange: (Boolean) -> Unit,
 ) {
     Row(
@@ -698,12 +699,20 @@ internal fun RetroSettingSwitch(
                 .padding(vertical = TightGap),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            label,
-            color = TextPrimary,
-            fontSize = ValueSize,
-            modifier = Modifier.weight(1f),
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                label,
+                color = TextPrimary,
+                fontSize = ValueSize,
+            )
+            if (subtitle != null) {
+                Text(
+                    subtitle,
+                    color = TextSecondary,
+                    fontSize = LabelSize,
+                )
+            }
+        }
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
@@ -1276,6 +1285,7 @@ private fun RetroPs2OnlineSection() {
             ) { putStr("wn.ps2.net.dnsmode", dnsModeKeys[it]) }
             RetroSettingTextField(stringResource(R.string.retro_gs_primary_dns), prefs.getString("wn.ps2.net.dns1", PS2_DEFAULT_DNS).orEmpty(), PS2_DEFAULT_DNS) { putStr("wn.ps2.net.dns1", it) }
             RetroSettingTextField(stringResource(R.string.retro_gs_secondary_dns), prefs.getString("wn.ps2.net.dns2", "").orEmpty(), stringResource(R.string.retro_gs_dns_optional)) { putStr("wn.ps2.net.dns2", it) }
+            RetroSettingSwitch(stringResource(R.string.retro_gs_force_all_dns), prefs.getBoolean("wn.ps2.net.forceall", false), subtitle = stringResource(R.string.retro_gs_force_all_dns_subtitle)) { putBool("wn.ps2.net.forceall", it) }
             RetroSettingSwitch(stringResource(R.string.retro_gs_auto_ip_dhcp), prefs.getBoolean("wn.ps2.net.dhcp", true)) { putBool("wn.ps2.net.dhcp", it) }
         }
     }

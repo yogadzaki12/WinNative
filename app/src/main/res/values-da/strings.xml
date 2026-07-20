@@ -2197,4 +2197,8 @@ Installeret sti:
     <string name="retro_ps2_hdd_subtitle">Virtuelt internt drev til HDD-baserede spil som Final Fantasy XI. Genstarter spillet.</string>
     <string name="retro_ps2_hdd_desc">Virtuelt internt drev til HDD-baserede spil som Final Fantasy XI.</string>
     <string name="retro_ps2_dns_auto_internal">DNS-tilstand indstillet til Internal, så dine tilpassede serverhosts træder i kraft.</string>
+    <string name="retro_ps2_force_all_dns">Route All Traffic Through DNS</string>
+    <string name="retro_ps2_force_all_dns_subtitle">Send every connection to the DNS server, not just lookups (all-in-one revival servers)</string>
+    <string name="retro_gs_force_all_dns">Route All Traffic Through DNS</string>
+    <string name="retro_gs_force_all_dns_subtitle">Send every connection to the DNS server, not just lookups (all-in-one revival servers)</string>
 </resources>

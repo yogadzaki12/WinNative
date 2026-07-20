@@ -150,6 +150,9 @@ object Ps2GameOverlay {
         NativeApp.setSetting("DEV9/Eth", "InterceptDHCP", "bool", prefs.getBoolean("wn.ps2.net.dhcp", true).toString())
         NativeApp.setSetting("DEV9/Eth", "AutoMask", "bool", "true")
         NativeApp.setSetting("DEV9/Eth", "AutoGateway", "bool", "true")
+        // Force ALL PS2 TCP/UDP traffic (not just DNS lookups) to the configured
+        // DNS1 server — for all-in-one revival servers that answer every request.
+        NativeApp.setSetting("DEV9/Eth", "EthForceAllTraffic", "bool", prefs.getBoolean("wn.ps2.net.forceall", false).toString())
         val hosts = readHosts(prefs)
         // These DNS settings are the source of truth: the emucore patches redirect
         // EVERY PS2 DNS query here, regardless of the DNS baked into the game's
@@ -564,6 +567,17 @@ object Ps2GameOverlay {
                             applyNetwork()
                             menu.rebuild()
                         }
+                    },
+                )
+                add(
+                    RetroMenuEntry.Toggle(
+                        activity.getString(R.string.retro_ps2_force_all_dns),
+                        subtitle = activity.getString(R.string.retro_ps2_force_all_dns_subtitle),
+                        checked = prefs.getBoolean("wn.ps2.net.forceall", false),
+                    ) { value ->
+                        prefs.edit().putBoolean("wn.ps2.net.forceall", value).apply()
+                        applyNetwork()
+                        menu.rebuild()
                     },
                 )
                 add(
