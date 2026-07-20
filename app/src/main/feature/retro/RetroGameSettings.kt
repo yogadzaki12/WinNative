@@ -1590,19 +1590,41 @@ private fun RetroInputSection(state: RetroSettingsState) {
             androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
         }
     var haptic by remember { mutableStateOf(prefs.getFloat("retro_haptic_strength", 0.4f)) }
+    // PS2 (embedded armsx2): on-screen controls / adaptive sticks are the SAME
+    // global wn.ps2.* ARMSX2 prefs the in-game Retro Server Menu edits, so a change
+    // in either place is reflected in the other (single source of truth). Libretro
+    // cores keep their per-game shortcut-extra values (applied via the launch intent).
+    val ps2 = state.system?.isExternal == true
+    val ps2Prefs = if (ps2) remember(context) { context.getSharedPreferences("ARMSX2", android.content.Context.MODE_PRIVATE) } else null
+    var ps2Ver by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    @Suppress("UNUSED_EXPRESSION") ps2Ver
     RetroSettingGroup {
         RetroGroupTitle(stringResource(R.string.retro_gs_group_input))
-        RetroSettingSwitch(
-            label = stringResource(R.string.retro_gs_on_screen_controls),
-            checked = state.touchControls,
-            onCheckedChange = { state.touchControls = it },
-        )
-        RetroSettingSwitch(
-            label = stringResource(R.string.retro_gs_adaptive_sticks),
-            checked = state.adaptiveSticks,
-            subtitle = stringResource(R.string.retro_gs_adaptive_sticks_subtitle),
-            onCheckedChange = { state.adaptiveSticks = it },
-        )
+        if (ps2 && ps2Prefs != null) {
+            RetroSettingSwitch(
+                label = stringResource(R.string.retro_gs_on_screen_controls),
+                checked = ps2Prefs.getBoolean("wn.ps2.touchcontrols", true),
+                onCheckedChange = { ps2Prefs.edit().putBoolean("wn.ps2.touchcontrols", it).apply(); ps2Ver++ },
+            )
+            RetroSettingSwitch(
+                label = stringResource(R.string.retro_gs_adaptive_sticks),
+                checked = ps2Prefs.getBoolean("wn.ps2.adaptivesticks", false),
+                subtitle = stringResource(R.string.retro_gs_adaptive_sticks_subtitle),
+                onCheckedChange = { ps2Prefs.edit().putBoolean("wn.ps2.adaptivesticks", it).apply(); ps2Ver++ },
+            )
+        } else {
+            RetroSettingSwitch(
+                label = stringResource(R.string.retro_gs_on_screen_controls),
+                checked = state.touchControls,
+                onCheckedChange = { state.touchControls = it },
+            )
+            RetroSettingSwitch(
+                label = stringResource(R.string.retro_gs_adaptive_sticks),
+                checked = state.adaptiveSticks,
+                subtitle = stringResource(R.string.retro_gs_adaptive_sticks_subtitle),
+                onCheckedChange = { state.adaptiveSticks = it },
+            )
+        }
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = TightGap),
             verticalAlignment = Alignment.CenterVertically,

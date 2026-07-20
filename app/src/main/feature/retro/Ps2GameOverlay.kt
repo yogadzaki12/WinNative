@@ -330,9 +330,16 @@ object Ps2GameOverlay {
             NativeApp.setAudioVolume(prefs.getInt("wn.ps2.volume", 100))
             NativeApp.setAudioMuted(prefs.getBoolean("wn.ps2.muted", false))
             NativeApp.setAudioSwapChannels(prefs.getBoolean("wn.ps2.swap", false))
-            when (prefs.getString("wn.ps2.renderer", "vulkan")) {
-                "opengl" -> NativeApp.renderOpenGL()
-                "software" -> NativeApp.renderSoftware()
+            // A custom GPU driver (Turnip/adrenotools) is Vulkan-only — so when one is
+            // selected in Shortcut Settings, force the Vulkan renderer here, otherwise
+            // an OpenGL/Software renderer would silently ignore the driver and it'd
+            // never actually be used. Stock "system" driver keeps the user's choice.
+            val customDriver = (prefs.getString("wn.ps2.driver", "") ?: "").trim()
+                .let { it.isNotEmpty() && !it.equals("system", ignoreCase = true) }
+            when {
+                customDriver -> NativeApp.renderVulkan()
+                prefs.getString("wn.ps2.renderer", "vulkan") == "opengl" -> NativeApp.renderOpenGL()
+                prefs.getString("wn.ps2.renderer", "vulkan") == "software" -> NativeApp.renderSoftware()
                 else -> NativeApp.renderVulkan()
             }
             NativeApp.renderUpscalemultiplier(prefs.getFloat("wn.ps2.upscale", 1f))

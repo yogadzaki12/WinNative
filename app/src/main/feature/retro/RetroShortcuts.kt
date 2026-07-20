@@ -132,16 +132,12 @@ object RetroShortcuts {
         }
         val biosPath = ensurePs2Bios(context)
         val prefs = context.getSharedPreferences("ARMSX2", Context.MODE_PRIVATE)
-        // Resolve the per-game on-screen-controls setting: the shortcut's own
-        // override wins; if it has none, fall back to the Settings > Retro > PS2
-        // default. Written to a pref the embedded overlay reads at attach, so the
-        // shortcut setting properly overrides the global default.
-        val touchControls =
-            shortcut.getExtra(KEY_TOUCH_CONTROLS)
-                .ifEmpty { if (RetroDefaults.touchControls(context, RetroSystems.PS2.id)) "1" else "0" } != "0"
-        val adaptiveSticks =
-            shortcut.getExtra(KEY_ADAPTIVE_STICKS)
-                .ifEmpty { if (RetroDefaults.adaptiveSticks(context, RetroSystems.PS2.id)) "1" else "0" } == "1"
+        // On-screen controls / adaptive sticks are GLOBAL wn.ps2.* prefs — the single
+        // source of truth shared by the shortcut settings Input section AND the
+        // in-game Retro Server Menu (Controls tab). Read that pref so a change made in
+        // EITHER surface sticks; seed from the console default only when never set.
+        val touchControls = prefs.getBoolean("wn.ps2.touchcontrols", RetroDefaults.touchControls(context, RetroSystems.PS2.id))
+        val adaptiveSticks = prefs.getBoolean("wn.ps2.adaptivesticks", RetroDefaults.adaptiveSticks(context, RetroSystems.PS2.id))
         // Resolve the chosen GPU driver (global "wn.ps2.driver": "" / "system" =
         // stock Vulkan, otherwise an installed driver id) and hand it to ARMSX2's
         // existing customDriverId boot path, which pins it before the first
