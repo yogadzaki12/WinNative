@@ -1569,7 +1569,11 @@ open class MainActivityRuntime : ComponentActivity() {
         // controller "B"/"Circle" buttons that the OS maps to KEYCODE_BACK
         // (Xbox/DualShock default) from killing the app.
         onBackPressedDispatcher.addCallback(this) {
-            // intentionally empty — pure stay-alive sentinel
+            // Lowest-priority stay-alive sentinel: the host overlay's own
+            // Compose BackHandler (registered later, so it wins) opens/closes the
+            // drawer on Back. This floor callback only runs if nothing else
+            // consumed Back, and does nothing — so Back can never finish() the
+            // activity out from under a running game.
         }
         prefs = applicationContext.getSharedPreferences("ARMSX2", MODE_PRIVATE)
         applyEmulationOrientation()
@@ -1629,7 +1633,9 @@ open class MainActivityRuntime : ComponentActivity() {
         window.statusBarColor = android.graphics.Color.TRANSPARENT
         window.navigationBarColor = android.graphics.Color.TRANSPARENT
         WindowInsetsControllerCompat(window, window.decorView).let { controller ->
-            controller.show(WindowInsetsCompat.Type.systemBars())
+            // Immersive gameplay: this activity IS the in-game view, so the
+            // status/navigation bars stay hidden (swipe reveals them briefly).
+            controller.hide(WindowInsetsCompat.Type.systemBars())
             controller.isAppearanceLightStatusBars = false
             controller.isAppearanceLightNavigationBars = false
             controller.systemBarsBehavior =
@@ -1840,6 +1846,15 @@ open class MainActivityRuntime : ComponentActivity() {
             event.isFromSource(InputDevice.SOURCE_JOYSTICK)) {
             NativeApp.sRumbleDeviceId = event.deviceId
         }
+        // Controller guide button (Xbox/PS/MODE) toggles the host's drawer menu —
+        // always available, independent of touch controls or hotkey bindings.
+        if (kc == KeyEvent.KEYCODE_BUTTON_MODE) {
+            val open = com.armsx2.WinNativeHost.openMenu
+            if (open != null) {
+                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) open()
+                return true
+            }
+        }
         // #254 Emulated USB keyboard. When a game runs with the USB HID keyboard
         // attached (Settings.usbKeyboard, e.g. EQOA / Konami-keyboard titles),
         // forward physical/Bluetooth keyboard key events to it. Gated so it only
@@ -1936,7 +1951,9 @@ open class MainActivityRuntime : ComponentActivity() {
                 ControllerMappings.SysHotkey.PRESSURE_MOD -> {}
                 ControllerMappings.SysHotkey.MENU -> {
                     // armsx2's own pause menu was removed; the WinNative host owns
-                    // the in-game menu. Still consumed so the key can't leak to the pad.
+                    // the in-game menu — toggle it. Consumed so the key can't leak
+                    // to the pad.
+                    if (down) com.armsx2.WinNativeHost.openMenu?.invoke()
                     return true
                 }
                 ControllerMappings.SysHotkey.SAVE_STATE -> {
@@ -2663,7 +2680,9 @@ open class MainActivityRuntime : ComponentActivity() {
      *  semantics; the rest mirror the one-shot actions in dispatchKeyEvent. */
     private fun runStickHotkey(h: ControllerMappings.SysHotkey) {
         when (h) {
-            ControllerMappings.SysHotkey.MENU -> {} // host-owned menu
+            ControllerMappings.SysHotkey.MENU -> {
+                com.armsx2.WinNativeHost.openMenu?.invoke() // host-owned menu
+            }
             ControllerMappings.SysHotkey.SAVE_STATE -> {
                 val slot = currentSaveSlot.value
                 kotlin.concurrent.thread { runCatching { NativeApp.saveStateToSlot(slot) } }
@@ -2870,6 +2889,16 @@ open class MainActivityRuntime : ComponentActivity() {
             accumAnalog(target, out)
         } else {
             NativeApp.setPadButtonForPort(port, target, (out * 32767).toInt(), out > 0f)
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        // Immersive mode can be dropped by the system after dialogs/IME/app
+        // switches — re-hide the bars whenever gameplay regains focus.
+        if (hasFocus) {
+            WindowInsetsControllerCompat(window, window.decorView)
+                .hide(WindowInsetsCompat.Type.systemBars())
         }
     }
 

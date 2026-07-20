@@ -339,7 +339,8 @@ object Ps2GameOverlay {
 
         fun openWinNativeScreen(screen: String) {
             menu.close()
-            MainActivityRuntime.pauseForOverlay()
+            // No auto-pause: online games must keep their connection alive while
+            // the cheats/achievements screen covers the game.
             ps2Screen.value = screen
         }
 
@@ -732,6 +733,41 @@ object Ps2GameOverlay {
                 )
                 add(
                     RetroMenuEntry.Choice(
+                        activity.getString(R.string.retro_ps2_fmv_aspect_ratio),
+                        listOf(
+                            activity.getString(R.string.retro_ps2_shader_off),
+                            activity.getString(R.string.retro_ps2_aspect_auto_standard),
+                            activity.getString(R.string.retro_ps2_aspect_4_3),
+                            activity.getString(R.string.retro_ps2_aspect_16_9),
+                        ),
+                        prefs.getInt("wn.ps2.fmvaspect", 0).coerceIn(0, 3),
+                    ) { next ->
+                        prefs.edit().putInt("wn.ps2.fmvaspect", next).apply()
+                        gsSetAsync("FMVAspectRatioSwitch", "string", fmvAspectName(next))
+                        menu.rebuild()
+                    },
+                )
+                val deintLabels = listOf(
+                    activity.getString(R.string.retro_ps2_deint_auto),
+                    activity.getString(R.string.retro_ps2_deint_off),
+                    activity.getString(R.string.retro_ps2_deint_weave_tff),
+                    activity.getString(R.string.retro_ps2_deint_weave_bff),
+                    activity.getString(R.string.retro_ps2_deint_bob_tff),
+                    activity.getString(R.string.retro_ps2_deint_bob_bff),
+                    activity.getString(R.string.retro_ps2_deint_blend_tff),
+                    activity.getString(R.string.retro_ps2_deint_blend_bff),
+                    activity.getString(R.string.retro_ps2_deint_adaptive_tff),
+                    activity.getString(R.string.retro_ps2_deint_adaptive_bff),
+                )
+                add(
+                    RetroMenuEntry.Choice(activity.getString(R.string.retro_ps2_deinterlace_mode), deintLabels, prefs.getInt("wn.ps2.deinterlace", 0).coerceIn(0, 9)) { next ->
+                        prefs.edit().putInt("wn.ps2.deinterlace", next).apply()
+                        gsSetAsync("deinterlace_mode", "int", next.toString())
+                        menu.rebuild()
+                    },
+                )
+                add(
+                    RetroMenuEntry.Choice(
                         activity.getString(R.string.retro_ps2_display_filter),
                         listOf(
                             activity.getString(R.string.retro_ps2_filter_nearest),
@@ -762,6 +798,13 @@ object Ps2GameOverlay {
                     },
                 )
                 add(
+                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_mipmapping), checked = prefs.getBoolean("wn.ps2.mipmap", true)) { value ->
+                        prefs.edit().putBoolean("wn.ps2.mipmap", value).apply()
+                        gsSetAsync("hw_mipmap", "bool", value.toString())
+                        menu.rebuild()
+                    },
+                )
+                add(
                     RetroMenuEntry.Choice(
                         activity.getString(R.string.retro_ps2_blending_accuracy),
                         listOf(
@@ -776,6 +819,13 @@ object Ps2GameOverlay {
                     ) { next ->
                         prefs.edit().putInt("wn.ps2.blend", next).apply()
                         gsSetAsync("accurate_blending_unit", "int", next.toString())
+                        menu.rebuild()
+                    },
+                )
+                add(
+                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_anti_blur), checked = prefs.getBoolean("wn.ps2.antiblur", true)) { value ->
+                        prefs.edit().putBoolean("wn.ps2.antiblur", value).apply()
+                        gsSetAsync("pcrtc_antiblur", "bool", value.toString())
                         menu.rebuild()
                     },
                 )
@@ -812,55 +862,6 @@ object Ps2GameOverlay {
                     ) { next ->
                         prefs.edit().putInt("wn.ps2.frameskip", next).apply()
                         bg { NativeApp.setFrameSkip(next) }
-                        menu.rebuild()
-                    },
-                )
-                add(
-                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_mipmapping), checked = prefs.getBoolean("wn.ps2.mipmap", true)) { value ->
-                        prefs.edit().putBoolean("wn.ps2.mipmap", value).apply()
-                        gsSetAsync("hw_mipmap", "bool", value.toString())
-                        menu.rebuild()
-                    },
-                )
-                val deintLabels = listOf(
-                    activity.getString(R.string.retro_ps2_deint_auto),
-                    activity.getString(R.string.retro_ps2_deint_off),
-                    activity.getString(R.string.retro_ps2_deint_weave_tff),
-                    activity.getString(R.string.retro_ps2_deint_weave_bff),
-                    activity.getString(R.string.retro_ps2_deint_bob_tff),
-                    activity.getString(R.string.retro_ps2_deint_bob_bff),
-                    activity.getString(R.string.retro_ps2_deint_blend_tff),
-                    activity.getString(R.string.retro_ps2_deint_blend_bff),
-                    activity.getString(R.string.retro_ps2_deint_adaptive_tff),
-                    activity.getString(R.string.retro_ps2_deint_adaptive_bff),
-                )
-                add(
-                    RetroMenuEntry.Choice(activity.getString(R.string.retro_ps2_deinterlace_mode), deintLabels, prefs.getInt("wn.ps2.deinterlace", 0).coerceIn(0, 9)) { next ->
-                        prefs.edit().putInt("wn.ps2.deinterlace", next).apply()
-                        gsSetAsync("deinterlace_mode", "int", next.toString())
-                        menu.rebuild()
-                    },
-                )
-                add(
-                    RetroMenuEntry.Choice(
-                        activity.getString(R.string.retro_ps2_fmv_aspect_ratio),
-                        listOf(
-                            activity.getString(R.string.retro_ps2_shader_off),
-                            activity.getString(R.string.retro_ps2_aspect_auto_standard),
-                            activity.getString(R.string.retro_ps2_aspect_4_3),
-                            activity.getString(R.string.retro_ps2_aspect_16_9),
-                        ),
-                        prefs.getInt("wn.ps2.fmvaspect", 0).coerceIn(0, 3),
-                    ) { next ->
-                        prefs.edit().putInt("wn.ps2.fmvaspect", next).apply()
-                        gsSetAsync("FMVAspectRatioSwitch", "string", fmvAspectName(next))
-                        menu.rebuild()
-                    },
-                )
-                add(
-                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_anti_blur), checked = prefs.getBoolean("wn.ps2.antiblur", true)) { value ->
-                        prefs.edit().putBoolean("wn.ps2.antiblur", value).apply()
-                        gsSetAsync("pcrtc_antiblur", "bool", value.toString())
                         menu.rebuild()
                     },
                 )
@@ -916,13 +917,6 @@ object Ps2GameOverlay {
                     },
                 )
                 add(
-                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_swap_stereo_channels), checked = swap) { value ->
-                        prefs.edit().putBoolean("wn.ps2.swap", value).apply()
-                        bg { NativeApp.setAudioSwapChannels(value) }
-                        menu.rebuild()
-                    },
-                )
-                add(
                     RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_time_stretch), checked = prefs.getBoolean("wn.ps2.timestretch", true)) { value ->
                         prefs.edit().putBoolean("wn.ps2.timestretch", value).apply()
                         spu2Set("SyncMode", "string", if (value) "TimeStretch" else "Disabled")
@@ -950,6 +944,13 @@ object Ps2GameOverlay {
                     ) { next ->
                         prefs.edit().putInt("wn.ps2.audiolatency", latencyValues[next]).apply()
                         spu2Set("OutputLatencyMS", "int", latencyValues[next].toString())
+                        menu.rebuild()
+                    },
+                )
+                add(
+                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_swap_stereo_channels), checked = swap) { value ->
+                        prefs.edit().putBoolean("wn.ps2.swap", value).apply()
+                        bg { NativeApp.setAudioSwapChannels(value) }
                         menu.rebuild()
                     },
                 )
@@ -991,13 +992,6 @@ object Ps2GameOverlay {
                     },
                 )
                 add(
-                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_instant_vu1), checked = prefs.getBoolean("wn.ps2.instantVu1", true)) { value ->
-                        prefs.edit().putBoolean("wn.ps2.instantVu1", value).apply()
-                        bg { NativeApp.setInstantVU1(value) }
-                        menu.rebuild()
-                    },
-                )
-                add(
                     RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_mtvu), checked = prefs.getBoolean("wn.ps2.mtvu", true)) { value ->
                         prefs.edit().putBoolean("wn.ps2.mtvu", value).apply()
                         spSet("vuThread", "bool", value.toString())
@@ -1005,9 +999,9 @@ object Ps2GameOverlay {
                     },
                 )
                 add(
-                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_fast_cdvd), checked = prefs.getBoolean("wn.ps2.fastCdvd", false)) { value ->
-                        prefs.edit().putBoolean("wn.ps2.fastCdvd", value).apply()
-                        spSet("fastCDVD", "bool", value.toString())
+                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_instant_vu1), checked = prefs.getBoolean("wn.ps2.instantVu1", true)) { value ->
+                        prefs.edit().putBoolean("wn.ps2.instantVu1", value).apply()
+                        bg { NativeApp.setInstantVU1(value) }
                         menu.rebuild()
                     },
                 )
@@ -1032,24 +1026,31 @@ object Ps2GameOverlay {
                         menu.rebuild()
                     },
                 )
+                add(
+                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_fast_cdvd), checked = prefs.getBoolean("wn.ps2.fastCdvd", false)) { value ->
+                        prefs.edit().putBoolean("wn.ps2.fastCdvd", value).apply()
+                        spSet("fastCDVD", "bool", value.toString())
+                        menu.rebuild()
+                    },
+                )
             }
 
         fun hudEntries(): List<RetroMenuEntry> =
             buildList {
                 add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_fps), checked = osd("fps")) { v -> setOsd("fps", v) { NativeApp.osdShowFPS(it) } })
                 add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_emulation_speed), checked = osd("speed")) { v -> setOsd("speed", v) { NativeApp.osdShowSpeed(it) } })
-                add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_cpu_usage), checked = osd("cpu")) { v -> setOsd("cpu", v) { NativeApp.osdShowCPU(it) } })
-                add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_gpu_usage), checked = osd("gpu")) { v -> setOsd("gpu", v) { NativeApp.osdShowGPU(it) } })
                 add(
                     RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_internal_resolution), checked = osd("res")) { v ->
                         setOsd("res", v) { NativeApp.osdShowResolution(it) }
                     },
                 )
+                add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_cpu_usage), checked = osd("cpu")) { v -> setOsd("cpu", v) { NativeApp.osdShowCPU(it) } })
+                add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_gpu_usage), checked = osd("gpu")) { v -> setOsd("gpu", v) { NativeApp.osdShowGPU(it) } })
                 add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_frame_times), checked = osd("frametimes")) { v -> setOsd("frametimes", v) { NativeApp.osdShowFrameTimes(it) } })
                 add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_gs_stats), checked = osd("gsstats")) { v -> setOsd("gsstats", v) { NativeApp.osdShowGSStats(it) } })
+                add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_input_display), checked = osd("inputs")) { v -> setOsd("inputs", v) { NativeApp.osdShowInputs(it) } })
                 add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_hw_info), checked = osd("hwinfo")) { v -> setOsd("hwinfo", v) { NativeApp.osdShowHardwareInfo(it) } })
                 add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_version), checked = osd("version")) { v -> setOsd("version", v) { NativeApp.osdShowVersion(it) } })
-                add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_input_display), checked = osd("inputs")) { v -> setOsd("inputs", v) { NativeApp.osdShowInputs(it) } })
             }
 
         menu.tabs =
@@ -1129,6 +1130,23 @@ object Ps2GameOverlay {
                 }
             }
 
+        // Back gesture/button and the controller guide button (Xbox/PS) toggle the
+        // drawer via this hook — the menu stays reachable even with touch controls
+        // hidden.
+        WinNativeHost.openMenu = {
+            activity.runOnUiThread {
+                if (!activity.isFinishing && !activity.isDestroyed) {
+                    if (menu.visible) {
+                        menu.close()
+                    } else {
+                        pad?.releaseAll()
+                        menu.rebuild()
+                        menu.open()
+                    }
+                }
+            }
+        }
+
         val overlayView =
             ComposeView(activity).apply {
                 setContent {
@@ -1153,13 +1171,34 @@ object Ps2GameOverlay {
                         }
                         val menuVisible = menu.visible
                         androidx.compose.runtime.LaunchedEffect(menuVisible) {
-                            if (menuVisible) {
-                                MainActivityRuntime.pauseForOverlay()
-                            } else if (!wnPaused && ps2Screen.value == null) {
+                            // Opening the drawer does NOT pause the game — online
+                            // titles must keep their connection alive while the
+                            // user tweaks settings. Pausing is explicit via the
+                            // Pause action (wnPaused); closing the drawer resumes
+                            // only when nothing else holds the game paused.
+                            if (!menuVisible && !wnPaused && ps2Screen.value == null) {
                                 MainActivityRuntime.resume()
                             }
                         }
                         val screen by ps2Screen
+                        // System Back (button or predictive-back gesture) — this is
+                        // the ONLY reliable path on Android 13+ where
+                        // enableOnBackInvokedCallback routes Back through the
+                        // predictive-back dispatcher, bypassing legacy key handling.
+                        // Contextual: exit pad-edit, else step back inside the open
+                        // drawer (closing it at the top level), else open the drawer.
+                        // Always keeps the game alive — Back never finishes the activity.
+                        BackHandler(enabled = screen == null) {
+                            when {
+                                pad?.editMode == true -> pad?.finishEdit()
+                                menu.visible -> menu.handleKey(KeyEvent.KEYCODE_BACK, KeyEvent.ACTION_UP)
+                                else -> {
+                                    pad?.releaseAll()
+                                    menu.rebuild()
+                                    menu.open()
+                                }
+                            }
+                        }
                         if (screen != null) {
                             val dismiss = {
                                 ps2Screen.value = null
@@ -1219,23 +1258,15 @@ object Ps2GameOverlay {
             activity.window.callback =
                 object : android.view.Window.Callback by prevCallback {
                     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-                        if (ps2Screen.value == null && event.keyCode == KeyEvent.KEYCODE_BACK) {
-                            if (event.action == KeyEvent.ACTION_UP) {
-                                activity.runOnUiThread {
-                                    when {
-                                        pad?.editMode == true -> pad?.finishEdit()
-                                        menu.visible -> menu.handleKey(KeyEvent.KEYCODE_BACK, KeyEvent.ACTION_UP)
-                                        else -> {
-                                            pad?.releaseAll()
-                                            menu.rebuild()
-                                            menu.open()
-                                        }
-                                    }
-                                }
-                            }
-                            return true
-                        }
+                        // NOTE: the system Back button/gesture is handled by the
+                        // Compose BackHandler in the overlay content (via
+                        // onBackPressedDispatcher), NOT here — with
+                        // enableOnBackInvokedCallback=true, Android 13+ routes Back
+                        // through the predictive-back dispatcher and it never
+                        // reaches this legacy key path. This callback still routes
+                        // OTHER controller keys (D-pad/A/B) to the open drawer.
                         if (ps2Screen.value == null && menu.visible &&
+                            event.keyCode != KeyEvent.KEYCODE_BACK &&
                             menu.handleKey(event.keyCode, event.action)
                         ) {
                             return true

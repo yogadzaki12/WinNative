@@ -23,6 +23,15 @@ object WinNativeHost {
     @Volatile
     var applyBootSettings: ((android.content.Context) -> Unit)? = null
 
+    /**
+     * Toggles the host's in-game drawer menu. Invoked by MainActivityRuntime for
+     * the system Back gesture/button and the controller guide button
+     * (Xbox/PS/MODE) so the menu is always reachable even with touch controls
+     * hidden or no MENU pill on screen.
+     */
+    @Volatile
+    var openMenu: (() -> Unit)? = null
+
     fun enabled(): Boolean =
         attachOverlay != null &&
             runCatching {
