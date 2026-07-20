@@ -2250,6 +2250,9 @@ Installed path:
     <string name="retro_gs_group_cheats">Cheats &amp; Patches</string>
     <string name="retro_gs_cheats_detect_hint">Launch this game once so its disc serial can be detected, then cheats and patches will appear here.</string>
     <string name="retro_gs_cheats_apply_note">Changes apply next time you launch this game.</string>
+    <string name="retro_scr_loading">Loading…</string>
+    <string name="retro_gs_dnas_group">Auto-Applied (Online)</string>
+    <string name="retro_gs_dnas_entry_desc">DNAS auth bypass — required for online play</string>
     <string name="retro_gs_hdd_image_size">Size: %1$s</string>
     <string name="retro_gs_hdd_import">Import HDD Image</string>
     <string name="retro_gs_hdd_remove_short">Remove</string>

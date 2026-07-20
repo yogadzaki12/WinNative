@@ -574,6 +574,14 @@ open class MainActivityRuntime : ComponentActivity() {
                 else -> NativeApp.renderAuto()
             }
             resolved.applyTo()
+            // WinNative owns DEV9 (Ethernet NIC + virtual HDD) and the patch config
+            // via its own prefs, NOT armsx2's config store. resolved.applyTo() just
+            // re-pushed armsx2's stale DEV9 defaults (HDD disabled, "DEV9hdd.raw"),
+            // which clobbers the boot-hook write from line ~521 — so a per-game HDD
+            // image (e.g. SOCOM II's) never attaches and online can flake. Re-assert
+            // WinNative's DEV9/HDD/patch settings LAST, still before runVMThread, so
+            // they win the boot probe.
+            instance?.applicationContext?.let { com.armsx2.WinNativeHost.applyBootSettings?.invoke(it) }
             // #254: cache whether this title runs with the emulated USB keyboard so
             // dispatchKeyEvent can forward physical-keyboard keys to it. applyTo()
             // already pushed [USB1] Type + the live attach (usbSetKeyboardEnabled).

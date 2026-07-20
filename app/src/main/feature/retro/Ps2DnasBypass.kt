@@ -75,6 +75,57 @@ object Ps2DnasBypass {
     fun isEnabled(ctx: Context): Boolean =
         ctx.getSharedPreferences("ARMSX2", Context.MODE_PRIVATE).getBoolean(PREF, true)
 
+    fun setEnabled(ctx: Context, on: Boolean) {
+        ctx.getSharedPreferences("ARMSX2", Context.MODE_PRIVATE).edit().putBoolean(PREF, on).apply()
+    }
+
+    /** A DNAS-bypass section for a game, for the pre-game Cheats view. [body] is the
+     *  full pnach `[Name]` + code block; [auto] marks the default-on variant. */
+    data class BypassEntry(val name: String, val body: String, val auto: Boolean)
+
+    private fun disabledKey(serial: String) = "wn.ps2.dnas.disabled.${serial.trim().uppercase()}"
+
+    /** Section names the user has explicitly turned OFF for this game (pre-game). */
+    fun disabledNames(ctx: Context, serial: String): Set<String> {
+        val raw = ctx.getSharedPreferences("ARMSX2", Context.MODE_PRIVATE).getString(disabledKey(serial), "") ?: ""
+        if (raw.isBlank()) return emptySet()
+        return runCatching {
+            val arr = org.json.JSONArray(raw)
+            (0 until arr.length()).map { arr.getString(it) }.toSet()
+        }.getOrDefault(emptySet())
+    }
+
+    fun setDisabledNames(ctx: Context, serial: String, names: Set<String>) {
+        val arr = org.json.JSONArray()
+        names.forEach { arr.put(it) }
+        ctx.getSharedPreferences("ARMSX2", Context.MODE_PRIVATE).edit()
+            .putString(disabledKey(serial), arr.toString()).apply()
+    }
+
+    /** The bundled DNAS-bypass sections for [serial], with the same unique labels
+     *  [apply] uses — so the pre-game Cheats view can show exactly what will be
+     *  written/enabled at boot. Empty if the game has no bundled bypass. */
+    fun bypassEntries(ctx: Context, serial: String?): List<BypassEntry> {
+        val game = loadDb(ctx)[serial?.trim()?.uppercase()] ?: return emptyList()
+        val used = HashMap<String, Int>()
+        return game.variants.mapNotNull { v ->
+            val base = v.name
+            val n = (used[base] ?: 0) + 1
+            used[base] = n
+            val nm = if (n > 1) "$base ($n)" else base
+            val lines = v.codes.mapNotNull { toPatchLine(it) }
+            if (lines.isEmpty()) {
+                null
+            } else {
+                val body = buildString {
+                    append("[").append(nm).append("]\n")
+                    lines.forEach { append(it).append('\n') }
+                }
+                BypassEntry(nm, body, v.auto)
+            }
+        }
+    }
+
     /** Convert a raw code line "AAAAAAAA VVVVVVVV" to a pnach `extended` patch line. */
     private fun toPatchLine(raw: String): String? {
         val parts = raw.trim().split(Regex("\\s+"))
@@ -120,6 +171,8 @@ object Ps2DnasBypass {
             return "disabled"
         }
 
+        // Per-game variants the user turned OFF in Shortcut Settings pre-game.
+        val disabled = disabledNames(ctx, serial)
         val sb = StringBuilder()
         sb.append("gametitle=").append(game.title).append(" (DNAS Bypass)\n")
         val enableNames = ArrayList<String>()
@@ -128,8 +181,9 @@ object Ps2DnasBypass {
             if (lines.isEmpty()) continue
             sb.append("\n[").append(nm).append("]\n")
             lines.forEach { sb.append(it).append('\n') }
-            // CRC-safe: auto flag AND (untagged OR CRC matches this exact build).
-            if (v.auto && (v.crc == null || v.crc.equals(crc, ignoreCase = true))) {
+            // CRC-safe: auto flag AND (untagged OR CRC matches this exact build) AND
+            // the user hasn't disabled this specific variant pre-game.
+            if (v.auto && nm !in disabled && (v.crc == null || v.crc.equals(crc, ignoreCase = true))) {
                 enableNames.add(nm)
             }
         }

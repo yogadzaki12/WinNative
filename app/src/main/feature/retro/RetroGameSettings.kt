@@ -1391,6 +1391,11 @@ private fun RetroPs2CheatsSection(state: RetroSettingsState) {
     var patches by remember { mutableStateOf<List<com.armsx2.PatchRepo.Entry>>(emptyList()) }
     var selCheats by remember { mutableStateOf<Set<String>>(emptySet()) }
     var selPatches by remember { mutableStateOf<Set<String>>(emptySet()) }
+    // Bundled DNAS-bypass patches auto-applied at boot — surfaced here so the user
+    // can SEE what will be enabled by default and turn individual ones off first.
+    var dnasEntries by remember { mutableStateOf<List<Ps2DnasBypass.BypassEntry>>(emptyList()) }
+    var dnasGlobalOn by remember { mutableStateOf(true) }
+    var dnasDisabled by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     // Re-read repo + staging whenever an import bumps cheatsRefresh.
     LaunchedEffect(serial, state.cheatsRefresh) {
@@ -1406,7 +1411,22 @@ private fun RetroPs2CheatsSection(state: RetroSettingsState) {
         patches = repoPatches + stagedP.filter { s -> repoPatches.none { it.name == s.name } }
         selCheats = stagedC.map { it.name }.toSet()
         selPatches = stagedP.map { it.name }.toSet()
+        dnasEntries = Ps2DnasBypass.bypassEntries(context, serial).filter { it.auto }
+        dnasGlobalOn = context.getSharedPreferences("ARMSX2", android.content.Context.MODE_PRIVATE).getBoolean(Ps2DnasBypass.PREF, true)
+        dnasDisabled = Ps2DnasBypass.disabledNames(context, serial)
         loading = false
+    }
+
+    // Toggle a bundled DNAS-bypass variant. Turning one on when the master switch is
+    // off flips the master on too (mirrors the Online section's DNAS toggle).
+    fun toggleDnas(name: String, currentlyOn: Boolean) {
+        if (currentlyOn) {
+            dnasDisabled = dnasDisabled + name
+        } else {
+            if (!dnasGlobalOn) { Ps2DnasBypass.setEnabled(context, true); dnasGlobalOn = true }
+            dnasDisabled = dnasDisabled - name
+        }
+        Ps2DnasBypass.setDisabledNames(context, serial, dnasDisabled)
     }
 
     // Persist current selections to the per-serial staging store (materialised with
@@ -1440,10 +1460,20 @@ private fun RetroPs2CheatsSection(state: RetroSettingsState) {
             ) { Text(stringResource(R.string.retro_scr_import_from_file), fontSize = ValueSize) }
         }
         when {
-            loading -> Text(stringResource(R.string.retro_scr_importing), color = TextSecondary, fontSize = ValueSize)
-            cheats.isEmpty() && patches.isEmpty() ->
+            loading -> Text(stringResource(R.string.retro_scr_loading), color = TextSecondary, fontSize = ValueSize)
+            cheats.isEmpty() && patches.isEmpty() && dnasEntries.isEmpty() ->
                 Text(stringResource(R.string.retro_scr_no_cheats_or_patches), color = TextSecondary, fontSize = ValueSize)
             else -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (dnasEntries.isNotEmpty()) {
+                    Ps2SectionHeader(stringResource(R.string.retro_gs_dnas_group))
+                    dnasEntries.forEach { e ->
+                        val on = dnasGlobalOn && e.name !in dnasDisabled
+                        Ps2CheatRow(
+                            com.armsx2.PatchRepo.Entry(e.name, stringResource(R.string.retro_gs_dnas_entry_desc), e.body, "dnas"),
+                            on, isPatch = true,
+                        ) { toggleDnas(e.name, on) }
+                    }
+                }
                 if (cheats.isNotEmpty()) {
                     Ps2SectionHeader(stringResource(R.string.retro_scr_cheats_section))
                     cheats.forEach { entry ->
