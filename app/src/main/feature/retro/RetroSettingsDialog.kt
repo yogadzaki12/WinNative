@@ -66,6 +66,70 @@ class RetroSettingsDialog(
             }
         }
 
+    // Per-game HDD image import. Streams (images are multi-GB) off the main thread,
+    // then auto-selects the imported image for THIS game so it's wired immediately.
+    private val hddPickerLauncher: ActivityResultLauncher<Array<String>>? =
+        (activity as? ComponentActivity)?.activityResultRegistry?.register(
+            "retro_hdd_picker",
+            ActivityResultContracts.OpenDocument(),
+        ) { uri: Uri? ->
+            if (uri != null) {
+                state.hddImporting = true
+                Toast.makeText(activity, activity.getString(R.string.retro_scr_importing), Toast.LENGTH_SHORT).show()
+                Thread {
+                    val result = RetroHddImport.importFromUri(activity, uri)
+                    activity.runOnUiThread {
+                        state.hddImporting = false
+                        result
+                            .onSuccess { name ->
+                                state.hddImage = name
+                                state.hddRefresh++
+                                Toast.makeText(activity, activity.getString(R.string.retro_scr_hdd_imported, name), Toast.LENGTH_LONG).show()
+                            }
+                            .onFailure {
+                                Toast.makeText(activity, it.message ?: activity.getString(R.string.retro_scr_invalid_hdd_file), Toast.LENGTH_LONG).show()
+                            }
+                    }
+                }.start()
+            }
+        }
+
+    // Pre-game cheat/patch .pnach import (Cheats section). Parses the file into the
+    // game's per-serial staging store, then refreshes the section.
+    private val cheatFilePickerLauncher: ActivityResultLauncher<Array<String>>? =
+        (activity as? ComponentActivity)?.activityResultRegistry?.register(
+            "retro_cheat_file_picker",
+            ActivityResultContracts.OpenDocument(),
+        ) { uri: Uri? ->
+            val serial = state.gameSerial
+            if (uri != null && serial != null) {
+                val isPatch = state.pendingImportIsPatch
+                Thread {
+                    val text = runCatching { activity.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } }.getOrNull()
+                    val imported = if (text != null) parsePnachFile(text, if (isPatch) "patches" else "custom") else emptyList()
+                    activity.runOnUiThread {
+                        if (imported.isNotEmpty()) {
+                            val existing = Ps2CheatStaging.read(activity, serial, isPatch)
+                            val merged = existing.filterNot { e -> imported.any { it.name == e.name } } + imported
+                            Ps2CheatStaging.write(activity, serial, isPatch, serial, merged)
+                            state.cheatsRefresh++
+                            Toast.makeText(activity, activity.getString(R.string.retro_scr_hdd_imported, imported.first().name), Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(activity, activity.getString(R.string.retro_scr_cheat_invalid), Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }.start()
+            }
+        }
+
+    init {
+        state.requestImportHdd = { hddPickerLauncher?.launch(arrayOf("*/*")) }
+        state.requestImportCheatFile = { isPatch ->
+            state.pendingImportIsPatch = isPatch
+            cheatFilePickerLauncher?.launch(arrayOf("*/*"))
+        }
+    }
+
     private fun saveSelectedArtwork(uri: Uri) {
         val bitmap = ImageUtils.getBitmapFromUri(activity, uri, 1024)
         if (bitmap == null) {

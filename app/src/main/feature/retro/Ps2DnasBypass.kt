@@ -152,6 +152,9 @@ object Ps2DnasBypass {
             if (s != null && c != null) {
                 runCatching { apply(ctx, s, c) }
                     .onSuccess { if (it != null) android.util.Log.i("Ps2DnasBypass", "$s/$c -> $it") }
+                // Then fold in any cheats/patches the user staged pre-game from
+                // Shortcut Settings (keyed by serial; now materialised with the CRC).
+                runCatching { Ps2CheatStaging.materialize(ctx, s, c) }
                 return
             }
             try {

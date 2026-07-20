@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Monitor
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Speed
@@ -158,6 +159,25 @@ class RetroSettingsState(
     var currentSection by mutableIntStateOf(0)
     var biosRefresh by mutableIntStateOf(0)
 
+    // Per-game HDD image import, driven from this Shortcut Settings dialog (so the
+    // user can import + point SOCOM II's .raw right here, not only from the Retro
+    // Server Menu / Settings > Retro). The dialog wires [requestImportHdd] to an
+    // ActivityResult picker; [hddRefresh] bumps to re-read the installed list.
+    var hddRefresh by mutableIntStateOf(0)
+    var hddImporting by mutableStateOf(false)
+    var requestImportHdd: (() -> Unit)? = null
+
+    // Pre-game cheats/patches editing (Cheats sidebar section). Resolved once from
+    // the ROM's ISO9660 SYSTEM.CNF, since the emulator isn't running here.
+    val gameSerial: String? by lazy {
+        if (context != null && system?.id == RetroSystems.PS2.id) Ps2IsoSerial.serialOf(File(romPath)) else null
+    }
+    var cheatsRefresh by mutableIntStateOf(0)
+    var pendingImportIsPatch = false
+    // Wired by the dialog to a file picker; imports a .pnach into the serial's
+    // staging store as a cheat or patch, then bumps [cheatsRefresh].
+    var requestImportCheatFile: ((isPatch: Boolean) -> Unit)? = null
+
     init {
         syncArtwork()
     }
@@ -205,6 +225,7 @@ private fun buildRetroSections(state: RetroSettingsState): List<RetroSection> {
     sections += RetroSection(Icons.AutoMirrored.Outlined.VolumeUp, R.string.retro_gs_section_audio)
     if (state.system?.isExternal == true) {
         sections += RetroSection(Icons.Outlined.Public, R.string.retro_gs_section_online)
+        sections += RetroSection(Icons.Outlined.Code, R.string.retro_gs_group_cheats)
     }
     return sections
 }
@@ -321,7 +342,8 @@ private fun RetroSectionContent(
                         3 -> RetroPs2HudSection()
                         4 -> RetroInputSection(state)
                         5 -> RetroAudioSection(state)
-                        else -> RetroPs2OnlineSection(state)
+                        6 -> RetroPs2OnlineSection(state)
+                        else -> RetroPs2CheatsSection(state)
                     }
                 } else {
                     when (idx) {
@@ -1263,15 +1285,53 @@ private fun RetroPs2OnlineSection(state: RetroSettingsState) {
         RetroGroupTitle(stringResource(R.string.retro_gs_group_online_dev9))
         val onlineEnabled = prefs.getBoolean("wn.ps2.net.enable", false)
         RetroSettingSwitch(stringResource(R.string.retro_gs_enable_online), onlineEnabled) { putBool("wn.ps2.net.enable", it) }
-        // Per-game HDD image: pick one imported via Settings > Retro > PS2 (HDD
-        // Images), e.g. SOCOM II's pre-made HDD with its maps/DLC. "None" uses the
+        // Per-game HDD image. Import a downloaded .raw / .zip (e.g. SOCOM II's
+        // pre-made HDD with its maps/DLC) right here — no need to go to the Retro
+        // Server Menu — then it's pointed at THIS game only. "None" uses the
         // self-format blank image when the HDD toggle below is on.
-        val hddImages = remember(version) { RetroHddImport.installed(context).map { it.name } }
+        val hddImages = remember(version, state.hddRefresh) { RetroHddImport.installed(context).map { it.name } }
         val hddOptions = listOf(stringResource(R.string.retro_scr_none)) + hddImages
         val hddSelected = (hddImages.indexOf(state.hddImage) + 1).coerceAtLeast(0)
         RetroSettingDropdown(stringResource(R.string.retro_gs_hdd_image), hddOptions, hddSelected) { idx ->
             state.hddImage = if (idx <= 0) "" else hddImages[idx - 1]
             version++
+        }
+        // Selected image size, so the user can confirm a large .raw imported fully.
+        remember(state.hddImage, state.hddRefresh) { RetroHddImport.imageFile(context, state.hddImage) }?.let { f ->
+            Text(
+                stringResource(R.string.retro_gs_hdd_image_size, humanSize(f.length())),
+                color = TextDim,
+                fontSize = LabelSize,
+                modifier = Modifier.padding(top = TightGap),
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = ItemGap),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            androidx.compose.material3.OutlinedButton(
+                onClick = { if (!state.hddImporting) state.requestImportHdd?.invoke() },
+                enabled = !state.hddImporting,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+            ) {
+                Text(
+                    if (state.hddImporting) stringResource(R.string.retro_scr_importing) else stringResource(R.string.retro_scr_import_hdd_image),
+                    fontSize = ValueSize,
+                )
+            }
+            if (state.hddImage.isNotBlank()) {
+                androidx.compose.material3.OutlinedButton(
+                    onClick = {
+                        val name = state.hddImage
+                        RetroHddImport.delete(context, name)
+                        state.hddImage = ""
+                        state.hddRefresh++
+                        version++
+                    },
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(contentColor = DangerRed),
+                ) { Text(stringResource(R.string.retro_gs_hdd_remove_short), fontSize = ValueSize) }
+            }
         }
         RetroSettingSwitch(stringResource(R.string.retro_ps2_hdd), prefs.getBoolean("wn.ps2.hdd", false)) { putBool("wn.ps2.hdd", it) }
         Text(
@@ -1305,6 +1365,162 @@ private fun RetroPs2OnlineSection(state: RetroSettingsState) {
             RetroSettingSwitch(stringResource(R.string.retro_gs_dnas_bypass), prefs.getBoolean(Ps2DnasBypass.PREF, true), subtitle = stringResource(R.string.retro_gs_dnas_bypass_subtitle)) { putBool(Ps2DnasBypass.PREF, it) }
             RetroSettingSwitch(stringResource(R.string.retro_gs_auto_ip_dhcp), prefs.getBoolean("wn.ps2.net.dhcp", true)) { putBool("wn.ps2.net.dhcp", it) }
         }
+    }
+}
+
+@Composable
+private fun RetroPs2CheatsSection(state: RetroSettingsState) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val serial = remember(state) { state.gameSerial }
+
+    if (serial == null) {
+        RetroSettingGroup {
+            RetroGroupTitle(stringResource(R.string.retro_gs_group_cheats))
+            Text(
+                stringResource(R.string.retro_gs_cheats_detect_hint),
+                color = TextSecondary,
+                fontSize = ValueSize,
+                modifier = Modifier.padding(vertical = TightGap),
+            )
+        }
+        return
+    }
+
+    var loading by remember { mutableStateOf(true) }
+    var cheats by remember { mutableStateOf<List<com.armsx2.PatchRepo.Entry>>(emptyList()) }
+    var patches by remember { mutableStateOf<List<com.armsx2.PatchRepo.Entry>>(emptyList()) }
+    var selCheats by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var selPatches by remember { mutableStateOf<Set<String>>(emptySet()) }
+
+    // Re-read repo + staging whenever an import bumps cheatsRefresh.
+    LaunchedEffect(serial, state.cheatsRefresh) {
+        loading = true
+        val repo = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { com.armsx2.PatchRepo.fetchForSerial(serial) }.getOrNull()
+        }
+        val stagedC = Ps2CheatStaging.read(context, serial, false)
+        val stagedP = Ps2CheatStaging.read(context, serial, true)
+        val repoCheats = repo?.entries?.filter { it.source != "patches" }.orEmpty()
+        val repoPatches = repo?.entries?.filter { it.source == "patches" }.orEmpty()
+        cheats = repoCheats + stagedC.filter { s -> repoCheats.none { it.name == s.name } }
+        patches = repoPatches + stagedP.filter { s -> repoPatches.none { it.name == s.name } }
+        selCheats = stagedC.map { it.name }.toSet()
+        selPatches = stagedP.map { it.name }.toSet()
+        loading = false
+    }
+
+    // Persist current selections to the per-serial staging store (materialised with
+    // the real CRC at next boot). Called after every toggle/add.
+    fun persist() {
+        Ps2CheatStaging.write(context, serial, false, serial, cheats.filter { it.name in selCheats })
+        Ps2CheatStaging.write(context, serial, true, serial, patches.filter { it.name in selPatches })
+    }
+
+    var showAdd by remember { mutableStateOf(false) }
+    var newName by remember { mutableStateOf("") }
+    var newCodes by remember { mutableStateOf("") }
+    var newIsPatch by remember { mutableStateOf(false) }
+
+    RetroSettingGroup {
+        RetroGroupTitle(stringResource(R.string.retro_gs_group_cheats))
+        Text(
+            stringResource(R.string.retro_gs_cheats_apply_note),
+            color = TextDim,
+            fontSize = LabelSize,
+            modifier = Modifier.padding(bottom = TightGap),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = ItemGap)) {
+            androidx.compose.material3.OutlinedButton(
+                onClick = { newName = ""; newCodes = ""; newIsPatch = false; showAdd = true },
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+            ) { Text(stringResource(R.string.retro_scr_add), fontSize = ValueSize) }
+            androidx.compose.material3.OutlinedButton(
+                onClick = { state.requestImportCheatFile?.invoke(true) },
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+            ) { Text(stringResource(R.string.retro_scr_import_from_file), fontSize = ValueSize) }
+        }
+        when {
+            loading -> Text(stringResource(R.string.retro_scr_importing), color = TextSecondary, fontSize = ValueSize)
+            cheats.isEmpty() && patches.isEmpty() ->
+                Text(stringResource(R.string.retro_scr_no_cheats_or_patches), color = TextSecondary, fontSize = ValueSize)
+            else -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (cheats.isNotEmpty()) {
+                    Ps2SectionHeader(stringResource(R.string.retro_scr_cheats_section))
+                    cheats.forEach { entry ->
+                        Ps2CheatRow(entry, entry.name in selCheats, isPatch = false) {
+                            selCheats = if (entry.name in selCheats) selCheats - entry.name else selCheats + entry.name
+                            persist()
+                        }
+                    }
+                }
+                if (patches.isNotEmpty()) {
+                    Ps2SectionHeader(stringResource(R.string.retro_scr_patches_section))
+                    patches.forEach { entry ->
+                        Ps2CheatRow(entry, entry.name in selPatches, isPatch = true) {
+                            selPatches = if (entry.name in selPatches) selPatches - entry.name else selPatches + entry.name
+                            persist()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showAdd) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showAdd = false },
+            title = { Text(stringResource(R.string.retro_scr_add_cheat)) },
+            text = {
+                Column {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = { newIsPatch = false }, modifier = Modifier.weight(1f),
+                            colors = if (!newIsPatch)
+                                androidx.compose.material3.ButtonDefaults.buttonColors()
+                            else androidx.compose.material3.ButtonDefaults.outlinedButtonColors(),
+                        ) { Text(stringResource(R.string.retro_scr_target_cheat)) }
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = { newIsPatch = true }, modifier = Modifier.weight(1f),
+                            colors = if (newIsPatch)
+                                androidx.compose.material3.ButtonDefaults.buttonColors()
+                            else androidx.compose.material3.ButtonDefaults.outlinedButtonColors(),
+                        ) { Text(stringResource(R.string.retro_scr_target_patch)) }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    androidx.compose.material3.OutlinedTextField(
+                        value = newName, onValueChange = { newName = it },
+                        label = { Text(stringResource(R.string.retro_scr_cheat_name)) },
+                        singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    androidx.compose.material3.OutlinedTextField(
+                        value = newCodes, onValueChange = { newCodes = it },
+                        label = { Text(stringResource(R.string.retro_scr_cheat_codes)) },
+                        placeholder = { Text("2021A268 00000000") },
+                        modifier = Modifier.fillMaxWidth(), minLines = 3,
+                    )
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    val entry = buildCustomPnachEntry(context, newName, newCodes, if (newIsPatch) "patches" else "custom")
+                    if (entry != null) {
+                        if (newIsPatch) {
+                            patches = patches.filterNot { it.name == entry.name } + entry
+                            selPatches = selPatches + entry.name
+                        } else {
+                            cheats = cheats.filterNot { it.name == entry.name } + entry
+                            selCheats = selCheats + entry.name
+                        }
+                        persist()
+                        showAdd = false
+                    }
+                }) { Text(stringResource(R.string.retro_scr_add)) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showAdd = false }) { Text(stringResource(R.string.retro_scr_cancel)) }
+            },
+        )
     }
 }
 

@@ -235,37 +235,32 @@ fun Ps2CheatsScreen(
     // Add-dialog target: false = Cheat (default), true = Patch.
     var newIsPatch by remember { mutableStateOf(false) }
 
-    // Convert pasted raw PS2 codes ("AAAAAAAA VVVVVVVV" per line) into a pnach
-    // section. Already-formatted "patch=" lines pass through; the raw lines go
-    // through the emulator's raw-code interpreter via the `extended` type. Used for
-    // both cheats and patches (identical conversion; caller sets [source]).
-    fun buildCustomEntry(name: String, codes: String, source: String): com.armsx2.PatchRepo.Entry? {
-        val lines =
-            codes.lineSequence().mapNotNull { raw ->
-                val t = raw.trim()
-                when {
-                    t.isEmpty() || t.startsWith("//") -> null
-                    t.startsWith("patch=") -> t
-                    else -> {
-                        val parts = t.split(Regex("\\s+"))
-                        if (parts.size == 2 && parts[0].length == 8 && parts[1].length == 8 &&
-                            parts[0].all { it.isDigit() || it.uppercaseChar() in 'A'..'F' } &&
-                            parts[1].all { it.isDigit() || it.uppercaseChar() in 'A'..'F' }
-                        ) {
-                            "patch=1,EE,${parts[0].uppercase()},extended,${parts[1].uppercase()}"
-                        } else {
-                            null
-                        }
-                    }
+    // Import a downloaded .pnach file's sections as cheats or patches (per the
+    // Cheat/Patch selector). Runs off the main thread — files can be sizeable.
+    val importLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val text = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    runCatching { context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } }.getOrNull()
                 }
-            }.toList()
-        if (name.isBlank() || lines.isEmpty()) return null
-        val body = buildString {
-            append("[").append(name.trim()).append("]\n")
-            lines.forEach { append(it).append("\n") }
+                val imported = if (text != null) parsePnachFile(text, if (newIsPatch) "patches" else "custom") else emptyList()
+                if (imported.isNotEmpty()) {
+                    if (newIsPatch) {
+                        patchEntries = patchEntries.filterNot { e -> imported.any { it.name == e.name } } + imported
+                        selectedPatches = selectedPatches + imported.map { it.name }
+                    } else {
+                        entries = entries.filterNot { e -> imported.any { it.name == e.name } } + imported
+                        selected = selected + imported.map { it.name }
+                    }
+                    status = ""
+                    showAdd = false
+                } else {
+                    status = context.getString(R.string.retro_scr_cheat_invalid)
+                }
+            }
         }
-        val desc = context.getString(if (source == "patches") R.string.retro_scr_custom_patch else R.string.retro_scr_custom_cheat)
-        return com.armsx2.PatchRepo.Entry(name.trim(), desc, body, source)
     }
 
     Ps2WindowedScaffold(title = stringResource(R.string.retro_scr_cheats), onBack = onBack, header = {
@@ -366,11 +361,16 @@ fun Ps2CheatsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 3,
                     )
+                    androidx.compose.foundation.layout.Spacer(Modifier.padding(4.dp))
+                    OutlinedButton(
+                        onClick = { importLauncher.launch(arrayOf("*/*")) },
+                        modifier = Modifier.fillMaxWidth().paneNavItem(onActivate = { importLauncher.launch(arrayOf("*/*")) }),
+                    ) { Text(stringResource(R.string.retro_scr_import_from_file)) }
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
-                    val entry = buildCustomEntry(newName, newCodes, if (newIsPatch) "patches" else "custom")
+                    val entry = buildCustomPnachEntry(context, newName, newCodes, if (newIsPatch) "patches" else "custom")
                     if (entry != null) {
                         if (newIsPatch) {
                             patchEntries = patchEntries.filterNot { it.name == entry.name } + entry
@@ -393,9 +393,56 @@ fun Ps2CheatsScreen(
     }
 }
 
+/**
+ * Convert pasted raw PS2 codes ("AAAAAAAA VVVVVVVV" per line) — or already-formatted
+ * `patch=` lines — into a [PatchRepo.Entry] section. Raw lines run through the
+ * emulator's raw-code interpreter via the `extended` type. Shared by the in-game
+ * Cheats screen and the pre-game Shortcut Settings cheats section. Returns null if
+ * the name is blank or no valid code lines were found.
+ */
+internal fun buildCustomPnachEntry(context: Context, name: String, codes: String, source: String): com.armsx2.PatchRepo.Entry? {
+    val lines =
+        codes.lineSequence().mapNotNull { raw ->
+            val t = raw.trim()
+            when {
+                t.isEmpty() || t.startsWith("//") -> null
+                t.startsWith("patch=") -> t
+                else -> {
+                    val parts = t.split(Regex("\\s+"))
+                    if (parts.size == 2 && parts[0].length == 8 && parts[1].length == 8 &&
+                        parts[0].all { it.isDigit() || it.uppercaseChar() in 'A'..'F' } &&
+                        parts[1].all { it.isDigit() || it.uppercaseChar() in 'A'..'F' }
+                    ) {
+                        "patch=1,EE,${parts[0].uppercase()},extended,${parts[1].uppercase()}"
+                    } else {
+                        null
+                    }
+                }
+            }
+        }.toList()
+    if (name.isBlank() || lines.isEmpty()) return null
+    val body = buildString {
+        append("[").append(name.trim()).append("]\n")
+        lines.forEach { append(it).append("\n") }
+    }
+    val desc = context.getString(if (source == "patches") R.string.retro_scr_custom_patch else R.string.retro_scr_custom_cheat)
+    return com.armsx2.PatchRepo.Entry(name.trim(), desc, body, source)
+}
+
+/**
+ * Parse a whole `.pnach` file's text into entries (each `[Section]` + its code
+ * lines). Used when importing a downloaded cheat/patch file. [source] tags the
+ * resulting entries. Returns empty if nothing parseable.
+ */
+internal fun parsePnachFile(text: String, source: String): List<com.armsx2.PatchRepo.Entry> =
+    runCatching {
+        com.armsx2.PatchRepo.parseInstalled(text, if (source == "patches") "patches" else "cheats").second
+            .map { com.armsx2.PatchRepo.Entry(it.name, it.description, it.body, source) }
+    }.getOrDefault(emptyList())
+
 /** Small section-label row separating the Cheats and Patches groups. */
 @Composable
-private fun Ps2SectionHeader(text: String) {
+internal fun Ps2SectionHeader(text: String) {
     Text(
         text,
         style = MaterialTheme.typography.labelLarge,
@@ -411,7 +458,7 @@ private fun Ps2SectionHeader(text: String) {
  * patch rows so they read as distinct from cheats. Carries its own `.paneNavItem`.
  */
 @Composable
-private fun Ps2CheatRow(
+internal fun Ps2CheatRow(
     entry: com.armsx2.PatchRepo.Entry,
     checked: Boolean,
     isPatch: Boolean,
@@ -519,7 +566,7 @@ fun Ps2AchievementsScreen(
         }
     }
 
-    Ps2OverlayScaffold(title = stringResource(R.string.retro_scr_achievements), onBack = onBack) {
+    Ps2WindowedScaffold(title = stringResource(R.string.retro_scr_achievements), onBack = onBack) {
         if (!loggedIn) {
             Column(
                 Modifier.fillMaxSize().padding(24.dp),
@@ -646,7 +693,10 @@ fun Ps2WindowedScaffold(
         Box(
             Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.55f))
+                // Light scrim only — the running game stays clearly visible behind
+                // the pop-up (it's just dimmed a touch), rather than a near-black
+                // wash. Matches the "it's just a pop-up over the game" intent.
+                .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.25f))
                 // Tap outside the card dismisses; no ripple on the scrim.
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },

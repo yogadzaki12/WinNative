@@ -2246,5 +2246,12 @@ Installed path:
     <string name="retro_scr_hdd_removed">Removed %1$s</string>
     <string name="retro_scr_remove_hdd_image">Remove %1$s</string>
     <string name="retro_gs_hdd_image">HDD Image</string>
+    <string name="retro_scr_import_from_file">Import from file…</string>
+    <string name="retro_gs_group_cheats">Cheats &amp; Patches</string>
+    <string name="retro_gs_cheats_detect_hint">Launch this game once so its disc serial can be detected, then cheats and patches will appear here.</string>
+    <string name="retro_gs_cheats_apply_note">Changes apply next time you launch this game.</string>
+    <string name="retro_gs_hdd_image_size">Size: %1$s</string>
+    <string name="retro_gs_hdd_import">Import HDD Image</string>
+    <string name="retro_gs_hdd_remove_short">Remove</string>
     <string name="retro_scr_none">None</string>
 </resources>
