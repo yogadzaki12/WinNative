@@ -1,16 +1,21 @@
 package com.winlator.cmod.feature.retro
 
 import android.content.Context
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -18,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -26,6 +32,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -216,14 +223,22 @@ fun Ps2CheatsScreen(
         return com.armsx2.PatchRepo.Entry(name.trim(), context.getString(R.string.retro_scr_custom_cheat), body, "custom")
     }
 
-    Ps2OverlayScaffold(title = stringResource(R.string.retro_scr_cheats), onBack = onBack, action = {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            androidx.compose.material3.IconButton(
-                onClick = { newName = ""; newCodes = ""; showAdd = true },
-                modifier = Modifier.paneNavItem(onActivate = { newName = ""; newCodes = ""; showAdd = true }),
-            ) { Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.retro_scr_add_cheat)) }
+    Ps2WindowedScaffold(title = stringResource(R.string.retro_scr_cheats), onBack = onBack, header = {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val openAdd = { newName = ""; newCodes = ""; showAdd = true }
+            OutlinedButton(
+                onClick = openAdd,
+                modifier = Modifier.paneNavItem(onActivate = openAdd),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp),
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.width(18.dp).height(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.retro_scr_add))
+            }
             if (!loading && (entries.isNotEmpty() || serial.isNotBlank())) {
-                TextButton(onClick = { apply() }, modifier = Modifier.paneNavItem(onActivate = { apply() })) { Text(stringResource(R.string.retro_scr_apply)) }
+                OutlinedButton(onClick = { apply() }, modifier = Modifier.paneNavItem(onActivate = { apply() })) {
+                    Text(stringResource(R.string.retro_scr_apply))
+                }
             }
         }
     }) {
@@ -239,33 +254,47 @@ fun Ps2CheatsScreen(
                     Text(status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
                 }
                 LazyColumn(
-                    Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                    Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(entries) { entry ->
                         val checked = entry.name in selected
                         val toggle = { selected = if (entry.name in selected) selected - entry.name else selected + entry.name }
-                        Card(
-                            Modifier.fillMaxWidth().paneNavItem(cornerRadius = 12.dp, onActivate = { toggle() }),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        // Whole-row toggle button: the container color and border
+                        // shift to secondaryContainer when the cheat is enabled.
+                        Surface(
+                            onClick = toggle,
+                            modifier = Modifier.fillMaxWidth().paneNavItem(cornerRadius = 12.dp, onActivate = { toggle() }),
                             shape = RoundedCornerShape(12.dp),
+                            color = if (checked) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                            border = if (checked) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         ) {
                             Row(
-                                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Column(Modifier.weight(1f)) {
-                                    Text(entry.name, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                                    Text(
+                                        entry.name,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (checked) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
+                                    )
                                     if (entry.description.isNotBlank()) {
-                                        Text(entry.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(
+                                            entry.description,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = if (checked) MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.75f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
                                     }
                                 }
-                                androidx.compose.material3.Switch(
-                                    checked = checked,
-                                    onCheckedChange = {
-                                        selected = if (checked) selected - entry.name else selected + entry.name
-                                    },
-                                )
+                                if (checked) {
+                                    Spacer(Modifier.width(12.dp))
+                                    Icon(
+                                        Icons.Filled.Check,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    )
+                                }
                             }
                         }
                     }
@@ -459,6 +488,81 @@ fun Ps2AchievementsScreen(
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Renders overlay content as a centered, dialog-sized "window" floating over a
+ * dim scrim (rather than filling the whole screen like [Ps2OverlayScaffold]).
+ * Tapping the scrim invokes [onBack]. Sets up the same [PaneNavRegistry] /
+ * [bindPaneNav] controller-navigation wiring as [Ps2OverlayScaffold] so D-pad /
+ * controller nav keeps working; every interactive element inside [content] must
+ * still carry its own `.paneNavItem(...)` modifier.
+ *
+ * The [header] slot is laid out in a row with a back arrow and the [title]; use
+ * it for trailing actions. [content] fills the remaining card space.
+ */
+@Composable
+fun Ps2WindowedScaffold(
+    title: String,
+    onBack: () -> Unit,
+    header: @Composable (() -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val registry = remember { PaneNavRegistry() }
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        val activity = context as? android.app.Activity
+        val restore = activity?.window?.bindPaneNav(registry, onDismiss = onBack)
+        onDispose { restore?.invoke() }
+    }
+    androidx.compose.runtime.CompositionLocalProvider(LocalPaneNav provides registry) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.55f))
+                // Tap outside the card dismisses; no ripple on the scrim.
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onBack,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Surface(
+                modifier = Modifier
+                    .padding(24.dp)
+                    .widthIn(max = 560.dp)
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.8f)
+                    // Swallow taps on the card so they don't reach the scrim.
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {},
+                    ),
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 3.dp,
+                shadowElevation = 8.dp,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            ) {
+                Column(Modifier.fillMaxSize()) {
+                    Row(
+                        Modifier.fillMaxWidth().height(56.dp).padding(start = 8.dp, end = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconButton(onClick = onBack, modifier = Modifier.paneNavItem(onActivate = onBack)) {
+                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.retro_scr_back), tint = MaterialTheme.colorScheme.onSurface)
+                        }
+                        Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 4.dp))
+                        Spacer(Modifier.weight(1f))
+                        header?.invoke()
+                    }
+                    Box(Modifier.fillMaxSize()) { content() }
                 }
             }
         }
