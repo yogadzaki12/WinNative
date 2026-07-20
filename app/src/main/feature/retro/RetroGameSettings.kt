@@ -1616,6 +1616,12 @@ private fun RetroInputSection(state: RetroSettingsState) {
                 subtitle = stringResource(R.string.retro_gs_adaptive_sticks_subtitle),
                 onCheckedChange = { ps2Prefs.edit().putBoolean("wn.ps2.adaptivesticks", it).apply(); ps2Ver++ },
             )
+            RetroSettingSwitch(
+                label = stringResource(R.string.retro_ps2_show_l3r3),
+                checked = ps2Prefs.getBoolean("wn.ps2.showl3r3", true),
+                subtitle = stringResource(R.string.retro_ps2_show_l3r3_subtitle),
+                onCheckedChange = { ps2Prefs.edit().putBoolean("wn.ps2.showl3r3", it).apply(); ps2Ver++ },
+            )
         } else {
             RetroSettingSwitch(
                 label = stringResource(R.string.retro_gs_on_screen_controls),

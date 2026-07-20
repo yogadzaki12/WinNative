@@ -666,6 +666,9 @@ object Ps2GameOverlay {
                 add(
                     RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_onscreen_controls), checked = touchVisible.value) { value ->
                         touchVisible.value = value
+                        // Persist to the SAME wn.ps2.touchcontrols pref that Shortcut
+                        // Settings reads/writes — single source of truth.
+                        ps2Prefs(activity).edit().putBoolean("wn.ps2.touchcontrols", value).apply()
                         RetroDefaults.setTouchControls(activity, RetroSystems.PS2.id, value)
                         menu.rebuild()
                     },
@@ -680,6 +683,17 @@ object Ps2GameOverlay {
                         RetroDefaults.setAdaptiveSticks(activity, RetroSystems.PS2.id, value)
                         pad?.adaptiveSticks = value
                         pad?.invalidate()
+                        menu.rebuild()
+                    },
+                )
+                add(
+                    RetroMenuEntry.Toggle(
+                        activity.getString(R.string.retro_ps2_show_l3r3),
+                        subtitle = activity.getString(R.string.retro_ps2_show_l3r3_subtitle),
+                        checked = ps2Prefs(activity).getBoolean("wn.ps2.showl3r3", true),
+                    ) { value ->
+                        ps2Prefs(activity).edit().putBoolean("wn.ps2.showl3r3", value).apply()
+                        pad?.showL3R3 = value
                         menu.rebuild()
                     },
                 )
@@ -1288,6 +1302,7 @@ object Ps2GameOverlay {
                                     RetroInputView(ctx, listener, RetroSystems.PS2).also { view ->
                                         view.loadStickInversion()
                                         view.adaptiveSticks = ps2Prefs(ctx).getBoolean("wn.ps2.adaptivesticks", false)
+                                        view.showL3R3 = ps2Prefs(ctx).getBoolean("wn.ps2.showl3r3", true)
                                         view.hapticStrength =
                                             androidx.preference.PreferenceManager
                                                 .getDefaultSharedPreferences(ctx)

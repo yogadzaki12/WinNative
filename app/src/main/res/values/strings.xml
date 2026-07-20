@@ -1987,6 +1987,8 @@ Installed path:
     <string name="retro_gs_group_input">INPUT</string>
     <string name="retro_gs_on_screen_controls">On-screen controls</string>
     <string name="retro_ps2_adaptive_sticks">Adaptive Sticks</string>
+    <string name="retro_ps2_show_l3r3">Show L3 / R3 Buttons</string>
+    <string name="retro_ps2_show_l3r3_subtitle">When off, double-tap a stick to click L3 / R3</string>
     <string name="retro_ps2_adaptive_sticks_subtitle">Sticks stay hidden until you touch their area, then appear where you press</string>
     <string name="retro_gs_adaptive_sticks">Adaptive Sticks</string>
     <string name="retro_gs_adaptive_sticks_subtitle">Sticks stay hidden until you touch their area, then appear where you press</string>

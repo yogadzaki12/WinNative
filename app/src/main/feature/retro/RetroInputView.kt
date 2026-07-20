@@ -276,6 +276,18 @@ class RetroInputView(
     private var gameArea: RectF? = null
     var hapticStrength = 0f
     var adaptiveSticks: Boolean = false
+    // Show the L3/R3 on-screen buttons (PS2). When hidden, double-tapping a stick
+    // clicks L3/R3 instead. Toggling re-runs the layout to add/remove the buttons.
+    var showL3R3: Boolean = true
+        set(value) {
+            if (field != value) {
+                field = value
+                if (width > 0 && height > 0) {
+                    relayout()
+                    invalidate()
+                }
+            }
+        }
     var invertLX = false
     var invertLY = false
     var invertRX = false
@@ -820,7 +832,9 @@ class RetroInputView(
             // L3 / R3 stick-click buttons (PS2). Tucked into the lower corners — L3
             // down-and-left below the D-Pad, R3 down-and-right below the face buttons
             // — at the SAME height, clear of the sticks and each other. The native
-            // pad maps THUMBL/THUMBR -> L3/R3. (Also toggled by double-tapping a stick.)
+            // pad maps THUMBL/THUMBR -> L3/R3. When these buttons are HIDDEN, the user
+            // double-taps a stick to click L3/R3 instead (see recompute).
+            if (showL3R3) {
             val l3r = faceRadius * 0.82f
             val l3cy = height - snap * 3.2f - l3r
             val l3cx = margin + l3r + snap * 0.5f
@@ -831,6 +845,7 @@ class RetroInputView(
             val r3 = GlassButton(KeyEvent.KEYCODE_BUTTON_THUMBR, "R3", GlassShape.CIRCLE, textScale = 0.8f)
             r3.bounds.set(r3cx - l3r, l3cy - l3r, r3cx + l3r, l3cy + l3r)
             buttons += r3
+            }
         }
 
         if (config.hasTriggers && config.hasXY) {
@@ -2214,7 +2229,8 @@ class RetroInputView(
                         if (grabbed) {
                             stick2DownTime = now
                             stick2MaxMag = 0f
-                            if (stick2LastTapTime != 0L && now - stick2LastTapTime <= DOUBLE_TAP_MS) {
+                            // Double-tap-to-click only when the R3 button is hidden.
+                            if (!showL3R3 && stick2LastTapTime != 0L && now - stick2LastTapTime <= DOUBLE_TAP_MS) {
                                 stickR3Held = true
                                 stick2LastTapTime = 0L
                                 listener.onButton(KeyEvent.KEYCODE_BUTTON_THUMBR, true)
@@ -2260,7 +2276,8 @@ class RetroInputView(
                         if (grabbed) {
                             stickDownTime = now
                             stickMaxMag = 0f
-                            if (stickLastTapTime != 0L && now - stickLastTapTime <= DOUBLE_TAP_MS) {
+                            // Double-tap-to-click only when the L3 button is hidden.
+                            if (!showL3R3 && stickLastTapTime != 0L && now - stickLastTapTime <= DOUBLE_TAP_MS) {
                                 stickL3Held = true
                                 stickLastTapTime = 0L
                                 listener.onButton(KeyEvent.KEYCODE_BUTTON_THUMBL, true)

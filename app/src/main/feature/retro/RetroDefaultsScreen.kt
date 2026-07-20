@@ -552,6 +552,13 @@ fun RetroDefaultsScreen() {
                             RetroDefaults.adaptiveSticks(context, sys),
                             subtitle = stringResource(R.string.retro_gs_adaptive_sticks_subtitle),
                         ) { RetroDefaults.setAdaptiveSticks(context, sys, it); refresh++ }
+                        // Global wn.ps2.showl3r3 — shared with Shortcut Settings and the
+                        // in-game Controls tab so it's one setting everywhere.
+                        RetroSettingSwitch(
+                            stringResource(R.string.retro_ps2_show_l3r3),
+                            ps2Prefs.getBoolean("wn.ps2.showl3r3", true),
+                            subtitle = stringResource(R.string.retro_ps2_show_l3r3_subtitle),
+                        ) { ps2Prefs.edit().putBoolean("wn.ps2.showl3r3", it).apply(); refresh++ }
                     RetroSettingSwitch(
                         stringResource(R.string.retro_scr_sound),
                         !ps2Prefs.getBoolean("wn.ps2.muted", false),
