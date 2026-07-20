@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -137,6 +138,15 @@ fun Ps2CheatsScreen(
     // do NOT drop RetroAchievements to softcore.
     var patchEntries by remember { mutableStateOf<List<com.armsx2.PatchRepo.Entry>>(emptyList()) }
     var selectedPatches by remember { mutableStateOf<Set<String>>(emptySet()) }
+    // Names that came from the online repo — anything NOT in these sets is a
+    // user-added custom entry and can be deleted.
+    var repoCheatNames by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var repoPatchNames by remember { mutableStateOf<Set<String>>(emptySet()) }
+    // Bundled DNAS-bypass patches (default-applied) — shown here too so they can be
+    // toggled per-variant, sharing the exact store Shortcut Settings uses.
+    var dnasEntries by remember { mutableStateOf<List<Ps2DnasBypass.BypassEntry>>(emptyList()) }
+    var dnasGlobalOn by remember { mutableStateOf(true) }
+    var dnasDisabled by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
         loading = true
@@ -144,89 +154,74 @@ fun Ps2CheatsScreen(
             val s = runCatching { NativeApp.getGameSerial() }.getOrNull()?.takeIf { it.isNotBlank() }
             val c = runCatching { NativeApp.getGameCRC() }.getOrNull()?.takeIf { it.length == 8 }
             if (s == null) null
-            else if (c != null) com.armsx2.PatchRepo.fetchForGame(s, c) else com.armsx2.PatchRepo.fetchForSerial(s)
+            else Triple(s, c, if (c != null) com.armsx2.PatchRepo.fetchForGame(s, c) else com.armsx2.PatchRepo.fetchForSerial(s))
         }
         if (result == null) {
             status = context.getString(R.string.retro_scr_no_game_serial)
         } else {
-            title = result.gametitle
-            serial = result.serial
-            crc = result.crc
-            // Split the fetched repo entries by source: cheats vs patches.
-            entries = result.entries.filter { it.source != "patches" }
-            patchEntries = result.entries.filter { it.source == "patches" }
-            status = result.error.orEmpty()
-            val installedCheats = runCatching {
-                val dir = File(MainActivityRuntime.assetCopyRoot(context), "cheats")
-                val f = if (crc.isNotBlank()) File(dir, "${serial}_$crc.pnach") else File(dir, "$serial.pnach")
-                if (f.isFile) com.armsx2.PatchRepo.parseInstalled(f.readText(), "cheats").second else emptyList()
-            }.getOrDefault(emptyList())
-            // Merge installed cheats that aren't in the online repo (i.e. custom
-            // cheats the user added) back into the list so they persist and can be
-            // re-toggled instead of being dropped on the next Apply.
-            val repoNames = entries.map { it.name }.toSet()
-            val customInstalled =
-                installedCheats.filter { it.name !in repoNames }
-                    .map { com.armsx2.PatchRepo.Entry(it.name, context.getString(R.string.retro_scr_custom_cheat), it.body, "custom") }
-            if (customInstalled.isNotEmpty()) entries = entries + customInstalled
-            selected = installedCheats.filter { it.enabled }.map { it.name }.toSet()
-
-            // Load installed PATCHES from patches/<serial>_<crc>.pnach (falling back
-            // to patches/<serial>.pnach). These include the auto-written DNAS-bypass
-            // sections and any patches the user added; parse them so they show up and
-            // stay round-trippable.
-            val installedPatches = runCatching {
-                val dir = File(MainActivityRuntime.assetCopyRoot(context), "patches")
-                val f = if (crc.isNotBlank()) File(dir, "${serial}_$crc.pnach") else null
-                val file = f?.takeIf { it.isFile } ?: File(dir, "$serial.pnach")
-                if (file.isFile) com.armsx2.PatchRepo.parseInstalled(file.readText(), "patches").second else emptyList()
-            }.getOrDefault(emptyList())
-            // Merge installed patches not present in the repo results (custom + DNAS)
-            // so their sections persist and can be toggled.
-            val patchRepoNames = patchEntries.map { it.name }.toSet()
-            val customPatches =
-                installedPatches.filter { it.name !in patchRepoNames }
-                    .map { com.armsx2.PatchRepo.Entry(it.name, it.description.ifBlank { context.getString(R.string.retro_scr_custom_patch) }, it.body, "patches") }
-            if (customPatches.isNotEmpty()) patchEntries = patchEntries + customPatches
-            selectedPatches = installedPatches.filter { it.enabled }.map { it.name }.toSet()
+            val (s, c, repo) = result
+            serial = s
+            crc = c.orEmpty()
+            title = repo?.gametitle?.takeIf { it.isNotBlank() } ?: s
+            status = repo?.error.orEmpty()
+            // Repo-provided cheats/patches (available to enable).
+            val repoCheats = repo?.entries?.filter { it.source != "patches" }.orEmpty()
+            val repoPatches = repo?.entries?.filter { it.source == "patches" }.orEmpty()
+            repoCheatNames = repoCheats.map { it.name }.toSet()
+            repoPatchNames = repoPatches.map { it.name }.toSet()
+            // Source of truth = the per-serial staging store (shared with Shortcut
+            // Settings). Custom entries are staged ones not present in the repo.
+            val stagedC = Ps2CheatStaging.read(context, s, false)
+            val stagedP = Ps2CheatStaging.read(context, s, true)
+            entries = repoCheats + stagedC.filter { st -> repoCheats.none { it.name == st.name } }
+            patchEntries = repoPatches + stagedP.filter { st -> repoPatches.none { it.name == st.name } }
+            selected = stagedC.map { it.name }.toSet()
+            selectedPatches = stagedP.map { it.name }.toSet()
+            // Bundled DNAS-bypass patches (auto), with their shared toggle state.
+            dnasEntries = Ps2DnasBypass.bypassEntries(context, s).filter { it.auto }
+            dnasGlobalOn = context.getSharedPreferences("ARMSX2", Context.MODE_PRIVATE).getBoolean(Ps2DnasBypass.PREF, true)
+            dnasDisabled = Ps2DnasBypass.disabledNames(context, s)
         }
         loading = false
     }
 
+    // Persist the current selections to the per-serial staging store — the single
+    // source of truth shared with Shortcut Settings. Called on every toggle/add/
+    // delete so a change made here is remembered there and vice-versa.
+    fun persist() {
+        if (serial.isBlank()) return
+        Ps2CheatStaging.write(context, serial, false, serial, entries.filter { it.name in selected })
+        Ps2CheatStaging.write(context, serial, true, serial, patchEntries.filter { it.name in selectedPatches })
+    }
+
+    // Materialise the staging store into the live pnach files and reload — the exact
+    // same path the boot hook runs, so in-game "Apply" and next-launch behave identically.
     fun apply() {
-        val chosenCheats = entries.filter { it.name in selected }
-        val chosenPatches = patchEntries.filter { it.name in selectedPatches }
-        // Snapshot the full patch list up-front so the IO block writes ALL known
-        // patch sections (preserving DNAS-bypass etc.); only the enable list gates
-        // which are active.
-        val allPatches = patchEntries
+        persist()
+        val s = serial
+        val c = crc
         scope.launch {
             val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                runCatching {
-                    val fileName = if (crc.isNotBlank()) "${serial}_$crc.pnach" else "$serial.pnach"
-                    // Cheats (existing behaviour): only the chosen cheats are written.
-                    val cheatsDir = File(MainActivityRuntime.assetCopyRoot(context), "cheats").apply { mkdirs() }
-                    File(cheatsDir, fileName).writeText(com.armsx2.PatchRepo.buildPnach(title, chosenCheats))
-                    // Patches: write ALL known patch sections (not just enabled) so
-                    // toggling one off keeps its block on disk — only the enable list
-                    // decides on/off. This preserves the auto-written DNAS-bypass.
-                    val patchesDir = File(MainActivityRuntime.assetCopyRoot(context), "patches").apply { mkdirs() }
-                    File(patchesDir, fileName).writeText(com.armsx2.PatchRepo.buildPnach(title, allPatches))
-
-                    NativeApp.setSetting("EmuCore", "EnableCheats", "bool", "true")
-                    NativeApp.commitSettings()
-                    val allCheat = entries.mapNotNull { it.name.takeIf(String::isNotBlank) }.distinct().toTypedArray()
-                    val onCheat = chosenCheats.mapNotNull { it.name.takeIf(String::isNotBlank) }.distinct().toTypedArray()
-                    NativeApp.setEnabledPatches(true, allCheat, onCheat)
-                    val allPatch = allPatches.mapNotNull { it.name.takeIf(String::isNotBlank) }.distinct().toTypedArray()
-                    val onPatch = chosenPatches.mapNotNull { it.name.takeIf(String::isNotBlank) }.distinct().toTypedArray()
-                    NativeApp.setEnabledPatches(false, allPatch, onPatch)
-                    NativeApp.reloadPatches()
-                    true
-                }.getOrDefault(false)
+                runCatching { Ps2CheatStaging.applyAll(context, s, c); true }.getOrDefault(false)
             }
-            status = if (ok) context.getString(R.string.retro_scr_applied_both, chosenCheats.size, chosenPatches.size) else context.getString(R.string.retro_scr_couldnt_apply_cheats)
+            status = if (ok) {
+                context.getString(R.string.retro_scr_applied_both, selected.size, selectedPatches.size + dnasEntries.count { dnasGlobalOn && it.name !in dnasDisabled })
+            } else {
+                context.getString(R.string.retro_scr_couldnt_apply_cheats)
+            }
         }
+    }
+
+    // Toggle a DNAS-bypass variant, persisting to the shared disabled-set pref.
+    fun toggleDnas(name: String, currentlyOn: Boolean) {
+        if (serial.isBlank()) return
+        if (currentlyOn) {
+            dnasDisabled = dnasDisabled + name
+        } else {
+            if (!dnasGlobalOn) { Ps2DnasBypass.setEnabled(context, true); dnasGlobalOn = true }
+            dnasDisabled = dnasDisabled - name
+        }
+        Ps2DnasBypass.setDisabledNames(context, serial, dnasDisabled)
     }
 
     var showAdd by remember { mutableStateOf(false) }
@@ -254,6 +249,7 @@ fun Ps2CheatsScreen(
                         entries = entries.filterNot { e -> imported.any { it.name == e.name } } + imported
                         selected = selected + imported.map { it.name }
                     }
+                    persist()
                     status = ""
                     showAdd = false
                 } else {
@@ -286,7 +282,7 @@ fun Ps2CheatsScreen(
             loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 androidx.compose.material3.CircularProgressIndicator()
             }
-            entries.isEmpty() && patchEntries.isEmpty() -> Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+            entries.isEmpty() && patchEntries.isEmpty() && dnasEntries.isEmpty() -> Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
                 Text(status.ifBlank { stringResource(R.string.retro_scr_no_cheats_or_patches) }, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             else -> Column(Modifier.fillMaxSize()) {
@@ -297,20 +293,56 @@ fun Ps2CheatsScreen(
                     Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    if (dnasEntries.isNotEmpty()) {
+                        item(key = "hdr_dnas") { Ps2SectionHeader(stringResource(R.string.retro_gs_dnas_group)) }
+                        items(dnasEntries, key = { "dnas_" + it.name }) { e ->
+                            val on = dnasGlobalOn && e.name !in dnasDisabled
+                            Ps2CheatRow(
+                                com.armsx2.PatchRepo.Entry(e.name, stringResource(R.string.retro_gs_dnas_entry_desc), e.body, "dnas"),
+                                on, isPatch = true, onToggle = { toggleDnas(e.name, on) },
+                            )
+                        }
+                    }
                     if (entries.isNotEmpty()) {
                         item(key = "hdr_cheats") { Ps2SectionHeader(stringResource(R.string.retro_scr_cheats_section)) }
                         items(entries, key = { "cheat_" + it.name }) { entry ->
                             val checked = entry.name in selected
-                            val toggle = { selected = if (entry.name in selected) selected - entry.name else selected + entry.name }
-                            Ps2CheatRow(entry, checked, isPatch = false, onToggle = toggle)
+                            val toggle = {
+                                selected = if (entry.name in selected) selected - entry.name else selected + entry.name
+                                persist()
+                            }
+                            val isCustom = entry.name !in repoCheatNames
+                            Ps2CheatRow(
+                                entry, checked, isPatch = false, onToggle = toggle,
+                                onDelete = if (isCustom) {
+                                    {
+                                        entries = entries.filterNot { it.name == entry.name }
+                                        selected = selected - entry.name
+                                        persist()
+                                    }
+                                } else null,
+                            )
                         }
                     }
                     if (patchEntries.isNotEmpty()) {
                         item(key = "hdr_patches") { Ps2SectionHeader(stringResource(R.string.retro_scr_patches_section)) }
                         items(patchEntries, key = { "patch_" + it.name }) { entry ->
                             val checked = entry.name in selectedPatches
-                            val toggle = { selectedPatches = if (entry.name in selectedPatches) selectedPatches - entry.name else selectedPatches + entry.name }
-                            Ps2CheatRow(entry, checked, isPatch = true, onToggle = toggle)
+                            val toggle = {
+                                selectedPatches = if (entry.name in selectedPatches) selectedPatches - entry.name else selectedPatches + entry.name
+                                persist()
+                            }
+                            val isCustom = entry.name !in repoPatchNames
+                            Ps2CheatRow(
+                                entry, checked, isPatch = true, onToggle = toggle,
+                                onDelete = if (isCustom) {
+                                    {
+                                        patchEntries = patchEntries.filterNot { it.name == entry.name }
+                                        selectedPatches = selectedPatches - entry.name
+                                        persist()
+                                    }
+                                } else null,
+                            )
                         }
                     }
                 }
@@ -379,6 +411,7 @@ fun Ps2CheatsScreen(
                             entries = entries.filterNot { it.name == entry.name } + entry
                             selected = selected + entry.name
                         }
+                        persist()
                         status = ""
                         showAdd = false
                     } else {
@@ -463,6 +496,7 @@ internal fun Ps2CheatRow(
     checked: Boolean,
     isPatch: Boolean,
     onToggle: () -> Unit,
+    onDelete: (() -> Unit)? = null,
 ) {
     Surface(
         onClick = onToggle,
@@ -510,8 +544,19 @@ internal fun Ps2CheatRow(
                 Icon(
                     Icons.Filled.Check,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    tint = if (checked) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
                 )
+            }
+            // Delete only shown for user-added (custom) entries.
+            if (onDelete != null) {
+                Spacer(Modifier.width(4.dp))
+                IconButton(onClick = onDelete, modifier = Modifier.paneNavItem(onActivate = onDelete)) {
+                    Icon(
+                        Icons.Outlined.Delete,
+                        contentDescription = stringResource(R.string.retro_scr_delete),
+                        tint = if (checked) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.error,
+                    )
+                }
             }
         }
     }
@@ -693,10 +738,11 @@ fun Ps2WindowedScaffold(
         Box(
             Modifier
                 .fillMaxSize()
-                // Light scrim only — the running game stays clearly visible behind
-                // the pop-up (it's just dimmed a touch), rather than a near-black
-                // wash. Matches the "it's just a pop-up over the game" intent.
-                .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.25f))
+                // No scrim wash — the area around the pop-up is fully transparent so
+                // the running game stays clearly visible behind it (it's just a
+                // floating window over live gameplay). Tapping this clear area still
+                // dismisses.
+                .background(androidx.compose.ui.graphics.Color.Transparent)
                 // Tap outside the card dismisses; no ripple on the scrim.
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },

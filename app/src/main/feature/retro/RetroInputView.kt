@@ -491,6 +491,8 @@ class RetroInputView(
                 KeyEvent.KEYCODE_BUTTON_R1 -> "r1"
                 KeyEvent.KEYCODE_BUTTON_L2 -> "l2"
                 KeyEvent.KEYCODE_BUTTON_R2 -> "r2"
+                KeyEvent.KEYCODE_BUTTON_THUMBL -> "l3"
+                KeyEvent.KEYCODE_BUTTON_THUMBR -> "r3"
                 KeyEvent.KEYCODE_BUTTON_START -> "start"
                 KeyEvent.KEYCODE_BUTTON_SELECT -> "select"
                 else -> "btn_${button.keyCode}"
@@ -794,6 +796,18 @@ class RetroInputView(
             stickCy = height - snap * 4.5f - stickRadius
             stick2Cx = width - stickCx
             stick2Cy = stickCy
+
+            // L3 / R3 stick-click buttons (PS2). L3 sits just below the D-Pad on the
+            // left; R3 below the face buttons on the right — both at the SAME height
+            // (mirrored left vs right). The native pad maps THUMBL/THUMBR -> L3/R3.
+            val l3r = faceRadius * 0.8f
+            val l3cy = dpadCy + dpadRadius + l3r + snap * 1.4f
+            val l3 = GlassButton(KeyEvent.KEYCODE_BUTTON_THUMBL, "L3", GlassShape.CIRCLE, textScale = 0.85f)
+            l3.bounds.set(dpadCx - l3r, l3cy - l3r, dpadCx + l3r, l3cy + l3r)
+            buttons += l3
+            val r3 = GlassButton(KeyEvent.KEYCODE_BUTTON_THUMBR, "R3", GlassShape.CIRCLE, textScale = 0.85f)
+            r3.bounds.set(clusterCx - l3r, l3cy - l3r, clusterCx + l3r, l3cy + l3r)
+            buttons += r3
         }
 
         if (config.hasTriggers && config.hasXY) {

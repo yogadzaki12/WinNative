@@ -137,66 +137,49 @@ object Ps2DnasBypass {
         return "patch=1,EE,$a,extended,$v"
     }
 
-    private fun patchesFile(ctx: Context, serial: String, crc: String): File {
-        val dir = File(MainActivityRuntime.assetCopyRoot(ctx), "patches").apply { mkdirs() }
-        return File(dir, "${serial}_${crc}.pnach")
-    }
+    /** A resolved DNAS-bypass patch section for a game. */
+    data class Section(val name: String, val body: String, val enabledByDefault: Boolean)
 
     /**
-     * Apply (or clear) the DNAS bypass for the running game. Idempotent; safe to
-     * call repeatedly. Returns a short status string for logging, or null if the
-     * game has no bundled bypass.
+     * All DNAS-bypass sections for [serial], with enable state resolved for this
+     * build ([crc]): enabled by default when the global bypass pref is on, the
+     * variant is `auto`, its CRC tag matches (or is untagged), and the user hasn't
+     * turned it off in Shortcut Settings / the Retro Server Menu. Empty when the
+     * game has no bundled bypass. This is the single authority for what the unified
+     * apply writes/enables — see [Ps2CheatStaging.applyAll].
      */
-    fun apply(ctx: Context, serialRaw: String, crcRaw: String): String? {
+    fun sectionsFor(ctx: Context, serialRaw: String, crcRaw: String): List<Section> {
         val serial = serialRaw.trim().uppercase()
         val crc = crcRaw.trim().uppercase()
-        val game = loadDb(ctx)[serial] ?: return null
-        val file = patchesFile(ctx, serial, crc)
-
-        // Assemble unique labeled section names once (shared by enable + clear paths).
-        val named = ArrayList<Pair<String, Variant>>()
+        val game = loadDb(ctx)[serial] ?: return emptyList()
+        val globalOn = isEnabled(ctx)
+        val disabled = disabledNames(ctx, serial)
         val used = HashMap<String, Int>()
+        val out = ArrayList<Section>()
         for (v in game.variants) {
             val base = v.name
             val n = (used[base] ?: 0) + 1
             used[base] = n
-            named.add((if (n > 1) "$base ($n)" else base) to v)
-        }
-        val allNames = named.map { it.first }.toTypedArray()
-
-        if (!isEnabled(ctx)) {
-            runCatching { NativeApp.setEnabledPatches(false, allNames, emptyArray()) }
-            runCatching { if (file.exists()) file.delete() }
-            runCatching { NativeApp.reloadPatches() }
-            return "disabled"
-        }
-
-        // Per-game variants the user turned OFF in Shortcut Settings pre-game.
-        val disabled = disabledNames(ctx, serial)
-        val sb = StringBuilder()
-        sb.append("gametitle=").append(game.title).append(" (DNAS Bypass)\n")
-        val enableNames = ArrayList<String>()
-        for ((nm, v) in named) {
+            val nm = if (n > 1) "$base ($n)" else base
             val lines = v.codes.mapNotNull { toPatchLine(it) }
             if (lines.isEmpty()) continue
-            sb.append("\n[").append(nm).append("]\n")
-            lines.forEach { sb.append(it).append('\n') }
-            // CRC-safe: auto flag AND (untagged OR CRC matches this exact build) AND
-            // the user hasn't disabled this specific variant pre-game.
-            if (v.auto && nm !in disabled && (v.crc == null || v.crc.equals(crc, ignoreCase = true))) {
-                enableNames.add(nm)
+            val body = buildString {
+                append("[").append(nm).append("]\n")
+                lines.forEach { append(it).append('\n') }
             }
+            // CRC-safe: auto AND (untagged OR CRC matches) AND not user-disabled.
+            val on = globalOn && v.auto && nm !in disabled &&
+                (v.crc == null || v.crc.equals(crc, ignoreCase = true))
+            out.add(Section(nm, body, on))
         }
-
-        runCatching { file.writeText(sb.toString()) }
-        runCatching { NativeApp.setEnabledPatches(false, allNames, enableNames.toTypedArray()) }
-        runCatching { NativeApp.reloadPatches() }
-        return if (enableNames.isNotEmpty()) "enabled ${enableNames.joinToString()}" else "available (no CRC match)"
+        return out
     }
 
     /**
-     * Poll for the running game's serial + CRC to become available, then apply.
-     * Call once from a background thread shortly after the game boots.
+     * Poll for the running game's serial + CRC to become available, then run the
+     * unified apply (DNAS bypass + the user's staged cheats/patches from Shortcut
+     * Settings, all keyed off one source of truth). Call once from a background
+     * thread shortly after the game boots.
      */
     fun applyWhenReady(ctx: Context) {
         var tries = 0
@@ -204,11 +187,8 @@ object Ps2DnasBypass {
             val s = runCatching { NativeApp.getGameSerial() }.getOrNull()?.takeIf { it.isNotBlank() }
             val c = runCatching { NativeApp.getGameCRC() }.getOrNull()?.takeIf { it.length == 8 && it != "00000000" }
             if (s != null && c != null) {
-                runCatching { apply(ctx, s, c) }
-                    .onSuccess { if (it != null) android.util.Log.i("Ps2DnasBypass", "$s/$c -> $it") }
-                // Then fold in any cheats/patches the user staged pre-game from
-                // Shortcut Settings (keyed by serial; now materialised with the CRC).
-                runCatching { Ps2CheatStaging.materialize(ctx, s, c) }
+                runCatching { Ps2CheatStaging.applyAll(ctx, s, c) }
+                    .onFailure { android.util.Log.w("Ps2DnasBypass", "applyAll failed for $s/$c", it) }
                 return
             }
             try {

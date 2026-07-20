@@ -1391,6 +1391,9 @@ private fun RetroPs2CheatsSection(state: RetroSettingsState) {
     var patches by remember { mutableStateOf<List<com.armsx2.PatchRepo.Entry>>(emptyList()) }
     var selCheats by remember { mutableStateOf<Set<String>>(emptySet()) }
     var selPatches by remember { mutableStateOf<Set<String>>(emptySet()) }
+    // Repo-provided names; anything not here is a user-added custom entry (deletable).
+    var repoCheatNames by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var repoPatchNames by remember { mutableStateOf<Set<String>>(emptySet()) }
     // Bundled DNAS-bypass patches auto-applied at boot — surfaced here so the user
     // can SEE what will be enabled by default and turn individual ones off first.
     var dnasEntries by remember { mutableStateOf<List<Ps2DnasBypass.BypassEntry>>(emptyList()) }
@@ -1407,6 +1410,8 @@ private fun RetroPs2CheatsSection(state: RetroSettingsState) {
         val stagedP = Ps2CheatStaging.read(context, serial, true)
         val repoCheats = repo?.entries?.filter { it.source != "patches" }.orEmpty()
         val repoPatches = repo?.entries?.filter { it.source == "patches" }.orEmpty()
+        repoCheatNames = repoCheats.map { it.name }.toSet()
+        repoPatchNames = repoPatches.map { it.name }.toSet()
         cheats = repoCheats + stagedC.filter { s -> repoCheats.none { it.name == s.name } }
         patches = repoPatches + stagedP.filter { s -> repoPatches.none { it.name == s.name } }
         selCheats = stagedC.map { it.name }.toSet()
@@ -1471,25 +1476,48 @@ private fun RetroPs2CheatsSection(state: RetroSettingsState) {
                         Ps2CheatRow(
                             com.armsx2.PatchRepo.Entry(e.name, stringResource(R.string.retro_gs_dnas_entry_desc), e.body, "dnas"),
                             on, isPatch = true,
-                        ) { toggleDnas(e.name, on) }
+                            onToggle = { toggleDnas(e.name, on) },
+                        )
                     }
                 }
                 if (cheats.isNotEmpty()) {
                     Ps2SectionHeader(stringResource(R.string.retro_scr_cheats_section))
                     cheats.forEach { entry ->
-                        Ps2CheatRow(entry, entry.name in selCheats, isPatch = false) {
-                            selCheats = if (entry.name in selCheats) selCheats - entry.name else selCheats + entry.name
-                            persist()
-                        }
+                        val isCustom = entry.name !in repoCheatNames
+                        Ps2CheatRow(
+                            entry, entry.name in selCheats, isPatch = false,
+                            onToggle = {
+                                selCheats = if (entry.name in selCheats) selCheats - entry.name else selCheats + entry.name
+                                persist()
+                            },
+                            onDelete = if (isCustom) {
+                                {
+                                    cheats = cheats.filterNot { it.name == entry.name }
+                                    selCheats = selCheats - entry.name
+                                    persist()
+                                }
+                            } else null,
+                        )
                     }
                 }
                 if (patches.isNotEmpty()) {
                     Ps2SectionHeader(stringResource(R.string.retro_scr_patches_section))
                     patches.forEach { entry ->
-                        Ps2CheatRow(entry, entry.name in selPatches, isPatch = true) {
-                            selPatches = if (entry.name in selPatches) selPatches - entry.name else selPatches + entry.name
-                            persist()
-                        }
+                        val isCustom = entry.name !in repoPatchNames
+                        Ps2CheatRow(
+                            entry, entry.name in selPatches, isPatch = true,
+                            onToggle = {
+                                selPatches = if (entry.name in selPatches) selPatches - entry.name else selPatches + entry.name
+                                persist()
+                            },
+                            onDelete = if (isCustom) {
+                                {
+                                    patches = patches.filterNot { it.name == entry.name }
+                                    selPatches = selPatches - entry.name
+                                    persist()
+                                }
+                            } else null,
+                        )
                     }
                 }
             }

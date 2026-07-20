@@ -47,41 +47,54 @@ object Ps2CheatStaging {
     }
 
     /**
-     * Merge staged sections into the live `<serial>_<crc>.pnach` files and enable
-     * them. Called from the boot hook once serial + CRC are known. Safe to call
-     * when nothing is staged (no-op). Never removes existing sections.
+     * THE single materialization path — used identically at boot
+     * ([Ps2DnasBypass.applyWhenReady]) and on the in-game Cheats "Apply". Rebuilds
+     * the live `<serial>_<crc>.pnach` files to EXACTLY reflect the source of truth:
+     *
+     *  - patches file = staged patches (user selections) + DNAS-bypass sections
+     *  - cheats file  = staged cheats
+     *
+     * and sets the enable-lists to match. Because it rewrites the files wholesale,
+     * de-selecting or deleting an item actually removes it (unlike a merge). Needs a
+     * real 8-char CRC; the staging files (`<serial>.pnach`, no CRC) are the persistent
+     * store and are never touched here.
      */
-    fun materialize(ctx: Context, serialRaw: String, crcRaw: String) {
+    fun applyAll(ctx: Context, serialRaw: String, crcRaw: String) {
         val serial = serialRaw.trim().uppercase()
         val crc = crcRaw.trim().uppercase()
         if (serial.isBlank() || crc.length != 8) return
-        var changed = false
-        for (isPatch in listOf(false, true)) {
-            val staged = read(ctx, serial, isPatch)
-            if (staged.isEmpty()) continue
-            val liveDir = dir(ctx, isPatch)
-            val live = File(liveDir, "${serial}_$crc.pnach")
-            val existingText = if (live.isFile) live.readText() else ""
-            val parsed = runCatching { PatchRepo.parseInstalled(existingText, if (isPatch) "patches" else "cheats") }.getOrNull()
-            val title = parsed?.first?.takeIf { it.isNotBlank() } ?: serial
-            val existing = parsed?.second.orEmpty()
-                .map { PatchRepo.Entry(it.name, it.description, it.body, if (isPatch) "patches" else "custom") }
-            val existingNames = existing.map { it.name }.toSet()
-            // Keep every existing section (DNAS etc.); append staged ones not already present.
-            val merged = existing + staged.filter { it.name !in existingNames }
-            runCatching { live.writeText(PatchRepo.buildPnach(title, merged)) }
-            if (isPatch) {
-                // Patches are always-applied; cheats need EnableCheats on.
-            } else {
-                runCatching {
-                    NativeApp.setSetting("EmuCore", "EnableCheats", "bool", "true")
-                    NativeApp.commitSettings()
-                }
-            }
-            val names = staged.mapNotNull { it.name.takeIf(String::isNotBlank) }.distinct().toTypedArray()
-            runCatching { NativeApp.setEnabledPatches(!isPatch, names, names) }
-            changed = true
+        val suffix = "_$crc"
+
+        // ── Patches: user-staged patches + DNAS-bypass sections ──
+        val stagedPatches = read(ctx, serial, true)
+        val dnas = Ps2DnasBypass.sectionsFor(ctx, serial, crc)
+        val patchByName = LinkedHashMap<String, PatchRepo.Entry>()
+        stagedPatches.forEach { patchByName[it.name] = it }
+        dnas.forEach { s -> if (s.name !in patchByName) patchByName[s.name] = PatchRepo.Entry(s.name, "", s.body, "patches") }
+        val patchFile = File(dir(ctx, true), "$serial$suffix.pnach")
+        if (patchByName.isEmpty()) {
+            runCatching { patchFile.delete() }
+        } else {
+            runCatching { patchFile.writeText(PatchRepo.buildPnach(serial, patchByName.values.toList())) }
         }
-        if (changed) runCatching { NativeApp.reloadPatches() }
+        val enabledPatches = (stagedPatches.map { it.name } + dnas.filter { it.enabledByDefault }.map { it.name }).distinct()
+        runCatching { NativeApp.setEnabledPatches(false, patchByName.keys.toTypedArray(), enabledPatches.toTypedArray()) }
+
+        // ── Cheats: user-staged cheats only ──
+        val stagedCheats = read(ctx, serial, false)
+        val cheatFile = File(dir(ctx, false), "$serial$suffix.pnach")
+        if (stagedCheats.isEmpty()) {
+            runCatching { cheatFile.delete() }
+        } else {
+            runCatching { cheatFile.writeText(PatchRepo.buildPnach(serial, stagedCheats)) }
+            runCatching {
+                NativeApp.setSetting("EmuCore", "EnableCheats", "bool", "true")
+                NativeApp.commitSettings()
+            }
+        }
+        val cheatNames = stagedCheats.map { it.name }.toTypedArray()
+        runCatching { NativeApp.setEnabledPatches(true, cheatNames, cheatNames) }
+
+        runCatching { NativeApp.reloadPatches() }
     }
 }
