@@ -784,6 +784,15 @@ private fun RetroGeneralSection(
         RetroInfoRow(stringResource(R.string.retro_gs_label_system), state.system?.displayName ?: "")
         RetroInfoRow(stringResource(R.string.retro_gs_label_emulator_core), state.system?.coreFileName ?: "")
         RetroInfoRow(stringResource(R.string.retro_gs_label_rom_path), state.romPath)
+        if (state.system?.isExternal == true) {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val ps2Prefs = remember(context) { context.getSharedPreferences("ARMSX2", android.content.Context.MODE_PRIVATE) }
+            var version by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+            @Suppress("UNUSED_EXPRESSION") version
+            RetroSettingSwitch(stringResource(R.string.retro_gs_fast_boot), ps2Prefs.getBoolean("wn.ps2.fastboot", true)) {
+                ps2Prefs.edit().putBoolean("wn.ps2.fastboot", it).apply(); version++
+            }
+        }
     }
     if (state.system?.needsBios == true && onImportBios != null) {
         val context = androidx.compose.ui.platform.LocalContext.current
@@ -1120,6 +1129,35 @@ private fun RetroPs2GraphicsSection() {
             prefs.getInt("wn.ps2.frameskip", 0).coerceIn(0, 3),
         ) { putInt("wn.ps2.frameskip", it) }
         RetroSettingSwitch(stringResource(R.string.retro_gs_mipmapping), prefs.getBoolean("wn.ps2.mipmap", true)) { putBool("wn.ps2.mipmap", it) }
+        RetroSettingDropdown(
+            stringResource(R.string.retro_gs_deinterlace_mode),
+            listOf(
+                stringResource(R.string.retro_gs_deint_auto),
+                stringResource(R.string.retro_gs_deint_off),
+                stringResource(R.string.retro_gs_deint_weave_tff),
+                stringResource(R.string.retro_gs_deint_weave_bff),
+                stringResource(R.string.retro_gs_deint_bob_tff),
+                stringResource(R.string.retro_gs_deint_bob_bff),
+                stringResource(R.string.retro_gs_deint_blend_tff),
+                stringResource(R.string.retro_gs_deint_blend_bff),
+                stringResource(R.string.retro_gs_deint_adaptive_tff),
+                stringResource(R.string.retro_gs_deint_adaptive_bff),
+            ),
+            prefs.getInt("wn.ps2.deinterlace", 0).coerceIn(0, 9),
+        ) { putInt("wn.ps2.deinterlace", it) }
+        RetroSettingDropdown(
+            stringResource(R.string.retro_gs_fmv_aspect_ratio),
+            listOf(
+                stringResource(R.string.retro_gs_off),
+                stringResource(R.string.retro_gs_aspect_auto_standard),
+                stringResource(R.string.retro_gs_aspect_4_3),
+                stringResource(R.string.retro_gs_aspect_16_9),
+            ),
+            prefs.getInt("wn.ps2.fmvaspect", 0).coerceIn(0, 3),
+        ) { putInt("wn.ps2.fmvaspect", it) }
+        RetroSettingSwitch(stringResource(R.string.retro_gs_anti_blur), prefs.getBoolean("wn.ps2.antiblur", true)) { putBool("wn.ps2.antiblur", it) }
+        RetroSettingSwitch(stringResource(R.string.retro_gs_widescreen_patches), prefs.getBoolean("wn.ps2.widescreen", false)) { putBool("wn.ps2.widescreen", it) }
+        RetroSettingSwitch(stringResource(R.string.retro_gs_no_interlace_patches), prefs.getBoolean("wn.ps2.nointerlace", false)) { putBool("wn.ps2.nointerlace", it) }
     }
 }
 
@@ -1163,6 +1201,9 @@ private fun RetroPs2PerformanceSection() {
         RetroSettingSwitch(stringResource(R.string.retro_gs_instant_vu1), prefs.getBoolean("wn.ps2.instantVu1", true)) { putBool("wn.ps2.instantVu1", it) }
         RetroSettingSwitch(stringResource(R.string.retro_gs_mtvu), prefs.getBoolean("wn.ps2.mtvu", true)) { putBool("wn.ps2.mtvu", it) }
         RetroSettingSwitch(stringResource(R.string.retro_gs_fast_cdvd), prefs.getBoolean("wn.ps2.fastCdvd", false)) { putBool("wn.ps2.fastCdvd", it) }
+        RetroSettingSwitch(stringResource(R.string.retro_gs_vu_flag_hack), prefs.getBoolean("wn.ps2.vuFlagHack", true)) { putBool("wn.ps2.vuFlagHack", it) }
+        RetroSettingSwitch(stringResource(R.string.retro_gs_intc_spin), prefs.getBoolean("wn.ps2.intc", true)) { putBool("wn.ps2.intc", it) }
+        RetroSettingSwitch(stringResource(R.string.retro_gs_wait_loop), prefs.getBoolean("wn.ps2.waitloop", true)) { putBool("wn.ps2.waitloop", it) }
     }
 }
 
@@ -1183,6 +1224,11 @@ private fun RetroPs2HudSection() {
         RetroSettingSwitch(stringResource(R.string.retro_gs_hud_cpu_usage), prefs.getBoolean("wn.osd.cpu", false)) { putBool("wn.osd.cpu", it) }
         RetroSettingSwitch(stringResource(R.string.retro_gs_hud_gpu_usage), prefs.getBoolean("wn.osd.gpu", false)) { putBool("wn.osd.gpu", it) }
         RetroSettingSwitch(stringResource(R.string.retro_gs_hud_internal_resolution), prefs.getBoolean("wn.osd.res", false)) { putBool("wn.osd.res", it) }
+        RetroSettingSwitch(stringResource(R.string.retro_gs_hud_frame_times), prefs.getBoolean("wn.osd.frametimes", false)) { putBool("wn.osd.frametimes", it) }
+        RetroSettingSwitch(stringResource(R.string.retro_gs_hud_gs_stats), prefs.getBoolean("wn.osd.gsstats", false)) { putBool("wn.osd.gsstats", it) }
+        RetroSettingSwitch(stringResource(R.string.retro_gs_hud_hw_info), prefs.getBoolean("wn.osd.hwinfo", false)) { putBool("wn.osd.hwinfo", it) }
+        RetroSettingSwitch(stringResource(R.string.retro_gs_hud_version), prefs.getBoolean("wn.osd.version", false)) { putBool("wn.osd.version", it) }
+        RetroSettingSwitch(stringResource(R.string.retro_gs_hud_input_display), prefs.getBoolean("wn.osd.inputs", false)) { putBool("wn.osd.inputs", it) }
     }
 }
 
@@ -1307,6 +1353,25 @@ private fun RetroAudioSection(state: RetroSettingsState) {
             }
             RetroSettingSwitch(stringResource(R.string.retro_gs_swap_stereo), prefs.getBoolean("wn.ps2.swap", false)) {
                 prefs.edit().putBoolean("wn.ps2.swap", it).apply(); version++
+            }
+            RetroSettingSwitch(stringResource(R.string.retro_gs_time_stretch), prefs.getBoolean("wn.ps2.timestretch", true)) {
+                prefs.edit().putBoolean("wn.ps2.timestretch", it).apply(); version++
+            }
+            val bufferValues = listOf(40, 50, 60, 80, 100, 120, 160, 200)
+            RetroSettingDropdown(
+                stringResource(R.string.retro_gs_audio_buffer),
+                bufferValues.map { context.getString(R.string.retro_gs_ms, it) },
+                bufferValues.indexOf(prefs.getInt("wn.ps2.audiobuffer", 50)).coerceAtLeast(0),
+            ) {
+                prefs.edit().putInt("wn.ps2.audiobuffer", bufferValues[it]).apply(); version++
+            }
+            val latencyValues = listOf(10, 15, 20, 30, 40, 60, 80, 100)
+            RetroSettingDropdown(
+                stringResource(R.string.retro_gs_audio_latency),
+                latencyValues.map { context.getString(R.string.retro_gs_ms, it) },
+                latencyValues.indexOf(prefs.getInt("wn.ps2.audiolatency", 20)).coerceAtLeast(0),
+            ) {
+                prefs.edit().putInt("wn.ps2.audiolatency", latencyValues[it]).apply(); version++
             }
         }
         return

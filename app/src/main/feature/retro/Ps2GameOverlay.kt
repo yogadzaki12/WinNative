@@ -90,6 +90,27 @@ object Ps2GameOverlay {
     private fun ps2Prefs(ctx: android.content.Context) =
         ctx.getSharedPreferences("ARMSX2", android.content.Context.MODE_PRIVATE)
 
+    /** EmuCore/GS FMVAspectRatioSwitch is a STRING key — mirror the exact names
+     *  armsx2 Settings.writeGsToNative writes for each index (0 Off · 1 Auto
+     *  4:3/3:2 · 2 4:3 · 3 16:9). */
+    private fun fmvAspectName(value: Int): String =
+        when (value) {
+            1 -> "Auto 4:3/3:2"
+            2 -> "4:3"
+            3 -> "16:9"
+            else -> "Off"
+        }
+
+    /** EmuCore patch/boot flags (widescreen, no-interlace, fast boot). Written at
+     *  boot (applyBootConfig) so per-game shortcut settings take effect on launch;
+     *  the drawer toggles push the same keys live followed by reloadPatches(). */
+    private fun writePatchSettings(ctx: android.content.Context) {
+        val prefs = ps2Prefs(ctx)
+        NativeApp.setSetting("EmuCore", "EnableWideScreenPatches", "bool", prefs.getBoolean("wn.ps2.widescreen", false).toString())
+        NativeApp.setSetting("EmuCore", "EnableNoInterlacingPatches", "bool", prefs.getBoolean("wn.ps2.nointerlace", false).toString())
+        NativeApp.setSetting("EmuCore", "EnableFastBoot", "bool", prefs.getBoolean("wn.ps2.fastboot", true).toString())
+    }
+
     // The virtual PS2 HDD image (DEV9). The emucore never auto-creates it —
     // ATA::Open just fails on a missing file — so we make a sparse 8 GiB image
     // (ftruncate: near-zero real bytes until written) on internal storage, which
@@ -161,6 +182,7 @@ object Ps2GameOverlay {
         runCatching {
             ensureHddImage(ctx)
             writeDev9Settings(ctx)
+            writePatchSettings(ctx)
             NativeApp.commitSettings()
         }
     }
@@ -218,6 +240,13 @@ object Ps2GameOverlay {
             }
         }
 
+        fun spu2Set(key: String, type: String, value: String) {
+            bg {
+                NativeApp.setSetting("SPU2/Output", key, type, value)
+                NativeApp.commitSettings()
+            }
+        }
+
         val netEdit = mutableStateOf<Ps2NetEdit?>(null)
 
         fun readHosts(): List<Ps2NetHost> = readHosts(prefs)
@@ -260,6 +289,24 @@ object Ps2GameOverlay {
             NativeApp.setSetting("EmuCore/GS", "hw_mipmap", "bool", prefs.getBoolean("wn.ps2.mipmap", true).toString())
             NativeApp.setSetting("EmuCore/Speedhacks", "vuThread", "bool", prefs.getBoolean("wn.ps2.mtvu", true).toString())
             NativeApp.setSetting("EmuCore/Speedhacks", "fastCDVD", "bool", prefs.getBoolean("wn.ps2.fastCdvd", false).toString())
+            NativeApp.setSetting("EmuCore/GS", "deinterlace_mode", "int", prefs.getInt("wn.ps2.deinterlace", 0).coerceIn(0, 9).toString())
+            NativeApp.setSetting("EmuCore/GS", "FMVAspectRatioSwitch", "string", fmvAspectName(prefs.getInt("wn.ps2.fmvaspect", 0)))
+            NativeApp.setSetting("EmuCore/GS", "pcrtc_antiblur", "bool", prefs.getBoolean("wn.ps2.antiblur", true).toString())
+            NativeApp.setSetting("EmuCore/Speedhacks", "vuFlagHack", "bool", prefs.getBoolean("wn.ps2.vuFlagHack", true).toString())
+            NativeApp.setSetting("EmuCore/Speedhacks", "IntcStat", "bool", prefs.getBoolean("wn.ps2.intc", true).toString())
+            NativeApp.setSetting("EmuCore/Speedhacks", "WaitLoop", "bool", prefs.getBoolean("wn.ps2.waitloop", true).toString())
+            NativeApp.setSetting("SPU2/Output", "SyncMode", "string", if (prefs.getBoolean("wn.ps2.timestretch", true)) "TimeStretch" else "Disabled")
+            NativeApp.setSetting("SPU2/Output", "BufferMS", "int", prefs.getInt("wn.ps2.audiobuffer", 50).coerceIn(10, 200).toString())
+            NativeApp.setSetting("SPU2/Output", "OutputLatencyMS", "int", prefs.getInt("wn.ps2.audiolatency", 20).coerceIn(5, 200).toString())
+            NativeApp.osdShowSpeed(prefs.getBoolean("wn.osd.speed", false))
+            NativeApp.osdShowCPU(prefs.getBoolean("wn.osd.cpu", false))
+            NativeApp.osdShowGPU(prefs.getBoolean("wn.osd.gpu", false))
+            NativeApp.osdShowResolution(prefs.getBoolean("wn.osd.res", false))
+            NativeApp.osdShowFrameTimes(prefs.getBoolean("wn.osd.frametimes", false))
+            NativeApp.osdShowGSStats(prefs.getBoolean("wn.osd.gsstats", false))
+            NativeApp.osdShowHardwareInfo(prefs.getBoolean("wn.osd.hwinfo", false))
+            NativeApp.osdShowVersion(prefs.getBoolean("wn.osd.version", false))
+            NativeApp.osdShowInputs(prefs.getBoolean("wn.osd.inputs", false))
             prefs.getString("wn.ps2.mc.slot1", null)?.takeIf { it.isNotBlank() }?.let { name ->
                 NativeApp.setSetting("MemoryCards", "Slot1_Filename", "string", name)
                 NativeApp.setSetting("MemoryCards", "Slot1_Enable", "bool", "true")
@@ -764,6 +811,70 @@ object Ps2GameOverlay {
                         menu.rebuild()
                     },
                 )
+                val deintLabels = listOf(
+                    activity.getString(R.string.retro_ps2_deint_auto),
+                    activity.getString(R.string.retro_ps2_deint_off),
+                    activity.getString(R.string.retro_ps2_deint_weave_tff),
+                    activity.getString(R.string.retro_ps2_deint_weave_bff),
+                    activity.getString(R.string.retro_ps2_deint_bob_tff),
+                    activity.getString(R.string.retro_ps2_deint_bob_bff),
+                    activity.getString(R.string.retro_ps2_deint_blend_tff),
+                    activity.getString(R.string.retro_ps2_deint_blend_bff),
+                    activity.getString(R.string.retro_ps2_deint_adaptive_tff),
+                    activity.getString(R.string.retro_ps2_deint_adaptive_bff),
+                )
+                add(
+                    RetroMenuEntry.Choice(activity.getString(R.string.retro_ps2_deinterlace_mode), deintLabels, prefs.getInt("wn.ps2.deinterlace", 0).coerceIn(0, 9)) { next ->
+                        prefs.edit().putInt("wn.ps2.deinterlace", next).apply()
+                        gsSetAsync("deinterlace_mode", "int", next.toString())
+                        menu.rebuild()
+                    },
+                )
+                add(
+                    RetroMenuEntry.Choice(
+                        activity.getString(R.string.retro_ps2_fmv_aspect_ratio),
+                        listOf(
+                            activity.getString(R.string.retro_ps2_shader_off),
+                            activity.getString(R.string.retro_ps2_aspect_auto_standard),
+                            activity.getString(R.string.retro_ps2_aspect_4_3),
+                            activity.getString(R.string.retro_ps2_aspect_16_9),
+                        ),
+                        prefs.getInt("wn.ps2.fmvaspect", 0).coerceIn(0, 3),
+                    ) { next ->
+                        prefs.edit().putInt("wn.ps2.fmvaspect", next).apply()
+                        gsSetAsync("FMVAspectRatioSwitch", "string", fmvAspectName(next))
+                        menu.rebuild()
+                    },
+                )
+                add(
+                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_anti_blur), checked = prefs.getBoolean("wn.ps2.antiblur", true)) { value ->
+                        prefs.edit().putBoolean("wn.ps2.antiblur", value).apply()
+                        gsSetAsync("pcrtc_antiblur", "bool", value.toString())
+                        menu.rebuild()
+                    },
+                )
+                add(
+                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_widescreen_patches), checked = prefs.getBoolean("wn.ps2.widescreen", false)) { value ->
+                        prefs.edit().putBoolean("wn.ps2.widescreen", value).apply()
+                        bg {
+                            NativeApp.setSetting("EmuCore", "EnableWideScreenPatches", "bool", value.toString())
+                            NativeApp.commitSettings()
+                            NativeApp.reloadPatches()
+                        }
+                        menu.rebuild()
+                    },
+                )
+                add(
+                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_no_interlace_patches), checked = prefs.getBoolean("wn.ps2.nointerlace", false)) { value ->
+                        prefs.edit().putBoolean("wn.ps2.nointerlace", value).apply()
+                        bg {
+                            NativeApp.setSetting("EmuCore", "EnableNoInterlacingPatches", "bool", value.toString())
+                            NativeApp.commitSettings()
+                            NativeApp.reloadPatches()
+                        }
+                        menu.rebuild()
+                    },
+                )
             }
 
         fun soundEntries(): List<RetroMenuEntry> =
@@ -797,6 +908,37 @@ object Ps2GameOverlay {
                     RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_swap_stereo_channels), checked = swap) { value ->
                         prefs.edit().putBoolean("wn.ps2.swap", value).apply()
                         bg { NativeApp.setAudioSwapChannels(value) }
+                        menu.rebuild()
+                    },
+                )
+                add(
+                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_time_stretch), checked = prefs.getBoolean("wn.ps2.timestretch", true)) { value ->
+                        prefs.edit().putBoolean("wn.ps2.timestretch", value).apply()
+                        spu2Set("SyncMode", "string", if (value) "TimeStretch" else "Disabled")
+                        menu.rebuild()
+                    },
+                )
+                val bufferValues = listOf(40, 50, 60, 80, 100, 120, 160, 200)
+                add(
+                    RetroMenuEntry.Choice(
+                        activity.getString(R.string.retro_ps2_audio_buffer),
+                        bufferValues.map { activity.getString(R.string.retro_ps2_ms, it) },
+                        bufferValues.indexOf(prefs.getInt("wn.ps2.audiobuffer", 50)).coerceAtLeast(0),
+                    ) { next ->
+                        prefs.edit().putInt("wn.ps2.audiobuffer", bufferValues[next]).apply()
+                        spu2Set("BufferMS", "int", bufferValues[next].toString())
+                        menu.rebuild()
+                    },
+                )
+                val latencyValues = listOf(10, 15, 20, 30, 40, 60, 80, 100)
+                add(
+                    RetroMenuEntry.Choice(
+                        activity.getString(R.string.retro_ps2_audio_latency),
+                        latencyValues.map { activity.getString(R.string.retro_ps2_ms, it) },
+                        latencyValues.indexOf(prefs.getInt("wn.ps2.audiolatency", 20)).coerceAtLeast(0),
+                    ) { next ->
+                        prefs.edit().putInt("wn.ps2.audiolatency", latencyValues[next]).apply()
+                        spu2Set("OutputLatencyMS", "int", latencyValues[next].toString())
                         menu.rebuild()
                     },
                 )
@@ -858,6 +1000,27 @@ object Ps2GameOverlay {
                         menu.rebuild()
                     },
                 )
+                add(
+                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_vu_flag_hack), checked = prefs.getBoolean("wn.ps2.vuFlagHack", true)) { value ->
+                        prefs.edit().putBoolean("wn.ps2.vuFlagHack", value).apply()
+                        spSet("vuFlagHack", "bool", value.toString())
+                        menu.rebuild()
+                    },
+                )
+                add(
+                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_intc_spin), checked = prefs.getBoolean("wn.ps2.intc", true)) { value ->
+                        prefs.edit().putBoolean("wn.ps2.intc", value).apply()
+                        spSet("IntcStat", "bool", value.toString())
+                        menu.rebuild()
+                    },
+                )
+                add(
+                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_wait_loop), checked = prefs.getBoolean("wn.ps2.waitloop", true)) { value ->
+                        prefs.edit().putBoolean("wn.ps2.waitloop", value).apply()
+                        spSet("WaitLoop", "bool", value.toString())
+                        menu.rebuild()
+                    },
+                )
             }
 
         fun hudEntries(): List<RetroMenuEntry> =
@@ -871,6 +1034,11 @@ object Ps2GameOverlay {
                         setOsd("res", v) { NativeApp.osdShowResolution(it) }
                     },
                 )
+                add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_frame_times), checked = osd("frametimes")) { v -> setOsd("frametimes", v) { NativeApp.osdShowFrameTimes(it) } })
+                add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_gs_stats), checked = osd("gsstats")) { v -> setOsd("gsstats", v) { NativeApp.osdShowGSStats(it) } })
+                add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_hw_info), checked = osd("hwinfo")) { v -> setOsd("hwinfo", v) { NativeApp.osdShowHardwareInfo(it) } })
+                add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_version), checked = osd("version")) { v -> setOsd("version", v) { NativeApp.osdShowVersion(it) } })
+                add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_input_display), checked = osd("inputs")) { v -> setOsd("inputs", v) { NativeApp.osdShowInputs(it) } })
             }
 
         menu.tabs =
