@@ -1,0 +1,74 @@
+diff --git a/pcsx2/DEV9/net.cpp b/pcsx2/DEV9/net.cpp
+index ba1b418..90bc011 100644
+--- a/pcsx2/DEV9/net.cpp
++++ b/pcsx2/DEV9/net.cpp
+@@ -362,6 +362,19 @@ bool NetAdapter::InternalServerRecv(NetPacket* pkt)
+ 		IP_Packet* ippkt = new IP_Packet(ippay);
+ 		ippkt->destinationIP = ps2IP;
+ 		ippkt->sourceIP = internalIP;
++		// If this query was redirected from another server address (Internal
++		// DNS mode override), present the reply as coming from the address the
++		// game actually queried so its network stack accepts it.
++		{
++			UDP_Packet* udppay = static_cast<UDP_Packet*>(ippay);
++			std::lock_guard lk(dnsRedirectMutex);
++			const auto it = dnsRedirectSources.find(udppay->destinationPort);
++			if (it != dnsRedirectSources.end())
++			{
++				ippkt->sourceIP = it->second;
++				dnsRedirectSources.erase(it);
++			}
++		}
+ 		EthernetFrame frame(ippkt);
+ 		frame.sourceMAC = internalMAC;
+ 		frame.destinationMAC = ps2MAC;
+@@ -393,6 +406,23 @@ bool NetAdapter::InternalServerSend(NetPacket* pkt)
+ 				if (dhcpOn)
+ 					return dhcpServer.Send(&udppkt);
+ 			}
++
++			// Internal DNS mode: route EVERY DNS query to the internal DNS
++			// server, whatever server address the game's (memory-card) network
++			// profile points at — the emulator's DNS settings are the source of
++			// truth. The queried address is remembered per source port so the
++			// reply can be presented as coming from it (see InternalServerRecv).
++			if (udppkt.destinationPort == 53 &&
++				EmuConfig.DEV9.ModeDNS1 == Pcsx2Config::DEV9Options::DnsMode::Internal &&
++				ippkt.destinationIP != internalIP)
++			{
++				ps2IP = ippkt.sourceIP;
++				{
++					std::lock_guard lk(dnsRedirectMutex);
++					dnsRedirectSources[udppkt.sourcePort] = ippkt.destinationIP;
++				}
++				return dnsServer.Send(&udppkt);
++			}
+ 		}
+ 
+ 		if (ippkt.destinationIP == internalIP)
+diff --git a/pcsx2/DEV9/net.h b/pcsx2/DEV9/net.h
+index 694251f..fd9e410 100644
+--- a/pcsx2/DEV9/net.h
++++ b/pcsx2/DEV9/net.h
+@@ -8,6 +8,7 @@
+ #include <functional>
+ #include <thread>
+ #include <atomic>
++#include <map>
+ #include <mutex>
+ #include <condition_variable>
+ 
+@@ -99,6 +100,13 @@ private:
+ 
+ 	bool dhcpOn = false;
+ 
++	// DNS source-of-truth redirect (Internal DNS mode): maps the game's UDP
++	// source port to the DNS server address its network profile queried, so
++	// the internal DNS server's reply can be presented as coming from that
++	// address and the PS2 stack accepts it.
++	std::mutex dnsRedirectMutex;
++	std::map<u16, PacketReader::IP::IP_Address> dnsRedirectSources;
++
+ protected:
+ 	InternalServers::DHCP_Logger dhcpLogger;
+ 	InternalServers::DHCP_Server dhcpServer = InternalServers::DHCP_Server([&] { InternalSignalReceived(); });

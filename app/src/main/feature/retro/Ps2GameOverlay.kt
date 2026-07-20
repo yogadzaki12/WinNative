@@ -151,12 +151,23 @@ object Ps2GameOverlay {
         NativeApp.setSetting("DEV9/Eth", "AutoMask", "bool", "true")
         NativeApp.setSetting("DEV9/Eth", "AutoGateway", "bool", "true")
         val hosts = readHosts(prefs)
-        // Custom host overrides are only consulted by the emulator's INTERNAL DNS
-        // server (it answers from the EthHosts table); in Manual/Auto mode the PS2
-        // queries an external resolver and the overrides are ignored. So whenever
-        // the user has any host mappings, force DNS1 to Internal — otherwise honor
-        // their chosen mode (e.g. Manual + a revival DNS like the default).
-        val mode = if (hosts.isNotEmpty()) "Internal" else (prefs.getString("wn.ps2.net.dnsmode", "Manual") ?: "Manual")
+        // These DNS settings are the source of truth: the emucore patches redirect
+        // EVERY PS2 DNS query here, regardless of the DNS baked into the game's
+        // memory-card network profile. Manual → all queries go to DNS1 (DNS2
+        // fallback). Internal → all queries go to the internal DNS server (device
+        // resolver + Server Hosts overrides). The user-facing "Auto" also maps to
+        // Internal: the emulator's real Auto mode reads the host adapter's DNS,
+        // which Android blocks (SELinux), while Internal resolves through the
+        // device's own resolver — i.e. what "Auto" means to the user. Host
+        // overrides additionally force Internal since only the internal server
+        // consults the EthHosts table.
+        val chosen = prefs.getString("wn.ps2.net.dnsmode", "Manual") ?: "Manual"
+        val mode =
+            when {
+                hosts.isNotEmpty() -> "Internal"
+                chosen.equals("Manual", ignoreCase = true) -> "Manual"
+                else -> "Internal"
+            }
         NativeApp.setSetting("DEV9/Eth", "ModeDNS1", "string", mode)
         NativeApp.setSetting("DEV9/Eth", "ModeDNS2", "string", "Auto")
         NativeApp.setSetting("DEV9/Eth", "DNS1", "string", (prefs.getString("wn.ps2.net.dns1", PS2_DEFAULT_DNS) ?: PS2_DEFAULT_DNS).ifBlank { PS2_DEFAULT_DNS })

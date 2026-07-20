@@ -1,5 +1,5 @@
 diff --git a/pcsx2/DEV9/Sessions/UDP_Session/UDP_Session.cpp b/pcsx2/DEV9/Sessions/UDP_Session/UDP_Session.cpp
-index 276a2a4..8eb39c7 100644
+index 276a2a4..ac26eec 100644
 --- a/pcsx2/DEV9/Sessions/UDP_Session/UDP_Session.cpp
 +++ b/pcsx2/DEV9/Sessions/UDP_Session/UDP_Session.cpp
 @@ -22,6 +22,7 @@
@@ -24,7 +24,7 @@ index 276a2a4..8eb39c7 100644
  
  		if (std::chrono::steady_clock::now() - deathClockStart.load() > MAX_IDLE)
  		{
-@@ -132,6 +139,22 @@ namespace Sessions
+@@ -132,6 +139,25 @@ namespace Sessions
  			destPort = udp.destinationPort;
  			srcPort = udp.sourcePort;
  
@@ -36,18 +36,21 @@ index 276a2a4..8eb39c7 100644
 +			if (destPort == 53 &&
 +				EmuConfig.DEV9.ModeDNS1 == Pcsx2Config::DEV9Options::DnsMode::Manual)
 +			{
-+				const IP_Address dns1 = *(IP_Address*)EmuConfig.DEV9.DNS1;
-+				if (dns1.integer != 0 && dns1 != destIP)
++				// Prefer DNS1; fall back to DNS2 if DNS1 is unset.
++				IP_Address dnsTarget = *(IP_Address*)EmuConfig.DEV9.DNS1;
++				if (dnsTarget.integer == 0)
++					dnsTarget = *(IP_Address*)EmuConfig.DEV9.DNS2;
++				if (dnsTarget.integer != 0 && dnsTarget != destIP)
 +				{
 +					dnsRedirect = true;
-+					dnsRedirectIP = dns1;
++					dnsRedirectIP = dnsTarget;
 +				}
 +			}
 +
  			client = UDP_Common::CreateSocket(adapterIP, std::nullopt);
  			if (client == INVALID_SOCKET)
  			{
-@@ -141,7 +164,7 @@ namespace Sessions
+@@ -141,7 +167,7 @@ namespace Sessions
  
  			sockaddr_in endpoint{};
  			endpoint.sin_family = AF_INET;
