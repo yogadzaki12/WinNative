@@ -1286,6 +1286,7 @@ private fun RetroPs2OnlineSection() {
             RetroSettingTextField(stringResource(R.string.retro_gs_primary_dns), prefs.getString("wn.ps2.net.dns1", PS2_DEFAULT_DNS).orEmpty(), PS2_DEFAULT_DNS) { putStr("wn.ps2.net.dns1", it) }
             RetroSettingTextField(stringResource(R.string.retro_gs_secondary_dns), prefs.getString("wn.ps2.net.dns2", "").orEmpty(), stringResource(R.string.retro_gs_dns_optional)) { putStr("wn.ps2.net.dns2", it) }
             RetroSettingSwitch(stringResource(R.string.retro_gs_force_all_dns), prefs.getBoolean("wn.ps2.net.forceall", false), subtitle = stringResource(R.string.retro_gs_force_all_dns_subtitle)) { putBool("wn.ps2.net.forceall", it) }
+            RetroSettingSwitch(stringResource(R.string.retro_gs_dnas_bypass), prefs.getBoolean(Ps2DnasBypass.PREF, true), subtitle = stringResource(R.string.retro_gs_dnas_bypass_subtitle)) { putBool(Ps2DnasBypass.PREF, it) }
             RetroSettingSwitch(stringResource(R.string.retro_gs_auto_ip_dhcp), prefs.getBoolean("wn.ps2.net.dhcp", true)) { putBool("wn.ps2.net.dhcp", it) }
         }
     }

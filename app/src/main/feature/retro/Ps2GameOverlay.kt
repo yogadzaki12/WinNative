@@ -280,6 +280,12 @@ object Ps2GameOverlay {
             NativeApp.commitSettings()
         }
 
+        // Auto-apply the per-game DNAS bypass once the disc serial/CRC are known,
+        // so online-revival games get past Sony's dead DNAS check by default.
+        kotlin.concurrent.thread(name = "ps2-dnas-bypass") {
+            Ps2DnasBypass.applyWhenReady(activity)
+        }
+
         bg {
             NativeApp.setAudioVolume(prefs.getInt("wn.ps2.volume", 100))
             NativeApp.setAudioMuted(prefs.getBoolean("wn.ps2.muted", false))
@@ -577,6 +583,17 @@ object Ps2GameOverlay {
                     ) { value ->
                         prefs.edit().putBoolean("wn.ps2.net.forceall", value).apply()
                         applyNetwork()
+                        menu.rebuild()
+                    },
+                )
+                add(
+                    RetroMenuEntry.Toggle(
+                        activity.getString(R.string.retro_ps2_dnas_bypass),
+                        subtitle = activity.getString(R.string.retro_ps2_dnas_bypass_subtitle),
+                        checked = prefs.getBoolean(Ps2DnasBypass.PREF, true),
+                    ) { value ->
+                        prefs.edit().putBoolean(Ps2DnasBypass.PREF, value).apply()
+                        kotlin.concurrent.thread(name = "ps2-dnas-bypass") { Ps2DnasBypass.applyWhenReady(activity) }
                         menu.rebuild()
                     },
                 )
