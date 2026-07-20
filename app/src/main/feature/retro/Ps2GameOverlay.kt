@@ -111,16 +111,35 @@ object Ps2GameOverlay {
         NativeApp.setSetting("EmuCore", "EnableFastBoot", "bool", prefs.getBoolean("wn.ps2.fastboot", true).toString())
     }
 
-    // The virtual PS2 HDD image (DEV9). The emucore never auto-creates it —
+    // The self-format blank HDD image (DEV9). The emucore never auto-creates it —
     // ATA::Open just fails on a missing file — so we make a sparse 8 GiB image
     // (ftruncate: near-zero real bytes until written) on internal storage, which
-    // the game formats itself like a fresh physical HDD.
-    private fun hddImageFile(ctx: android.content.Context): java.io.File =
+    // a game like Final Fantasy XI formats itself like a fresh physical HDD.
+    private fun blankHddFile(ctx: android.content.Context): java.io.File =
         java.io.File(ctx.filesDir, "hdd/DEV9hdd.raw")
 
+    /**
+     * Resolve the HDD image + enable state for the current game. A per-game
+     * pre-made image (imported via RetroHddImport, e.g. SOCOM II's HDD with its
+     * maps/DLC) wins — those ship a real formatted filesystem, unlike the blank
+     * self-format image, so games that expect their data on the HDD actually
+     * boot. Otherwise the blank-HDD toggle enables the self-format image; else
+     * the HDD is off.
+     */
+    private fun resolveHdd(ctx: android.content.Context): Pair<java.io.File?, Boolean> {
+        val prefs = ps2Prefs(ctx)
+        val image = RetroHddImport.imageFile(ctx, prefs.getString("wn.ps2.hddimage", ""))
+        if (image != null) return image to true
+        if (prefs.getBoolean("wn.ps2.hdd", false)) return blankHddFile(ctx) to true
+        return null to false
+    }
+
     private fun ensureHddImage(ctx: android.content.Context) {
-        if (!ps2Prefs(ctx).getBoolean("wn.ps2.hdd", false)) return
-        val img = hddImageFile(ctx)
+        val prefs = ps2Prefs(ctx)
+        // A per-game imported image is a real file — never overwrite it.
+        if (RetroHddImport.imageFile(ctx, prefs.getString("wn.ps2.hddimage", "")) != null) return
+        if (!prefs.getBoolean("wn.ps2.hdd", false)) return
+        val img = blankHddFile(ctx)
         if (img.exists() && img.length() > 0L) return
         runCatching {
             img.parentFile?.mkdirs()
@@ -180,10 +199,11 @@ object Ps2GameOverlay {
             NativeApp.setSetting("DEV9/Eth/Hosts/Host$i", "Enabled", "bool", "true")
         }
         // Virtual PS2 HDD (DEV9/Hdd). Independent of Ethernet — DEV9 activates if
-        // either the NIC or the HDD is enabled.
-        val hddOn = prefs.getBoolean("wn.ps2.hdd", false)
+        // either the NIC or the HDD is enabled. A per-game imported image wins
+        // over the blank self-format image (see resolveHdd).
+        val (hddFile, hddOn) = resolveHdd(ctx)
         NativeApp.setSetting("DEV9/Hdd", "HddEnable", "bool", hddOn.toString())
-        NativeApp.setSetting("DEV9/Hdd", "HddFile", "string", hddImageFile(ctx).absolutePath)
+        NativeApp.setSetting("DEV9/Hdd", "HddFile", "string", (hddFile ?: blankHddFile(ctx)).absolutePath)
     }
 
     /** Pre-boot hook (see WinNativeHost.applyBootSettings): pin the DEV9 NIC/HDD

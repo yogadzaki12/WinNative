@@ -130,6 +130,7 @@ class RetroSettingsState(
         shortcut.getExtra(RetroShortcuts.KEY_ADAPTIVE_STICKS)
             .ifEmpty { if (context != null && sysId != null) (if (RetroDefaults.adaptiveSticks(context, sysId)) "1" else "0") else "0" } == "1",
     )
+    var hddImage by mutableStateOf(shortcut.getExtra(RetroShortcuts.KEY_HDD_IMAGE))
     var audio by mutableStateOf(
         shortcut.getExtra(RetroShortcuts.KEY_AUDIO)
             .ifEmpty { if (context != null && sysId != null) (if (RetroDefaults.audio(context, sysId)) "1" else "0") else "1" } != "0",
@@ -174,6 +175,7 @@ class RetroSettingsState(
         shortcut.putExtra(RetroShortcuts.KEY_UPSCALE, upscale)
         shortcut.putExtra(RetroShortcuts.KEY_TOUCH_CONTROLS, if (touchControls) "1" else "0")
         shortcut.putExtra(RetroShortcuts.KEY_ADAPTIVE_STICKS, if (adaptiveSticks) "1" else "0")
+        shortcut.putExtra(RetroShortcuts.KEY_HDD_IMAGE, hddImage)
         shortcut.putExtra(RetroShortcuts.KEY_AUDIO, if (audio) "1" else "0")
         shortcut.putExtra(RetroShortcuts.KEY_HUD, if (hud) "1" else "0")
         coreOptions.forEach { option ->
@@ -319,7 +321,7 @@ private fun RetroSectionContent(
                         3 -> RetroPs2HudSection()
                         4 -> RetroInputSection(state)
                         5 -> RetroAudioSection(state)
-                        else -> RetroPs2OnlineSection()
+                        else -> RetroPs2OnlineSection(state)
                     }
                 } else {
                     when (idx) {
@@ -1247,7 +1249,7 @@ private fun RetroPs2HudSection() {
 }
 
 @Composable
-private fun RetroPs2OnlineSection() {
+private fun RetroPs2OnlineSection(state: RetroSettingsState) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember(context) { context.getSharedPreferences("ARMSX2", android.content.Context.MODE_PRIVATE) }
     var version by remember { androidx.compose.runtime.mutableIntStateOf(0) }
@@ -1261,6 +1263,16 @@ private fun RetroPs2OnlineSection() {
         RetroGroupTitle(stringResource(R.string.retro_gs_group_online_dev9))
         val onlineEnabled = prefs.getBoolean("wn.ps2.net.enable", false)
         RetroSettingSwitch(stringResource(R.string.retro_gs_enable_online), onlineEnabled) { putBool("wn.ps2.net.enable", it) }
+        // Per-game HDD image: pick one imported via Settings > Retro > PS2 (HDD
+        // Images), e.g. SOCOM II's pre-made HDD with its maps/DLC. "None" uses the
+        // self-format blank image when the HDD toggle below is on.
+        val hddImages = remember(version) { RetroHddImport.installed(context).map { it.name } }
+        val hddOptions = listOf(stringResource(R.string.retro_scr_none)) + hddImages
+        val hddSelected = (hddImages.indexOf(state.hddImage) + 1).coerceAtLeast(0)
+        RetroSettingDropdown(stringResource(R.string.retro_gs_hdd_image), hddOptions, hddSelected) { idx ->
+            state.hddImage = if (idx <= 0) "" else hddImages[idx - 1]
+            version++
+        }
         RetroSettingSwitch(stringResource(R.string.retro_ps2_hdd), prefs.getBoolean("wn.ps2.hdd", false)) { putBool("wn.ps2.hdd", it) }
         Text(
             stringResource(R.string.retro_ps2_hdd_desc),

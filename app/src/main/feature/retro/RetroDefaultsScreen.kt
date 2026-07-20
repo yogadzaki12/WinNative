@@ -102,6 +102,24 @@ fun RetroDefaultsScreen() {
             }
         }
 
+    var hddImporting by remember { mutableStateOf(false) }
+    val ps2HddPicker =
+        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) {
+                scope.launch {
+                    hddImporting = true
+                    val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        RetroHddImport.importFromUri(context, uri)
+                    }
+                    hddImporting = false
+                    result
+                        .onSuccess { Toast.makeText(context, context.getString(R.string.retro_scr_hdd_imported, it), Toast.LENGTH_SHORT).show() }
+                        .onFailure { Toast.makeText(context, it.message ?: context.getString(R.string.retro_scr_invalid_hdd_file), Toast.LENGTH_LONG).show() }
+                    refresh++
+                }
+            }
+        }
+
     @Suppress("UNUSED_EXPRESSION") refresh
 
     Column(
@@ -225,6 +243,39 @@ fun RetroDefaultsScreen() {
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 ) {
                     Text(stringResource(R.string.retro_scr_remove_ps2_bios))
+                }
+            }
+        }
+
+        RetroSettingGroup {
+            RetroGroupTitle(stringResource(R.string.retro_scr_ps2_hdd_images))
+            @Suppress("UNUSED_EXPRESSION") refresh
+            val hddImages = RetroHddImport.installed(context)
+            RetroInfoRow(
+                stringResource(R.string.retro_scr_installed),
+                if (hddImages.isEmpty()) stringResource(R.string.retro_scr_none) else hddImages.joinToString(", ") { it.name },
+            )
+            RetroInfoRow(
+                stringResource(R.string.retro_scr_format),
+                stringResource(R.string.retro_scr_ps2_hdd_format),
+            )
+            Button(
+                onClick = { if (!hddImporting) runCatching { ps2HddPicker.launch(arrayOf("*/*")) } },
+                enabled = !hddImporting,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            ) {
+                Text(stringResource(if (hddImporting) R.string.retro_scr_importing else R.string.retro_scr_import_hdd_image))
+            }
+            hddImages.forEach { img ->
+                OutlinedButton(
+                    onClick = {
+                        RetroHddImport.delete(context, img.name)
+                        Toast.makeText(context, context.getString(R.string.retro_scr_hdd_removed, img.name), Toast.LENGTH_SHORT).show()
+                        refresh++
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                ) {
+                    Text(stringResource(R.string.retro_scr_remove_hdd_image, img.name))
                 }
             }
         }
