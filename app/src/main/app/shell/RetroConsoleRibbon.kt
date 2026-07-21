@@ -15,8 +15,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Console badge labels for custom library games, keyed by synthetic app id. */
-internal val retroLibraryBadges = mutableStateOf<Map<Int, String>>(emptyMap())
+/**
+ * Retro console system ids for custom library games, keyed by synthetic app id.
+ * Values are [com.winlator.cmod.feature.retro.RetroSystem.id] (e.g. "ps2", "gbc").
+ * Display badge text is resolved via [com.winlator.cmod.feature.retro.RetroSystems.fromId].
+ */
+internal val retroLibrarySystemIds = mutableStateOf<Map<Int, String>>(emptyMap())
 
 @Composable
 internal fun RetroConsoleRibbon(

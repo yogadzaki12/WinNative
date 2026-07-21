@@ -15,6 +15,8 @@ import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.addCallback
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -64,13 +66,6 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         private val SHADER_LABEL_RES =
             listOf(R.string.retro_lr_shader_default, R.string.retro_lr_shader_crt, R.string.retro_lr_shader_lcd, R.string.retro_lr_shader_sharp)
         private val UPSCALE_KEYS = listOf("2x", "4x", "native")
-        private val HUD_ELEMENT_LABEL_RES =
-            listOf(
-                R.string.retro_lr_hud_fps, R.string.retro_lr_hud_console, R.string.retro_lr_hud_gpu,
-                R.string.retro_lr_hud_cpu, R.string.retro_lr_hud_ram, R.string.retro_lr_hud_battery,
-                R.string.retro_lr_hud_temp, R.string.retro_lr_hud_graph, R.string.retro_lr_hud_cpu_temp,
-            )
-        private val HUD_ELEMENT_ORDER = listOf(1, 2, 3, 8, 4, 5, 6, 0, 7)
     }
 
     private lateinit var retroView: GLRetroView
@@ -129,6 +124,8 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
     private var cloudBackupLaunched = false
     private var conflictChecked = false
     private var retroCloudId = ""
+    private var netplaySession: RetroNetplaySession? = null
+    private var netplayLocalPort = 0
 
     private val isPortrait: Boolean
         get() = resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
@@ -210,6 +207,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
     private fun refreshControllerPresence() {
         controllerConnected = anyGameControllerConnected()
         updateOverlayVisibility()
+        syncInGameOverlayPlacement()
     }
 
     private fun updateOverlayVisibility() {
@@ -245,6 +243,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         RetroAchievementsManager.unlockListener = { unlock ->
             runOnUiThread { showAchievementUnlock(unlock) }
         }
+        syncInGameOverlayPlacement()
         RetroAchievementsManager.resetListener = {
             runOnUiThread {
                 if (retroReady) retroView.reset()
@@ -252,15 +251,30 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             }
         }
         RetroAchievementsManager.hardcoreNoticeListener = { message ->
-            runOnUiThread { Toast.makeText(this, message, Toast.LENGTH_LONG).show() }
+            runOnUiThread { showInGameMessage(message) }
         }
         RetroAchievementsManager.startSession(this, sys.id, rom)
     }
 
+    private fun syncInGameOverlayPlacement() {
+        RetroAchievementOverlayState.syncPlacement(
+            touchControlsVisible = touchControlsSetting && !controllerConnected,
+            controllerConnected = controllerConnected,
+        )
+    }
+
+    private fun showInGameMessage(message: String) {
+        syncInGameOverlayPlacement()
+        if (RetroAchievementOverlayState.useDisplayArea) {
+            RetroAchievementOverlayState.showMessage(message)
+        } else {
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun showAchievementUnlock(unlock: RetroUnlock) {
-        if (unlock.title.contains("Unknown Emulator", ignoreCase = true)) return
-        val text = "🏆 ${unlock.title}  (+${unlock.points})"
-        Toast.makeText(this, text, Toast.LENGTH_LONG).show()
+        syncInGameOverlayPlacement()
+        RetroAchievementOverlayState.show(unlock.title, unlock.points, unlock.description)
     }
 
     fun cheatsAllowed(): Boolean = !(achievementsSessionStarted && RetroAchievementsManager.isHardcoreActive())
@@ -417,7 +431,11 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 elevation = 2000f
                 setContent {
                     WinNativeTheme {
-                        RetroDrawerMenu(menu)
+                        androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
+                            syncInGameOverlayPlacement()
+                            RetroAchievementOverlayBanner()
+                            RetroDrawerMenu(menu)
+                        }
                     }
                 }
             }
@@ -680,6 +698,8 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
 
     override fun onDestroy() {
         inputManager?.unregisterInputDeviceListener(inputDeviceListener)
+        netplaySession?.stop()
+        netplaySession = null
         if (achievementsSessionStarted) {
             RetroAchievementsManager.unlockListener = null
             RetroAchievementsManager.resetListener = null
@@ -693,9 +713,11 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         var rating = frameRating
         if (rating == null) {
             val root = rootLayout ?: return
-            rating = FrameRating(this, HashMap<String, String>())
-            rating.setRenderer(system?.shortName ?: getString(R.string.retro_lr_renderer_default))
-            rating.visibility = View.GONE
+            rating =
+                RetroHudSupport.createFrameRating(
+                    this,
+                    RetroHudSupport.libretroRendererLabel(),
+                )
             frameRating = rating
             val menuIndex = menuComposeView?.let { root.indexOfChild(it) } ?: -1
             if (menuIndex >= 0) root.addView(rating, menuIndex) else root.addView(rating)
@@ -829,6 +851,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 when (event) {
                     is GLRetroView.GLRetroEvents.FrameRendered -> {
                         if (hudVisible) frameRating?.recordGameFrame()
+                        netplaySession?.onFrameRendered()
                     }
                     is GLRetroView.GLRetroEvents.SurfaceCreated -> {
                         if (!audioEnabledSetting) retroView.audioEnabled = false
@@ -842,10 +865,40 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                         }
                         startAchievementsSession()
                         applyCheats()
+                        startNetplayIfNeeded()
                     }
                 }
             }.launchIn(lifecycleScope)
     }
+
+    private fun startNetplayIfNeeded() {
+        val sysId = system?.id ?: return
+        if (!RetroOnlineSupport.supportsNetplayCore(sysId)) return
+        if (!RetroDefaults.netplayEnabled(this, sysId)) return
+        if (netplaySession?.isRunning == true) return
+        val hostMode = RetroDefaults.netplayHostMode(this, sysId)
+        netplayLocalPort = if (hostMode) 0 else 1
+        val remotePort = if (hostMode) 1 else 0
+        val session =
+            RetroNetplaySession(
+                retroView = retroView,
+                localPort = netplayLocalPort,
+                remotePort = remotePort,
+                isHost = hostMode,
+            ) { status ->
+                Toast.makeText(this, status, Toast.LENGTH_SHORT).show()
+            }
+        netplaySession = session
+        val port = RetroDefaults.netplayPort(this, sysId)
+        if (hostMode) {
+            session.startHost(port)
+        } else {
+            val host = RetroDefaults.netplayHost(this, sysId).ifBlank { "127.0.0.1" }
+            session.startClient(host, port)
+        }
+    }
+
+    private fun localNetplayPort(): Int = netplayLocalPort
 
     private fun observeErrors() {
         retroView
@@ -1103,97 +1156,38 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
     }
 
     private fun buildHudEntries(): List<RetroMenuEntry> {
-        val entries = mutableListOf<RetroMenuEntry>()
-        entries +=
-            RetroMenuEntry.Toggle(getString(R.string.retro_lr_performance_hud), checked = hudVisible) { value ->
-                setHudVisible(value)
-            }
-        if (!hudVisible) return entries
-        entries +=
-            RetroMenuEntry.Slider(
-                label = getString(R.string.retro_lr_alpha),
-                valueText = "${(hudAlpha * 100).toInt()}%",
-                value = hudAlpha,
-                min = 0.1f,
-                max = 1f,
-                step = 0.05f,
-            ) { value ->
-                hudAlpha = value
-                frameRating?.setHudAlpha(value)
-                if (!hudBgDecoupled) {
-                    hudBgAlpha = (value * FrameRating.BACKDROP_BASE_ALPHA).coerceIn(0.1f, 1f)
-                    frameRating?.setHudBackgroundAlpha(hudBgAlpha)
-                }
+        val style =
+            HudStyle(
+                alpha = hudAlpha,
+                bgDecoupled = hudBgDecoupled,
+                bgAlpha = hudBgAlpha,
+                scale = hudScale,
+                frametimeNumeric = hudFrametimeNumeric,
+                dualBattery = hudDualBattery,
+            )
+        return RetroHudSupport.buildHudEntries(
+            context = this,
+            hudVisible = hudVisible,
+            style = style,
+            elements = hudElements,
+            onMaster = { setHudVisible(it) },
+            onStyle = { next ->
+                hudAlpha = next.alpha
+                hudBgDecoupled = next.bgDecoupled
+                hudBgAlpha = next.bgAlpha
+                hudScale = next.scale
+                hudFrametimeNumeric = next.frametimeNumeric
+                hudDualBattery = next.dualBattery
+                frameRating?.let { RetroHudSupport.applyStyle(it, next, hudElements) }
                 saveHudSettings()
-                menu.rebuild()
-            }
-        entries +=
-            RetroMenuEntry.Toggle(getString(R.string.retro_lr_background_alpha), checked = hudBgDecoupled) { value ->
-                hudBgDecoupled = value
-                frameRating?.setBackgroundAlphaDecoupled(value)
-                if (!value) {
-                    hudBgAlpha = (hudAlpha * FrameRating.BACKDROP_BASE_ALPHA).coerceIn(0.1f, 1f)
-                    frameRating?.setHudBackgroundAlpha(hudBgAlpha)
-                }
+            },
+            onElements = { next ->
+                hudElements = next
+                frameRating?.let { RetroHudSupport.applyStyle(it, style, next) }
                 saveHudSettings()
-                menu.rebuild()
-            }
-        if (hudBgDecoupled) {
-            entries +=
-                RetroMenuEntry.Slider(
-                    label = getString(R.string.retro_lr_background),
-                    valueText = "${(hudBgAlpha * 100).toInt()}%",
-                    value = hudBgAlpha,
-                    min = 0.1f,
-                    max = 1f,
-                    step = 0.05f,
-                ) { value ->
-                    hudBgAlpha = value
-                    frameRating?.setHudBackgroundAlpha(value)
-                    saveHudSettings()
-                    menu.rebuild()
-                }
-        }
-        entries +=
-            RetroMenuEntry.Slider(
-                label = getString(R.string.retro_lr_scale),
-                valueText = "${(hudScale * 100).toInt()}%",
-                value = hudScale,
-                min = 0.3f,
-                max = 2f,
-                step = 0.05f,
-            ) { value ->
-                hudScale = value
-                frameRating?.setHudScale(value)
-                saveHudSettings()
-                menu.rebuild()
-            }
-        entries +=
-            RetroMenuEntry.Toggle(getString(R.string.retro_lr_numeric_frametime), checked = hudFrametimeNumeric) { value ->
-                hudFrametimeNumeric = value
-                frameRating?.setFrametimeNumericMode(value)
-                menu.rebuild()
-            }
-        entries +=
-            RetroMenuEntry.Toggle(getString(R.string.retro_lr_dual_series_battery), checked = hudDualBattery) { value ->
-                hudDualBattery = value
-                frameRating?.setDualSeriesBattery(value)
-                menu.rebuild()
-            }
-        entries +=
-            RetroMenuEntry.Chips(
-                label = getString(R.string.retro_lr_hud_elements),
-                items = HUD_ELEMENT_ORDER.map { getString(HUD_ELEMENT_LABEL_RES[it]) },
-                states = HUD_ELEMENT_ORDER.map { hudElements[it] },
-            ) { position ->
-                val index = HUD_ELEMENT_ORDER[position]
-                val value = !hudElements[index]
-                hudElements[index] = value
-                frameRating?.toggleElement(index, value)
-                saveHudSettings()
-                menu.rebuild()
-            }
-        return entries
+            },
+            onRebuild = { menu.rebuild() },
+        )
     }
 
     private fun buildMainEntries(): List<RetroMenuEntry> {
@@ -1341,17 +1335,22 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val keyCode = event.keyCode
+        if (keyCode == KeyEvent.KEYCODE_BUTTON_MODE && isGamepadSource(event)) {
+            if (event.action == KeyEvent.ACTION_UP) {
+                if (menu.visible) menu.close() else if (retroReady) openMenu()
+            }
+            return true
+        }
         if (menu.visible && isGamepadSource(event)) {
             menu.handleKey(keyCode, event.action)
             return true
         }
         if (retroReady && isGamepadSource(event)) {
-            if (keyCode == KeyEvent.KEYCODE_BUTTON_MODE) {
-                if (event.action == KeyEvent.ACTION_UP) openMenu()
-                return true
-            }
             if (keyCode in forwardedKeys) {
-                retroView.sendKeyEvent(event.action, mapPhysicalKey(keyCode), 0)
+                val mapped = mapPhysicalKey(keyCode)
+                val port = localNetplayPort()
+                retroView.sendKeyEvent(event.action, mapped, port)
+                netplaySession?.sendLocalKey(mapped, event.action)
                 return true
             }
         }
@@ -1373,9 +1372,10 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             val hatY = event.getAxisValue(MotionEvent.AXIS_HAT_Y)
             val stickX = event.getAxisValue(MotionEvent.AXIS_X)
             val stickY = event.getAxisValue(MotionEvent.AXIS_Y)
+            val port = localNetplayPort()
             if (stickIsAnalog) {
-                retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_DPAD, hatX, hatY, 0)
-                retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_ANALOG_LEFT, stickX, stickY, 0)
+                retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_DPAD, hatX, hatY, port)
+                retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_ANALOG_LEFT, stickX, stickY, port)
             } else {
                 val deadzone = 0.45f
                 val dpadX =
@@ -1392,14 +1392,14 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                         stickY < -deadzone -> -1f
                         else -> 0f
                     }
-                retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_DPAD, dpadX, dpadY, 0)
-                retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_ANALOG_LEFT, stickX, stickY, 0)
+                retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_DPAD, dpadX, dpadY, port)
+                retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_ANALOG_LEFT, stickX, stickY, port)
             }
             retroView.sendMotionEvent(
                 GLRetroView.MOTION_SOURCE_ANALOG_RIGHT,
                 event.getAxisValue(MotionEvent.AXIS_Z),
                 event.getAxisValue(MotionEvent.AXIS_RZ),
-                0,
+                port,
             )
             return true
         }
@@ -1411,7 +1411,10 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         down: Boolean,
     ) {
         if (!retroReady || menu.visible) return
-        retroView.sendKeyEvent(if (down) KeyEvent.ACTION_DOWN else KeyEvent.ACTION_UP, keyCode, 0)
+        val action = if (down) KeyEvent.ACTION_DOWN else KeyEvent.ACTION_UP
+        val port = localNetplayPort()
+        retroView.sendKeyEvent(action, keyCode, port)
+        netplaySession?.sendLocalKey(keyCode, action)
     }
 
     override fun onDpad(
@@ -1419,7 +1422,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         y: Float,
     ) {
         if (!retroReady || menu.visible) return
-        retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_DPAD, x, y, 0)
+        retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_DPAD, x, y, localNetplayPort())
     }
 
     override fun onStick(
@@ -1427,7 +1430,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         y: Float,
     ) {
         if (!retroReady || menu.visible) return
-        retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_ANALOG_LEFT, x, y, 0)
+        retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_ANALOG_LEFT, x, y, localNetplayPort())
     }
 
     override fun onRightStick(
@@ -1435,7 +1438,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         y: Float,
     ) {
         if (!retroReady || menu.visible) return
-        retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_ANALOG_RIGHT, x, y, 0)
+        retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_ANALOG_RIGHT, x, y, localNetplayPort())
     }
 
     override fun onMenu() {
@@ -1447,9 +1450,9 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             val bytes = retroView.serializeState()
             check(RetroSaveStates.writeSlot(this, gameName, slot, bytes))
         }.onSuccess {
-            Toast.makeText(this, getString(R.string.retro_lr_saved_to_slot, slot), Toast.LENGTH_SHORT).show()
+            showInGameMessage(getString(R.string.retro_lr_saved_to_slot, slot))
         }.onFailure {
-            Toast.makeText(this, getString(R.string.retro_lr_could_not_save_state), Toast.LENGTH_SHORT).show()
+            showInGameMessage(getString(R.string.retro_lr_could_not_save_state))
         }
     }
 
@@ -1481,17 +1484,17 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
 
     private fun loadState(slot: Int) {
         if (achievementsSessionStarted && RetroAchievementsManager.isHardcoreActive()) {
-            Toast.makeText(this, getString(R.string.retro_lr_loading_states_disabled_hardcore), Toast.LENGTH_SHORT).show()
+            showInGameMessage(getString(R.string.retro_lr_loading_states_disabled_hardcore))
             return
         }
         val bytes = RetroSaveStates.readSlot(this, gameName, slot)
         if (bytes == null) {
-            Toast.makeText(this, getString(R.string.retro_lr_slot_empty, slot), Toast.LENGTH_SHORT).show()
+            showInGameMessage(getString(R.string.retro_lr_slot_empty, slot))
             return
         }
         runCatching { check(retroView.unserializeState(bytes)) }
-            .onSuccess { Toast.makeText(this, getString(R.string.retro_lr_loaded_slot, slot), Toast.LENGTH_SHORT).show() }
-            .onFailure { Toast.makeText(this, getString(R.string.retro_lr_could_not_load_state), Toast.LENGTH_SHORT).show() }
+            .onSuccess { showInGameMessage(getString(R.string.retro_lr_loaded_slot, slot)) }
+            .onFailure { showInGameMessage(getString(R.string.retro_lr_could_not_load_state)) }
     }
 
     private fun buildSaveSlotEntries(): List<RetroMenuEntry> =

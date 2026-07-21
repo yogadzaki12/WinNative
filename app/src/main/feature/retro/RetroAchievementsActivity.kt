@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -111,7 +112,13 @@ class RetroAchievementsActivity : ComponentActivity() {
                 androidx.compose.runtime.CompositionLocalProvider(
                     com.winlator.cmod.shared.ui.nav.LocalPaneNav provides navRegistry,
                 ) {
-                    RetroAchievementsScreen(systemId, gameName, romPath, inSession) { finish() }
+                    RetroAchievementsScreen(
+                        systemId = systemId,
+                        gameName = gameName,
+                        romPath = romPath,
+                        inSession = inSession,
+                        onClose = { finish() },
+                    )
                 }
             }
         }
@@ -133,16 +140,28 @@ class RetroAchievementsActivity : ComponentActivity() {
 }
 
 @Composable
-private fun RetroAchievementsScreen(
+internal fun RetroAchievementsScreen(
     systemId: String?,
     gameName: String,
     romPath: String,
     inSession: Boolean,
     onClose: () -> Unit,
+    useNativePs2: Boolean = false,
+    /** Match in-game cheats / shortcut-settings floating card (game visible around edges). */
+    floatingOverGame: Boolean = false,
 ) {
     val context = LocalContext.current
     val refreshScope = rememberCoroutineScope()
-    var loggedIn by remember { mutableStateOf(RetroAchievementsManager.isLoggedIn(context)) }
+    var loggedIn by remember {
+        mutableStateOf(
+            RetroAchievementsManager.isLoggedIn(context) ||
+                (useNativePs2 &&
+                    runCatching {
+                        val raw = kr.co.iefriends.pcsx2.NativeApp.getAchievementsJSON().orEmpty()
+                        if (raw.isBlank()) false else org.json.JSONObject(raw).optBoolean("loggedIn")
+                    }.getOrDefault(false)),
+        )
+    }
     var enabled by remember { mutableStateOf(RetroAchievementsManager.isEnabled(context)) }
     var hardcore by remember { mutableStateOf(RetroAchievementsManager.isHardcorePreferred(context)) }
     var confirmHardcore by remember { mutableStateOf(false) }
@@ -150,7 +169,7 @@ private fun RetroAchievementsScreen(
     var summary by remember { mutableStateOf<RetroGameSummary?>(null) }
     var achievements by remember { mutableStateOf<List<RetroAchievement>>(emptyList()) }
 
-    fun refresh() {
+    fun refreshFromManager() {
         refreshScope.launch {
             val s = withContext(Dispatchers.IO) { RetroAchievementsManager.getSummary() }
             val a = withContext(Dispatchers.IO) { RetroAchievementsManager.getAchievements() }
@@ -159,13 +178,127 @@ private fun RetroAchievementsScreen(
         }
     }
 
+    fun refreshFromPs2Native() {
+        refreshScope.launch {
+            val pair =
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        val raw = kr.co.iefriends.pcsx2.NativeApp.getAchievementsJSON().orEmpty()
+                        if (raw.isBlank()) return@runCatching null
+                        val root = org.json.JSONObject(raw)
+                        val items =
+                            runCatching { com.armsx2.ui.achievements.parseAchievementItems(raw) }
+                                .getOrDefault(emptyList())
+                        val mapped =
+                            items.map { a ->
+                                RetroAchievement(
+                                    id = a.id.toLong(),
+                                    title = a.title,
+                                    description = a.description,
+                                    unlocked = a.unlocked,
+                                    points = a.points,
+                                    progress = a.progress,
+                                    badgeUrl = a.iconUrl,
+                                    badgeLockedUrl = a.iconUrl,
+                                    bucket = a.subsetId,
+                                )
+                            }
+                        val unlocked = mapped.count { it.unlocked }
+                        val pointsUnlocked = mapped.filter { it.unlocked }.sumOf { it.points }
+                        val pointsTotal = mapped.sumOf { it.points }
+                        val s =
+                            RetroGameSummary(
+                                gameId = 0,
+                                title = root.optString("gameTitle").ifBlank { gameName },
+                                badgeUrl = root.optString("gameIconUrl"),
+                                total = mapped.size,
+                                unlocked = unlocked,
+                                pointsTotal = pointsTotal,
+                                pointsUnlocked = pointsUnlocked,
+                            )
+                        Triple(root.optBoolean("loggedIn"), s, mapped)
+                    }.getOrNull()
+                }
+            if (pair != null) {
+                if (pair.first || RetroAchievementsManager.isLoggedIn(context)) {
+                    loggedIn = true
+                }
+                summary = pair.second
+                if (pair.third.isNotEmpty()) achievements = pair.third
+            } else if (RetroAchievementsManager.isLoggedIn(context)) {
+                loggedIn = true
+            }
+        }
+    }
+
+    fun refresh() {
+        if (useNativePs2) refreshFromPs2Native() else refreshFromManager()
+    }
+
     DisposableEffect(Unit) {
-        RetroAchievementsManager.stateListener = { refresh() }
+        if (!useNativePs2) {
+            RetroAchievementsManager.stateListener = { refresh() }
+        }
         onDispose { RetroAchievementsManager.stateListener = null }
+    }
+
+    LaunchedEffect(Unit) {
+        if (useNativePs2 && RetroAchievementsManager.isLoggedIn(context)) {
+            loggedIn = true
+            withContext(Dispatchers.IO) {
+                Ps2RaBridge.pushSharedLogin(context)
+            }
+        }
     }
 
     LaunchedEffect(loggedIn) {
         if (!loggedIn) {
+            loading = false
+            return@LaunchedEffect
+        }
+        if (useNativePs2) {
+            loading = true
+            withContext(Dispatchers.IO) { Ps2RaBridge.pushSharedLogin(context) }
+            var attempts = 0
+            var last: List<RetroAchievement> = emptyList()
+            while (attempts < 24) {
+                last =
+                    withContext(Dispatchers.IO) {
+                        runCatching {
+                            val raw = kr.co.iefriends.pcsx2.NativeApp.getAchievementsJSON().orEmpty()
+                            com.armsx2.ui.achievements.parseAchievementItems(raw).map { a ->
+                                RetroAchievement(
+                                    id = a.id.toLong(),
+                                    title = a.title,
+                                    description = a.description,
+                                    unlocked = a.unlocked,
+                                    points = a.points,
+                                    progress = a.progress,
+                                    badgeUrl = a.iconUrl,
+                                    badgeLockedUrl = a.iconUrl,
+                                    bucket = a.subsetId,
+                                )
+                            }
+                        }.getOrDefault(emptyList())
+                    }
+                if (last.isNotEmpty()) break
+                delay(400)
+                attempts++
+            }
+            achievements = last
+            if (last.isNotEmpty()) {
+                val unlocked = last.count { it.unlocked }
+                summary =
+                    RetroGameSummary(
+                        gameId = 0,
+                        title = gameName,
+                        badgeUrl = "",
+                        total = last.size,
+                        unlocked = unlocked,
+                        pointsTotal = last.sumOf { it.points },
+                        pointsUnlocked = last.filter { it.unlocked }.sumOf { it.points },
+                    )
+            }
             loading = false
             return@LaunchedEffect
         }
@@ -198,64 +331,92 @@ private fun RetroAchievementsScreen(
         modifier =
             Modifier
                 .fillMaxSize()
-                .background(Scrim.copy(alpha = 0.62f))
-                .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { onClose() }
-                .windowInsetsPadding(WindowInsets.systemBars),
+                .then(
+                    if (floatingOverGame) {
+                        Modifier.background(Color.Transparent)
+                    } else {
+                        Modifier
+                            .background(Scrim.copy(alpha = 0.62f))
+                            .windowInsetsPadding(WindowInsets.systemBars)
+                    },
+                )
+                .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { onClose() },
         contentAlignment = Alignment.Center,
     ) {
-        val dialogWidth = (maxWidth - 32.dp).coerceAtMost(560.dp)
-        val dialogHeight = (maxHeight - 40.dp).coerceIn(340.dp, 680.dp)
+        val dialogWidth = (maxWidth - if (floatingOverGame) 48.dp else 32.dp).coerceAtMost(560.dp)
+        val dialogHeight =
+            if (floatingOverGame) {
+                maxHeight * 0.8f
+            } else {
+                (maxHeight - 40.dp).coerceIn(340.dp, 680.dp)
+            }
         Surface(
             modifier =
                 Modifier
+                    .then(if (floatingOverGame) Modifier.padding(24.dp) else Modifier)
                     .widthIn(min = 320.dp, max = dialogWidth)
                     .fillMaxWidth()
-                    .height(dialogHeight)
+                    .then(
+                        if (floatingOverGame) {
+                            Modifier.fillMaxHeight(0.8f)
+                        } else {
+                            Modifier.height(dialogHeight)
+                        },
+                    )
                     .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {},
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(if (floatingOverGame) 20.dp else 16.dp),
             color = BgDark,
             border = BorderStroke(1.dp, CardBorder),
-            tonalElevation = 8.dp,
+            tonalElevation = if (floatingOverGame) 3.dp else 8.dp,
+            shadowElevation = if (floatingOverGame) 8.dp else 0.dp,
         ) {
             Column(Modifier.fillMaxSize()) {
                 Header(gameName, summary, onClose)
                 HorizontalDivider(color = CardBorder, thickness = 0.5.dp)
                 Box(Modifier.fillMaxWidth().weight(1f)) {
-                when {
-                !loggedIn -> LoginPane { user, pass, onResult ->
-                    RetroAchievementsManager.login(context, user, pass) { ok, msg ->
-                        onResult(ok, msg)
-                        if (ok) loggedIn = true
+                    when {
+                        !loggedIn ->
+                            LoginPane { user, pass, onResult ->
+                                RetroAchievementsManager.login(context, user, pass) { ok, msg ->
+                                    if (ok && useNativePs2) {
+                                        refreshScope.launch(Dispatchers.IO) {
+                                            runCatching { Ps2RaBridge.pushSharedLogin(context) }
+                                        }
+                                    }
+                                    onResult(ok, msg)
+                                    if (ok) loggedIn = true
+                                }
+                            }
+                        loading ->
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
+                            }
+                        else ->
+                            AchievementsList(
+                                achievements = achievements,
+                                summary = summary,
+                                enabled = enabled,
+                                hardcore = hardcore,
+                                onEnabledChange = {
+                                    enabled = it
+                                    RetroAchievementsManager.setEnabled(context, it)
+                                },
+                                onHardcoreChange = {
+                                    if (it) {
+                                        confirmHardcore = true
+                                    } else {
+                                        hardcore = false
+                                        RetroAchievementsManager.setHardcorePreferred(context, false)
+                                    }
+                                },
+                                onLogout = {
+                                    RetroAchievementsManager.logout(context)
+                                    loggedIn = false
+                                    summary = null
+                                    achievements = emptyList()
+                                },
+                            )
                     }
-                }
-                loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Accent, modifier = Modifier.size(32.dp))
-                }
-                else -> AchievementsList(
-                    achievements = achievements,
-                    summary = summary,
-                    enabled = enabled,
-                    hardcore = hardcore,
-                    onEnabledChange = {
-                        enabled = it
-                        RetroAchievementsManager.setEnabled(context, it)
-                    },
-                    onHardcoreChange = {
-                        if (it) {
-                            confirmHardcore = true
-                        } else {
-                            hardcore = false
-                            RetroAchievementsManager.setHardcorePreferred(context, false)
-                        }
-                    },
-                    onLogout = {
-                        RetroAchievementsManager.logout(context)
-                        loggedIn = false
-                        summary = null
-                        achievements = emptyList()
-                    },
-                )
-                }
                 }
             }
         }

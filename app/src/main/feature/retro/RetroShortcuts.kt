@@ -59,6 +59,44 @@ object RetroShortcuts {
 
     fun romPath(shortcut: Shortcut): String = shortcut.getExtra(KEY_ROM)
 
+    data class LibraryCapabilities(
+        val systemId: String? = null,
+        val romPath: String? = null,
+        val system: RetroSystem? = null,
+    ) {
+        val isRetro: Boolean get() = system != null
+        val isExternal: Boolean get() = system?.isExternal == true
+        val showBootToDesktop: Boolean get() = !isRetro
+        val showSaveTransfer: Boolean get() = isRetro && !isExternal
+        val showCheats: Boolean get() = isRetro && !isExternal
+        val showAchievements: Boolean
+            get() = system != null && RetroAchievementsManager.consoleId(system.id) != 0
+        val sourceLabel: String?
+            get() = system?.badgeLabel
+    }
+
+    fun libraryCapabilities(shortcut: Shortcut?): LibraryCapabilities {
+        if (shortcut == null || !isRetroShortcut(shortcut)) return LibraryCapabilities()
+        val system = systemForShortcut(shortcut)
+        return LibraryCapabilities(
+            systemId = system?.id,
+            romPath = romPath(shortcut).takeIf { it.isNotEmpty() },
+            system = system,
+        )
+    }
+
+    fun libraryCapabilitiesForSystemId(
+        systemId: String?,
+        romPath: String? = null,
+    ): LibraryCapabilities {
+        val system = RetroSystems.fromId(systemId) ?: return LibraryCapabilities()
+        return LibraryCapabilities(
+            systemId = system.id,
+            romPath = romPath?.takeIf { it.isNotEmpty() },
+            system = system,
+        )
+    }
+
     fun create(
         context: Context,
         name: String,
@@ -146,6 +184,8 @@ object RetroShortcuts {
         val driverPref = (prefs.getString("wn.ps2.driver", "") ?: "").trim()
         val customDriverId =
             if (driverPref.isEmpty() || driverPref.equals("system", ignoreCase = true)) "" else driverPref
+        // commit() not apply(): the emulator runs in a separate :ps2 process and
+        // must see these flags on cold start (touch / aspect / HDD / driver).
         prefs.edit().apply {
             putBoolean("setupComplete", true)
             putBoolean("wn.controls", true)
@@ -160,7 +200,7 @@ object RetroShortcuts {
             putString("romsDirs", org.json.JSONArray().put(rom.parent ?: "").toString())
             if (biosPath != null) putString("bios", biosPath)
             putString("customDriverId", customDriverId)
-            apply()
+            commit()
         }
         val uri =
             try {

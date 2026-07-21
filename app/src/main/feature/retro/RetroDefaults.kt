@@ -66,6 +66,30 @@ object RetroDefaults {
     fun setHud(context: Context, systemId: String, value: Boolean) =
         prefs(context).edit().putBoolean(key("hud", systemId), value).apply()
 
+    fun netplayEnabled(context: Context, systemId: String): Boolean =
+        prefs(context).getBoolean(key("netplay", systemId), false)
+
+    fun setNetplayEnabled(context: Context, systemId: String, value: Boolean) =
+        prefs(context).edit().putBoolean(key("netplay", systemId), value).apply()
+
+    fun netplayHost(context: Context, systemId: String): String =
+        prefs(context).getString(key("netplay_host", systemId), "") ?: ""
+
+    fun setNetplayHost(context: Context, systemId: String, value: String) =
+        prefs(context).edit().putString(key("netplay_host", systemId), value).apply()
+
+    fun netplayPort(context: Context, systemId: String): Int =
+        prefs(context).getInt(key("netplay_port", systemId), 55435)
+
+    fun setNetplayPort(context: Context, systemId: String, value: Int) =
+        prefs(context).edit().putInt(key("netplay_port", systemId), value.coerceIn(1, 65535)).apply()
+
+    fun netplayHostMode(context: Context, systemId: String): Boolean =
+        prefs(context).getBoolean(key("netplay_host_mode", systemId), true)
+
+    fun setNetplayHostMode(context: Context, systemId: String, value: Boolean) =
+        prefs(context).edit().putBoolean(key("netplay_host_mode", systemId), value).apply()
+
     fun coreOption(
         context: Context,
         systemId: String,

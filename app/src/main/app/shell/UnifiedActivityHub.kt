@@ -1882,7 +1882,7 @@ internal fun UnifiedActivity.LibraryCarousel(
                                         shortcut.getExtra(
                                             com.winlator.cmod.feature.retro.RetroShortcuts.KEY_SYSTEM,
                                         ),
-                                    )?.let { badges[customId] = it.badgeLabel }
+                                    )?.let { badges[customId] = it.id }
 
                                 SteamApp(
                                     id = customId,
@@ -1903,7 +1903,7 @@ internal fun UnifiedActivity.LibraryCarousel(
         if (shortcutScanResult != null) {
             cachedShortcuts = shortcutScanResult.first
             customApps = shortcutScanResult.second
-            retroLibraryBadges.value = shortcutScanResult.third
+            retroLibrarySystemIds.value = shortcutScanResult.third
         }
 
         shortcutsLoaded = true

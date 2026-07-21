@@ -7,7 +7,7 @@ SDK_CMAKE_DIR="${2:-}"
 OUT="${3:-$HERE/emucore-out/arm64-v8a}"
 
 URL="https://github.com/ARMSX2/ARMSX2.git"
-SHA="51fc721a8321d305d6cf81518f7190b0587fb7cc"
+SHA="a0bdcbe917bea686333c9683c28b2fca8ed1ed8d"
 SRC="$HERE/emucore-src"
 CPP="$SRC/platforms/android/app/src/main/cpp"
 JOBS="$(nproc 2>/dev/null || echo 4)"

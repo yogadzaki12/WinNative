@@ -87,40 +87,34 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.winlator.cmod.R
-import com.winlator.cmod.shared.theme.WinNativeBackground
+import com.winlator.cmod.shared.theme.SessionDrawerStyle
 import com.winlator.cmod.shared.theme.WinNativeOutline
-import com.winlator.cmod.shared.theme.WinNativePanel
 import com.winlator.cmod.shared.theme.WinNativeSurface
-import com.winlator.cmod.shared.theme.WinNativeTextPrimary
-import com.winlator.cmod.shared.theme.WinNativeTextSecondary
 import com.winlator.cmod.shared.ui.outlinedSwitchColors
 import com.winlator.cmod.shared.ui.widget.chasingBorder
 
-private const val DrawerSheetAlpha = 0.86f
-private const val DrawerSurfaceAlpha = 0.72f
-private const val DrawerPressedAlpha = 0.88f
-private const val DrawerGradientLift = 0.014f
+private const val DrawerGradientLift = SessionDrawerStyle.GradientLift
 
-private val DrawerAccent = Color(0xFF2196F3)
-private val DrawerActiveAccent = Color(0xFF29B6F6)
-private val DrawerFocusFill = Color(0xFF0E2438)
-private val DrawerTextPrimary = WinNativeTextPrimary.copy(alpha = 0.88f)
-private val DrawerTextSecondary = WinNativeTextSecondary.copy(alpha = 0.82f)
-private val RetroSheetColor = WinNativeBackground.copy(alpha = DrawerSheetAlpha)
-private val TopRailSurfaceColor = WinNativeSurface.copy(alpha = DrawerSheetAlpha)
-private val PaneSurfacePressed = Color(0xFF232B3A).copy(alpha = DrawerPressedAlpha)
-private val PaneInnerResting = WinNativePanel.copy(alpha = DrawerSurfaceAlpha)
-private val PaneInnerPressed = Color(0xFF242B3A).copy(alpha = DrawerPressedAlpha)
-private val TileExitResting = Color(0xFF3A2125).copy(alpha = DrawerSurfaceAlpha)
-private val TileExitPressed = Color(0xFF4A2A30).copy(alpha = DrawerPressedAlpha)
-private val RestingCardBorder = WinNativeOutline.copy(alpha = 0.72f)
-private val ActiveCardBorder = DrawerActiveAccent
-private val GlassExitTint = Color(0xFFE07B6B)
-private val DividerColor = WinNativeOutline.copy(alpha = 0.6f)
+private val DrawerAccent = SessionDrawerStyle.Accent
+private val DrawerActiveAccent = SessionDrawerStyle.ActiveAccent
+private val DrawerFocusFill = SessionDrawerStyle.FocusFill
+private val DrawerTextPrimary = SessionDrawerStyle.TextPrimary
+private val DrawerTextSecondary = SessionDrawerStyle.TextSecondary
+private val RetroSheetColor = SessionDrawerStyle.Background
+private val TopRailSurfaceColor = SessionDrawerStyle.TopRailSurface
+private val PaneSurfacePressed = SessionDrawerStyle.PaneSurfacePressed
+private val PaneInnerResting = SessionDrawerStyle.PaneInnerResting
+private val PaneInnerPressed = SessionDrawerStyle.PaneInnerPressed
+private val TileExitResting = SessionDrawerStyle.TileExitResting
+private val TileExitPressed = SessionDrawerStyle.TileExitPressed
+private val RestingCardBorder = SessionDrawerStyle.RestingCardBorder
+private val ActiveCardBorder = SessionDrawerStyle.ActiveCardBorder
+private val GlassExitTint = SessionDrawerStyle.GlassExitTint
+private val DividerColor = SessionDrawerStyle.Divider
 
-private val DrawerWidth = 300.dp
-private val DrawerStartPadding = 6.dp
-private val DrawerVerticalPadding = 6.dp
+private val DrawerWidth = SessionDrawerStyle.Width
+private val DrawerStartPadding = SessionDrawerStyle.StartPadding
+private val DrawerVerticalPadding = SessionDrawerStyle.VerticalPadding
 
 enum class RetroPane { DISPLAY, SOUND, CONTROLS, HUD, SAVES, PERFORMANCE, MEMCARDS, NETWORK }
 
@@ -406,7 +400,6 @@ class RetroMenuController {
         } else if (action == KeyEvent.ACTION_UP) {
             when (keyCode) {
                 KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_BACK,
-                KeyEvent.KEYCODE_BUTTON_MODE, KeyEvent.KEYCODE_BUTTON_START,
                 -> if (pane != null) showPane(null) else close()
             }
         }
@@ -425,7 +418,9 @@ fun RetroDrawerMenu(controller: RetroMenuController) {
             } else {
                 maxHeight - DrawerVerticalPadding * 2
             }
-        val paneScale = (sheetHeight.value / 520f).coerceIn(0.78f, 1f)
+        val paneScale =
+            (sheetHeight.value / SessionDrawerStyle.PaneScaleReferenceHeightDp)
+                .coerceIn(SessionDrawerStyle.PaneScaleMin, 1f)
         if (controller.visible) {
             Box(
                 Modifier
@@ -1702,10 +1697,16 @@ private fun ThinDivider() {
 }
 
 object RetroDrawerTabs {
-    fun build(context: android.content.Context): List<RetroTabSpec> {
+    fun build(
+        context: android.content.Context,
+        includePerformance: Boolean = false,
+    ): List<RetroTabSpec> {
         val tabs = mutableListOf<RetroTabSpec>()
         tabs += RetroTabSpec(null, Icons.Outlined.Apps, context.getString(R.string.retro_tab_menu))
         tabs += RetroTabSpec(RetroPane.DISPLAY, Icons.Outlined.Monitor, context.getString(R.string.retro_tab_display))
+        if (includePerformance) {
+            tabs += RetroTabSpec(RetroPane.PERFORMANCE, Icons.Outlined.Bolt, context.getString(R.string.retro_ps2_tab_performance))
+        }
         tabs += RetroTabSpec(RetroPane.HUD, Icons.Outlined.Speed, context.getString(R.string.retro_tab_hud))
         tabs += RetroTabSpec(RetroPane.SOUND, Icons.AutoMirrored.Outlined.VolumeUp, context.getString(R.string.retro_tab_sound))
         tabs += RetroTabSpec(RetroPane.CONTROLS, Icons.Outlined.SportsEsports, context.getString(R.string.retro_tab_controls))

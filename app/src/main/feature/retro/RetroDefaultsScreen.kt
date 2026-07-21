@@ -40,7 +40,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.CompositionLocalProvider
 import com.winlator.cmod.R
+import com.winlator.cmod.feature.settings.SettingsNavBridge
+import com.winlator.cmod.shared.ui.focus.rememberSettingsContentNav
+import com.winlator.cmod.shared.ui.nav.LocalPaneNav
 import com.winlator.cmod.shared.ui.nav.paneNavItem
 import java.io.File
 import kotlinx.coroutines.launch
@@ -53,13 +57,14 @@ private val SHADER_KEYS = listOf("default", "crt", "lcd", "sharp")
 private val UPSCALE_KEYS = listOf("2x", "4x", "native")
 
 @Composable
-fun RetroDefaultsScreen() {
+fun RetroDefaultsScreen(bridge: SettingsNavBridge? = null) {
     val context = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var expandedConsole by remember { mutableStateOf<String?>(null) }
     var refresh by remember { mutableIntStateOf(0) }
     var confirmHardcore by remember { mutableStateOf(false) }
     var creditsTab by remember { mutableIntStateOf(0) }
+    val contentNav = rememberSettingsContentNav(bridge)
 
     if (confirmHardcore) {
         RetroHardcoreConfirmDialog(
@@ -108,6 +113,7 @@ fun RetroDefaultsScreen() {
 
     @Suppress("UNUSED_EXPRESSION") refresh
 
+    CompositionLocalProvider(LocalPaneNav provides contentNav) {
     Column(
         modifier =
             Modifier
@@ -167,68 +173,169 @@ fun RetroDefaultsScreen() {
                         RetroAchievementsManager.logout(context)
                         refresh++
                     },
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp)
+                            .paneNavItem(
+                                cornerRadius = 8.dp,
+                                onActivate = {
+                                    RetroAchievementsManager.logout(context)
+                                    refresh++
+                                },
+                                highlightColor = Color(0xFF4FC3F7),
+                                tapToSelect = true,
+                            ),
                 ) {
                     Text(stringResource(R.string.retro_scr_sign_out))
                 }
             }
         }
 
-        RetroSettingGroup {
-            RetroGroupTitle(stringResource(R.string.retro_scr_playstation_bios))
-            val dir = RetroCoreManager.systemDir(context)
-            val installed = RetroSystems.PSX.biosFiles.filter { File(dir, it).isFile }
-            RetroInfoRow(
-                stringResource(R.string.retro_scr_installed),
-                if (installed.isEmpty()) stringResource(R.string.retro_scr_none_ps1_bios) else installed.joinToString(", "),
-            )
-            Button(
-                onClick = { runCatching { biosPicker.launch(arrayOf("*/*")) } },
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-            ) {
-                Text(stringResource(R.string.retro_scr_import_ps1_bios))
-            }
-            if (installed.isNotEmpty()) {
-                OutlinedButton(
-                    onClick = {
-                        val n = RetroBiosImport.deletePs1Bios(context)
-                        Toast.makeText(context, if (n > 0) context.getString(R.string.retro_scr_ps1_bios_removed) else context.getString(R.string.retro_scr_no_bios_to_remove), Toast.LENGTH_SHORT).show()
-                        refresh++
-                    },
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                ) {
-                    Text(stringResource(R.string.retro_scr_remove_ps1_bios))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Box(Modifier.weight(1f)) {
+                RetroSettingGroup {
+                    RetroGroupTitle(stringResource(R.string.retro_scr_playstation_bios))
+                    val dir = RetroCoreManager.systemDir(context)
+                    val installed = RetroSystems.PSX.biosFiles.filter { File(dir, it).isFile }
+                    RetroInfoRow(
+                        stringResource(R.string.retro_scr_installed),
+                        if (installed.isEmpty()) {
+                            stringResource(R.string.retro_scr_none_ps1_bios)
+                        } else {
+                            installed.joinToString(", ")
+                        },
+                    )
+                    Button(
+                        onClick = { runCatching { biosPicker.launch(arrayOf("*/*")) } },
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp)
+                                .paneNavItem(
+                                    cornerRadius = 8.dp,
+                                    onActivate = { runCatching { biosPicker.launch(arrayOf("*/*")) } },
+                                    highlightColor = Color(0xFF4FC3F7),
+                                    tapToSelect = true,
+                                ),
+                    ) {
+                        Text(stringResource(R.string.retro_scr_import_ps1_bios))
+                    }
+                    if (installed.isNotEmpty()) {
+                        OutlinedButton(
+                            onClick = {
+                                val n = RetroBiosImport.deletePs1Bios(context)
+                                Toast.makeText(
+                                    context,
+                                    if (n > 0) {
+                                        context.getString(R.string.retro_scr_ps1_bios_removed)
+                                    } else {
+                                        context.getString(R.string.retro_scr_no_bios_to_remove)
+                                    },
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                                refresh++
+                            },
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp)
+                                    .paneNavItem(
+                                        cornerRadius = 8.dp,
+                                        onActivate = {
+                                            val n = RetroBiosImport.deletePs1Bios(context)
+                                            Toast.makeText(
+                                                context,
+                                                if (n > 0) {
+                                                    context.getString(R.string.retro_scr_ps1_bios_removed)
+                                                } else {
+                                                    context.getString(R.string.retro_scr_no_bios_to_remove)
+                                                },
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+                                            refresh++
+                                        },
+                                        highlightColor = Color(0xFF4FC3F7),
+                                        tapToSelect = true,
+                                    ),
+                        ) {
+                            Text(stringResource(R.string.retro_scr_remove_ps1_bios))
+                        }
+                    }
                 }
             }
-        }
-
-        RetroSettingGroup {
-            RetroGroupTitle(stringResource(R.string.retro_scr_playstation_2_bios))
-            val ps2Installed = RetroBiosImport.installedPs2Bios(context)
-            RetroInfoRow(
-                stringResource(R.string.retro_scr_installed),
-                if (ps2Installed.isEmpty()) stringResource(R.string.retro_scr_none_ps2_bios) else ps2Installed.joinToString(", "),
-            )
-            RetroInfoRow(
-                stringResource(R.string.retro_scr_format),
-                stringResource(R.string.retro_scr_ps2_bios_format),
-            )
-            Button(
-                onClick = { runCatching { ps2BiosPicker.launch(arrayOf("*/*")) } },
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-            ) {
-                Text(stringResource(R.string.retro_scr_import_ps2_bios))
-            }
-            if (ps2Installed.isNotEmpty()) {
-                OutlinedButton(
-                    onClick = {
-                        val n = RetroBiosImport.deletePs2Bios(context)
-                        Toast.makeText(context, if (n > 0) context.getString(R.string.retro_scr_ps2_bios_removed) else context.getString(R.string.retro_scr_no_bios_to_remove), Toast.LENGTH_SHORT).show()
-                        refresh++
-                    },
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                ) {
-                    Text(stringResource(R.string.retro_scr_remove_ps2_bios))
+            Box(Modifier.weight(1f)) {
+                RetroSettingGroup {
+                    RetroGroupTitle(stringResource(R.string.retro_scr_playstation_2_bios))
+                    val ps2Installed = RetroBiosImport.installedPs2Bios(context)
+                    RetroInfoRow(
+                        stringResource(R.string.retro_scr_installed),
+                        if (ps2Installed.isEmpty()) {
+                            stringResource(R.string.retro_scr_none_ps2_bios)
+                        } else {
+                            ps2Installed.joinToString(", ")
+                        },
+                    )
+                    Button(
+                        onClick = { runCatching { ps2BiosPicker.launch(arrayOf("*/*")) } },
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp)
+                                .paneNavItem(
+                                    cornerRadius = 8.dp,
+                                    onActivate = { runCatching { ps2BiosPicker.launch(arrayOf("*/*")) } },
+                                    highlightColor = Color(0xFF4FC3F7),
+                                    tapToSelect = true,
+                                ),
+                    ) {
+                        Text(stringResource(R.string.retro_scr_import_ps2_bios))
+                    }
+                    if (ps2Installed.isNotEmpty()) {
+                        OutlinedButton(
+                            onClick = {
+                                val n = RetroBiosImport.deletePs2Bios(context)
+                                Toast.makeText(
+                                    context,
+                                    if (n > 0) {
+                                        context.getString(R.string.retro_scr_ps2_bios_removed)
+                                    } else {
+                                        context.getString(R.string.retro_scr_no_bios_to_remove)
+                                    },
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                                refresh++
+                            },
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp)
+                                    .paneNavItem(
+                                        cornerRadius = 8.dp,
+                                        onActivate = {
+                                            val n = RetroBiosImport.deletePs2Bios(context)
+                                            Toast.makeText(
+                                                context,
+                                                if (n > 0) {
+                                                    context.getString(R.string.retro_scr_ps2_bios_removed)
+                                                } else {
+                                                    context.getString(R.string.retro_scr_no_bios_to_remove)
+                                                },
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+                                            refresh++
+                                        },
+                                        highlightColor = Color(0xFF4FC3F7),
+                                        tapToSelect = true,
+                                    ),
+                        ) {
+                            Text(stringResource(R.string.retro_scr_remove_ps2_bios))
+                        }
+                    }
                 }
             }
         }
@@ -256,9 +363,9 @@ fun RetroDefaultsScreen() {
                 stringResource(R.string.retro_scr_auto_import),
                 stringResource(R.string.retro_scr_auto_import_desc),
             )
-            Button(
-                onClick = {
-                    val activity = context as? android.app.Activity ?: return@Button
+            val pickRomsFolder = {
+                val activity = context as? android.app.Activity
+                if (activity != null) {
                     com.winlator.cmod.shared.android.DirectoryPickerDialog.show(
                         activity = activity,
                         initialPath = romsDir
@@ -276,24 +383,46 @@ fun RetroDefaultsScreen() {
                             }
                         }.start()
                     }
-                },
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                }
+            }
+            Button(
+                onClick = { pickRomsFolder() },
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp)
+                        .paneNavItem(
+                            cornerRadius = 8.dp,
+                            onActivate = { pickRomsFolder() },
+                            highlightColor = Color(0xFF4FC3F7),
+                            tapToSelect = true,
+                        ),
             ) {
                 Text(if (romsDir == null) stringResource(R.string.retro_scr_select_roms_folder_button) else stringResource(R.string.retro_scr_change_roms_folder_button))
             }
             if (romsDir != null) {
+                val scanNow = {
+                    val activity = context as? android.app.Activity
+                    Thread {
+                        val result = RetroRomScanner.scanConfiguredFolder(context)
+                        activity?.runOnUiThread {
+                            Toast.makeText(context, scanMessage(context, result), Toast.LENGTH_SHORT).show()
+                            refresh++
+                        }
+                    }.start()
+                }
                 OutlinedButton(
-                    onClick = {
-                        val activity = context as? android.app.Activity
-                        Thread {
-                            val result = RetroRomScanner.scanConfiguredFolder(context)
-                            activity?.runOnUiThread {
-                                Toast.makeText(context, scanMessage(context, result), Toast.LENGTH_SHORT).show()
-                                refresh++
-                            }
-                        }.start()
-                    },
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    onClick = { scanNow() },
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp)
+                            .paneNavItem(
+                                cornerRadius = 8.dp,
+                                onActivate = { scanNow() },
+                                highlightColor = Color(0xFF4FC3F7),
+                                tapToSelect = true,
+                            ),
                 ) {
                     Text(stringResource(R.string.retro_scr_scan_now))
                 }
@@ -323,6 +452,12 @@ fun RetroDefaultsScreen() {
                         Modifier
                             .fillMaxWidth()
                             .clickable { expandedConsole = if (expanded) null else sys }
+                            .paneNavItem(
+                                cornerRadius = 8.dp,
+                                onActivate = { expandedConsole = if (expanded) null else sys },
+                                highlightColor = Color(0xFF4FC3F7),
+                                tapToSelect = true,
+                            )
                             .padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -587,50 +722,18 @@ fun RetroDefaultsScreen() {
                         onSelected = { ps2Prefs.edit().putInt("wn.ps2.audiolatency", latencyValues[it]).apply(); refresh++ },
                     )
                     RetroSettingSwitch(
-                        stringResource(R.string.retro_scr_hud_fps),
-                        ps2Prefs.getBoolean("wn.osd.fps", false),
-                    ) { ps2Prefs.edit().putBoolean("wn.osd.fps", it).apply(); refresh++ }
-                    RetroSettingSwitch(
-                        stringResource(R.string.retro_scr_hud_emulation_speed),
-                        ps2Prefs.getBoolean("wn.osd.speed", false),
-                    ) { ps2Prefs.edit().putBoolean("wn.osd.speed", it).apply(); refresh++ }
-                    RetroSettingSwitch(
-                        stringResource(R.string.retro_scr_hud_internal_resolution),
-                        ps2Prefs.getBoolean("wn.osd.res", false),
-                    ) { ps2Prefs.edit().putBoolean("wn.osd.res", it).apply(); refresh++ }
-                    RetroSettingSwitch(
-                        stringResource(R.string.retro_scr_hud_cpu_usage),
-                        ps2Prefs.getBoolean("wn.osd.cpu", false),
-                    ) { ps2Prefs.edit().putBoolean("wn.osd.cpu", it).apply(); refresh++ }
-                    RetroSettingSwitch(
-                        stringResource(R.string.retro_scr_hud_gpu_usage),
-                        ps2Prefs.getBoolean("wn.osd.gpu", false),
-                    ) { ps2Prefs.edit().putBoolean("wn.osd.gpu", it).apply(); refresh++ }
-                    RetroSettingSwitch(
-                        "HUD: " + stringResource(R.string.retro_gs_hud_frame_times),
-                        ps2Prefs.getBoolean("wn.osd.frametimes", false),
-                    ) { ps2Prefs.edit().putBoolean("wn.osd.frametimes", it).apply(); refresh++ }
-                    RetroSettingSwitch(
-                        "HUD: " + stringResource(R.string.retro_gs_hud_gs_stats),
-                        ps2Prefs.getBoolean("wn.osd.gsstats", false),
-                    ) { ps2Prefs.edit().putBoolean("wn.osd.gsstats", it).apply(); refresh++ }
-                    RetroSettingSwitch(
-                        "HUD: " + stringResource(R.string.retro_gs_hud_input_display),
-                        ps2Prefs.getBoolean("wn.osd.inputs", false),
-                    ) { ps2Prefs.edit().putBoolean("wn.osd.inputs", it).apply(); refresh++ }
-                    RetroSettingSwitch(
-                        "HUD: " + stringResource(R.string.retro_gs_hud_hw_info),
-                        ps2Prefs.getBoolean("wn.osd.hwinfo", false),
-                    ) { ps2Prefs.edit().putBoolean("wn.osd.hwinfo", it).apply(); refresh++ }
-                    RetroSettingSwitch(
-                        "HUD: " + stringResource(R.string.retro_gs_hud_version),
-                        ps2Prefs.getBoolean("wn.osd.version", false),
-                    ) { ps2Prefs.edit().putBoolean("wn.osd.version", it).apply(); refresh++ }
+                        stringResource(R.string.retro_scr_performance_hud),
+                        RetroHudSupport.resolvePs2HudEnabled(context),
+                    ) {
+                        RetroHudSupport.setPs2HudEnabled(context, it)
+                        RetroDefaults.setHud(context, sys, it)
+                        refresh++
+                    }
                     RetroSettingSwitch(
                         stringResource(R.string.retro_scr_enable_online_dev9),
-                        ps2Prefs.getBoolean("wn.ps2.net.enable", false),
+                        ps2Prefs.getBoolean("wn.ps2.net.enable", true),
                     ) { ps2Prefs.edit().putBoolean("wn.ps2.net.enable", it).apply(); refresh++ }
-                    if (ps2Prefs.getBoolean("wn.ps2.net.enable", false)) {
+                    if (ps2Prefs.getBoolean("wn.ps2.net.enable", true)) {
                         val devices = listOf("Auto", "Wi-Fi")
                         RetroSettingDropdown(
                             label = stringResource(R.string.retro_scr_ethernet_device),
@@ -706,6 +809,46 @@ fun RetroDefaultsScreen() {
                         stringResource(R.string.retro_scr_performance_hud),
                         RetroDefaults.hud(context, sys),
                     ) { RetroDefaults.setHud(context, sys, it); refresh++ }
+                    if (RetroOnlineSupport.supportsNetplayCore(sys)) {
+                        RetroSettingSwitch(
+                            stringResource(R.string.retro_gs_netplay_enable),
+                            RetroDefaults.netplayEnabled(context, sys),
+                            subtitle = stringResource(R.string.retro_gs_netplay_enable_subtitle),
+                        ) {
+                            RetroDefaults.setNetplayEnabled(context, sys, it)
+                            refresh++
+                        }
+                        if (RetroDefaults.netplayEnabled(context, sys)) {
+                            RetroSettingSwitch(
+                                stringResource(R.string.retro_gs_netplay_host_mode),
+                                RetroDefaults.netplayHostMode(context, sys),
+                                subtitle = stringResource(R.string.retro_gs_netplay_host_mode_subtitle),
+                            ) {
+                                RetroDefaults.setNetplayHostMode(context, sys, it)
+                                refresh++
+                            }
+                            if (!RetroDefaults.netplayHostMode(context, sys)) {
+                                RetroSettingTextField(
+                                    stringResource(R.string.retro_gs_netplay_host),
+                                    RetroDefaults.netplayHost(context, sys),
+                                    stringResource(R.string.retro_gs_netplay_host_hint),
+                                ) {
+                                    RetroDefaults.setNetplayHost(context, sys, it)
+                                    refresh++
+                                }
+                            }
+                            RetroSettingTextField(
+                                stringResource(R.string.retro_gs_netplay_port),
+                                RetroDefaults.netplayPort(context, sys).toString(),
+                                "55435",
+                            ) {
+                                it.toIntOrNull()?.let { p ->
+                                    RetroDefaults.setNetplayPort(context, sys, p)
+                                    refresh++
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -740,7 +883,23 @@ fun RetroDefaultsScreen() {
                                         ),
                                     )
                                 }
-                            }.padding(vertical = 8.dp),
+                            }
+                            .paneNavItem(
+                                cornerRadius = 8.dp,
+                                onActivate = {
+                                    runCatching {
+                                        context.startActivity(
+                                            android.content.Intent(
+                                                android.content.Intent.ACTION_VIEW,
+                                                android.net.Uri.parse(credit.url),
+                                            ),
+                                        )
+                                    }
+                                },
+                                highlightColor = Color(0xFF4FC3F7),
+                                tapToSelect = true,
+                            )
+                            .padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
@@ -752,6 +911,7 @@ fun RetroDefaultsScreen() {
             }
         }
         }
+    }
     }
 }
 

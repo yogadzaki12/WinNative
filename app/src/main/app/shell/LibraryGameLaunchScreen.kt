@@ -137,6 +137,8 @@ internal fun LibraryGameLaunchScreen(
     installSizeText: String?,
     isCustom: Boolean,
     isRetro: Boolean = false,
+    showBootToDesktop: Boolean = !isRetro,
+    showSaveTransfer: Boolean = false,
     hasPinnedShortcut: Boolean,
     steamMenuEnabled: Boolean = false,
     areSteamActionsEnabled: Boolean = true,
@@ -162,6 +164,15 @@ internal fun LibraryGameLaunchScreen(
 ) {
     val context = LocalContext.current
     var uninstallMenuOpen by remember { mutableStateOf(false) }
+    val saveTransferVisible = showSaveTransfer && onSaveTransfer != null
+    val bootVisible = showBootToDesktop
+    val actionIconCount =
+        1 + // Settings
+            (if (saveTransferVisible) 1 else 0) +
+            1 + // Cloud
+            (if (bootVisible) 1 else 0) +
+            1 + // Shortcut
+            1 // Delete
 
     LaunchScreenCutoutMode()
 
@@ -170,9 +181,7 @@ internal fun LibraryGameLaunchScreen(
         val bottomPadding = 20.dp
         val actionIconSize = 46.dp
         val actionIconSpacing = 8.dp
-        // Action icons: Settings, Boot, CloudSync, Shortcut, Delete.
-        val actionIconCount = if (isRetro) 4 else 5
-        val actionWidth = actionIconSize * actionIconCount + actionIconSpacing * (actionIconCount - 1)
+        val actionWidth = actionIconSize * actionIconCount + actionIconSpacing * (actionIconCount - 1).coerceAtLeast(0)
         val playHeight = 56.dp
         val contentGap = 18.dp
         val horizontalNavInsets = WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal)
@@ -400,12 +409,12 @@ internal fun LibraryGameLaunchScreen(
                             size = actionIconSize,
                             onClick = onSettings,
                         )
-                        if (onSaveTransfer != null) {
+                        if (saveTransferVisible) {
                             LaunchIconActionButton(
                                 icon = Icons.Outlined.SaveAlt,
                                 contentDescription = stringResource(R.string.retro_save_transfer_title),
                                 size = actionIconSize,
-                                onClick = onSaveTransfer,
+                                onClick = { onSaveTransfer?.invoke() },
                             )
                         }
                         LaunchIconActionButton(
@@ -414,7 +423,7 @@ internal fun LibraryGameLaunchScreen(
                             size = actionIconSize,
                             onClick = onCloudSaves,
                         )
-                        if (!isRetro) {
+                        if (bootVisible) {
                             LaunchIconActionButton(
                                 icon = Icons.Outlined.DesktopWindows,
                                 contentDescription = stringResource(R.string.hero_boot_to_desktop_title),

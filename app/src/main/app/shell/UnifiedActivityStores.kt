@@ -538,7 +538,12 @@ internal fun UnifiedActivity.GameCapsule(
                             .clip(RoundedCornerShape(8.dp)),
                 ) {
                     ArtContent(Modifier.fillMaxSize())
-                    retroLibraryBadges.value[app.id]?.let { badge ->
+                    retroLibrarySystemIds.value[app.id]?.let { systemId ->
+                        val badge =
+                            com.winlator.cmod.feature.retro.RetroSystems
+                                .fromId(systemId)
+                                ?.badgeLabel
+                                ?: systemId
                         RetroConsoleRibbon(badge, Modifier.align(Alignment.CenterStart))
                     }
                 }
@@ -588,7 +593,12 @@ internal fun UnifiedActivity.GameCapsule(
                         .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
             ) {
                 ArtContent(Modifier.fillMaxSize())
-                retroLibraryBadges.value[app.id]?.let { badge ->
+                retroLibrarySystemIds.value[app.id]?.let { systemId ->
+                    val badge =
+                        com.winlator.cmod.feature.retro.RetroSystems
+                            .fromId(systemId)
+                            ?.badgeLabel
+                            ?: systemId
                     RetroConsoleRibbon(badge, Modifier.align(Alignment.CenterStart))
                 }
             }

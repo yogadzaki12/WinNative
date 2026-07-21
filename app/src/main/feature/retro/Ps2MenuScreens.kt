@@ -71,37 +71,6 @@ internal fun humanSize(bytes: Long): String =
         else -> "$bytes B"
     }
 
-private data class RaSnapshot(
-    val json: String,
-    val loggedIn: Boolean,
-    val userName: String,
-    val score: Long,
-    val items: List<com.armsx2.ui.achievements.AchievementItem>,
-)
-
-private fun sharedRaCreds(context: Context): Pair<String, String>? {
-    val ra = context.getSharedPreferences("retro_achievements", Context.MODE_PRIVATE)
-    val u = ra.getString("username", null)
-    val t = ra.getString("token", null)
-    return if (!u.isNullOrBlank() && !t.isNullOrBlank()) u to t else null
-}
-
-/** Log ARMSX2's RetroAchievements client in using WinNative's shared account
- *  (the username + API token stored by RetroAchievementsManager for the other
- *  consoles), so PS2 uses the same login rather than a separate one. PCSX2
- *  persists [Achievements] Username/Token and auto-logs-in when the client is
- *  rebuilt. Returns true if shared creds existed and were pushed. */
-private fun pushSharedRaToArmsx2(context: Context): Boolean {
-    val (u, t) = sharedRaCreds(context) ?: return false
-    runCatching {
-        NativeApp.setSetting("Achievements", "Enabled", "bool", "true")
-        NativeApp.setSetting("Achievements", "Username", "string", u)
-        NativeApp.setSetting("Achievements", "Token", "string", t)
-        NativeApp.commitSettings()
-        NativeApp.clearAchievementsHostOverride()
-    }
-    return true
-}
 
 internal fun queryName(context: Context, uri: android.net.Uri): String? =
     runCatching {
@@ -149,40 +118,60 @@ fun Ps2CheatsScreen(
     var dnasDisabled by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
-        loading = true
-        val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        data class LocalCheats(
+            val s: String,
+            val c: String?,
+            val stagedC: List<com.armsx2.PatchRepo.Entry>,
+            val stagedP: List<com.armsx2.PatchRepo.Entry>,
+            val dnas: List<Ps2DnasBypass.BypassEntry>,
+            val globalOn: Boolean,
+            val disabled: Set<String>,
+        )
+        val local = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val s = runCatching { NativeApp.getGameSerial() }.getOrNull()?.takeIf { it.isNotBlank() }
             val c = runCatching { NativeApp.getGameCRC() }.getOrNull()?.takeIf { it.length == 8 }
             if (s == null) null
-            else Triple(s, c, if (c != null) com.armsx2.PatchRepo.fetchForGame(s, c) else com.armsx2.PatchRepo.fetchForSerial(s))
+            else {
+                val stagedC = Ps2CheatStaging.read(context, s, false)
+                val stagedP = Ps2CheatStaging.read(context, s, true)
+                val dnas = Ps2DnasBypass.bypassEntries(context, s).filter { it.auto }
+                val globalOn = context.getSharedPreferences("ARMSX2", Context.MODE_PRIVATE).getBoolean(Ps2DnasBypass.PREF, true)
+                val disabled = Ps2DnasBypass.ensureSingleDnasEnabled(context, s, dnas.map { it.name }.toSet())
+                LocalCheats(s, c, stagedC, stagedP, dnas, globalOn, disabled)
+            }
         }
-        if (result == null) {
+        if (local == null) {
             status = context.getString(R.string.retro_scr_no_game_serial)
+            loading = false
         } else {
-            val (s, c, repo) = result
-            serial = s
-            crc = c.orEmpty()
-            title = repo?.gametitle?.takeIf { it.isNotBlank() } ?: s
-            status = repo?.error.orEmpty()
-            // Repo-provided cheats/patches (available to enable).
-            val repoCheats = repo?.entries?.filter { it.source != "patches" }.orEmpty()
-            val repoPatches = repo?.entries?.filter { it.source == "patches" }.orEmpty()
-            repoCheatNames = repoCheats.map { it.name }.toSet()
-            repoPatchNames = repoPatches.map { it.name }.toSet()
-            // Source of truth = the per-serial staging store (shared with Shortcut
-            // Settings). Custom entries are staged ones not present in the repo.
-            val stagedC = Ps2CheatStaging.read(context, s, false)
-            val stagedP = Ps2CheatStaging.read(context, s, true)
-            entries = repoCheats + stagedC.filter { st -> repoCheats.none { it.name == st.name } }
-            patchEntries = repoPatches + stagedP.filter { st -> repoPatches.none { it.name == st.name } }
-            selected = stagedC.map { it.name }.toSet()
-            selectedPatches = stagedP.map { it.name }.toSet()
-            // Bundled DNAS-bypass patches (auto), with their shared toggle state.
-            dnasEntries = Ps2DnasBypass.bypassEntries(context, s).filter { it.auto }
-            dnasGlobalOn = context.getSharedPreferences("ARMSX2", Context.MODE_PRIVATE).getBoolean(Ps2DnasBypass.PREF, true)
-            dnasDisabled = Ps2DnasBypass.disabledNames(context, s)
+            serial = local.s
+            crc = local.c.orEmpty()
+            title = local.s
+            entries = local.stagedC
+            patchEntries = local.stagedP
+            selected = local.stagedC.map { it.name }.toSet()
+            selectedPatches = local.stagedP.map { it.name }.toSet()
+            dnasEntries = local.dnas
+            dnasGlobalOn = local.globalOn
+            dnasDisabled = local.disabled
+            loading = false
+            val remote = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    if (local.c != null) com.armsx2.PatchRepo.fetchForGame(local.s, local.c)
+                    else com.armsx2.PatchRepo.fetchForSerial(local.s)
+                }.getOrNull()
+            }
+            if (remote != null) {
+                title = remote.gametitle.takeIf { it.isNotBlank() } ?: local.s
+                status = remote.error.orEmpty()
+                val repoCheats = remote.entries.filter { it.source != "patches" }
+                val repoPatches = remote.entries.filter { it.source == "patches" }
+                repoCheatNames = repoCheats.map { it.name }.toSet()
+                repoPatchNames = repoPatches.map { it.name }.toSet()
+                entries = repoCheats + local.stagedC.filter { st -> repoCheats.none { it.name == st.name } }
+                patchEntries = repoPatches + local.stagedP.filter { st -> repoPatches.none { it.name == st.name } }
+            }
         }
-        loading = false
     }
 
     // Persist the current selections to the per-serial staging store — the single
@@ -212,14 +201,14 @@ fun Ps2CheatsScreen(
         }
     }
 
-    // Toggle a DNAS-bypass variant, persisting to the shared disabled-set pref.
     fun toggleDnas(name: String, currentlyOn: Boolean) {
         if (serial.isBlank()) return
         if (currentlyOn) {
             dnasDisabled = dnasDisabled + name
         } else {
             if (!dnasGlobalOn) { Ps2DnasBypass.setEnabled(context, true); dnasGlobalOn = true }
-            dnasDisabled = dnasDisabled - name
+            val all = dnasEntries.map { it.name }.toSet()
+            dnasDisabled = all - name
         }
         Ps2DnasBypass.setDisabledNames(context, serial, dnasDisabled)
     }
@@ -567,146 +556,25 @@ fun Ps2AchievementsScreen(
     context: Context,
     onBack: () -> Unit,
 ) {
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-    var json by remember { mutableStateOf("") }
-    var loggedIn by remember { mutableStateOf(false) }
-    var userName by remember { mutableStateOf("") }
-    var score by remember { mutableStateOf(0L) }
-    var items by remember { mutableStateOf<List<com.armsx2.ui.achievements.AchievementItem>>(emptyList()) }
-    var user by remember { mutableStateOf("") }
-    var pass by remember { mutableStateOf("") }
-    var busy by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf("") }
-
-    suspend fun refresh() {
-        val parsed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            val raw = runCatching { NativeApp.getAchievementsJSON().orEmpty() }.getOrDefault("")
-            val root = runCatching { org.json.JSONObject(raw) }.getOrNull()
-            RaSnapshot(
-                json = raw,
-                loggedIn = root?.optBoolean("loggedIn") ?: false,
-                userName = root?.optString("userName").orEmpty(),
-                score = root?.optLong("score")?.coerceAtLeast(0) ?: 0L,
-                items = com.armsx2.ui.achievements.parseAchievementItems(raw),
-            )
+    val gameName =
+        remember {
+            runCatching { NativeApp.getGameSerial() }.getOrNull()?.takeIf { it.isNotBlank() }
+                ?: context.getString(R.string.retro_ps2_tab_menu)
         }
-        json = parsed.json
-        loggedIn = parsed.loggedIn
-        userName = parsed.userName
-        score = parsed.score
-        items = parsed.items
-    }
-
     androidx.compose.runtime.LaunchedEffect(Unit) {
-        refresh()
-        if (!loggedIn) {
-            val pushed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { pushSharedRaToArmsx2(context) }
-            if (pushed) {
-                repeat(6) {
-                    kotlinx.coroutines.delay(500)
-                    refresh()
-                    if (loggedIn) return@LaunchedEffect
-                }
-            }
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            Ps2RaBridge.pushSharedLogin(context)
         }
     }
-
-    Ps2WindowedScaffold(title = stringResource(R.string.retro_scr_achievements), onBack = onBack) {
-        if (!loggedIn) {
-            Column(
-                Modifier.fillMaxSize().padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(stringResource(R.string.retro_scr_sign_in_ra), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
-                OutlinedTextField(value = user, onValueChange = { user = it }, singleLine = true, label = { Text(stringResource(R.string.retro_scr_username)) })
-                OutlinedTextField(
-                    value = pass,
-                    onValueChange = { pass = it },
-                    singleLine = true,
-                    label = { Text(stringResource(R.string.retro_scr_password)) },
-                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                )
-                if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                val doLogin = {
-                    if (!busy && user.isNotBlank() && pass.isNotBlank()) {
-                        busy = true; error = ""
-                        RetroAchievementsManager.login(context, user.trim(), pass) { ok, msg ->
-                            if (ok) {
-                                scope.launch {
-                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { pushSharedRaToArmsx2(context) }
-                                    repeat(6) {
-                                        kotlinx.coroutines.delay(500)
-                                        refresh()
-                                        if (loggedIn) return@launch
-                                    }
-                                    busy = false
-                                }
-                            } else {
-                                busy = false
-                                error = msg ?: context.getString(R.string.retro_scr_login_failed)
-                            }
-                        }
-                    }
-                    Unit
-                }
-                OutlinedButton(
-                    enabled = !busy && user.isNotBlank() && pass.isNotBlank(),
-                    modifier = Modifier.paneNavItem(onActivate = doLogin),
-                    onClick = doLogin,
-                ) { Text(if (busy) stringResource(R.string.retro_scr_signing_in) else stringResource(R.string.retro_scr_sign_in)) }
-            }
-        } else {
-            Column(Modifier.fillMaxSize()) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text(userName, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        stringResource(R.string.retro_scr_ra_score_summary, items.count { it.unlocked }, items.size, score),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                if (items.isEmpty()) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(stringResource(R.string.retro_scr_no_achievements), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                } else {
-                    LazyColumn(
-                        Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        items(items) { a ->
-                            Card(
-                                Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                                shape = RoundedCornerShape(12.dp),
-                            ) {
-                                Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    if (a.iconUrl.isNotBlank()) {
-                                        coil.compose.AsyncImage(
-                                            model = a.iconUrl,
-                                            contentDescription = null,
-                                            modifier = Modifier.width(48.dp).height(48.dp),
-                                            alpha = if (a.unlocked) 1f else 0.35f,
-                                        )
-                                        Spacer(Modifier.width(12.dp))
-                                    }
-                                    Column(Modifier.weight(1f)) {
-                                        Text(a.title, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-                                        Text(a.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        if (a.progress.isNotBlank()) {
-                                            Text(a.progress, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                                        }
-                                    }
-                                    Text("${a.points}", color = if (a.unlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    RetroAchievementsScreen(
+        systemId = RetroSystems.PS2.id,
+        gameName = gameName,
+        romPath = "",
+        inSession = true,
+        onClose = onBack,
+        useNativePs2 = true,
+        floatingOverGame = true,
+    )
 }
 
 /**

@@ -26,8 +26,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -578,6 +581,21 @@ open class MainActivityRuntime : ComponentActivity() {
                 renderer.value == "software" -> NativeApp.renderSoftware()
                 else -> NativeApp.renderAuto()
             }
+            // WinNative host (applyBootSettings installed): pin present aspect INTO
+            // the Settings blob that applyTo() writes. Auto uses 3:2 on progressive
+            // frames (BIOS/boot) which looks full-bleed on wide phones, then snaps
+            // to 4:3 — force a stable letterbox from frame 0. Stretch is never used.
+            val winNativeHost = com.armsx2.WinNativeHost.applyBootSettings != null
+            if (winNativeHost) {
+                val want = prefs.getInt("wn.ps2.aspect", 1).coerceIn(0, 3)
+                val safe =
+                    when (want) {
+                        3 -> 3 // explicit 16:9
+                        2 -> 2 // explicit 4:3
+                        else -> 2 // Stretch/Auto → 4:3 (no full-bleed flash)
+                    }
+                resolved = resolved.copy(aspectRatio = safe)
+            }
             resolved.applyTo()
             // WinNative owns DEV9 (Ethernet NIC + virtual HDD) and the patch config
             // via its own prefs, NOT armsx2's config store. resolved.applyTo() just
@@ -587,6 +605,30 @@ open class MainActivityRuntime : ComponentActivity() {
             // WinNative's DEV9/HDD/patch settings LAST, still before runVMThread, so
             // they win the boot probe.
             instance?.applicationContext?.let { com.armsx2.WinNativeHost.applyBootSettings?.invoke(it) }
+            // Re-assert aspect after applyTo + boot hook so CurrentAspectRatio cannot
+            // remain Stretch/Auto from a stale INI for the first presents.
+            if (winNativeHost) {
+                val want = prefs.getInt("wn.ps2.aspect", 1).coerceIn(0, 3)
+                val safe =
+                    when (want) {
+                        3 -> 3
+                        2 -> 2
+                        else -> 2
+                    }
+                val name =
+                    when (safe) {
+                        3 -> "16:9"
+                        else -> "4:3"
+                    }
+                runCatching {
+                    NativeApp.setSetting("EmuCore/GS", "AspectRatio", "string", name)
+                    NativeApp.setAspectRatio(safe)
+                    // Pre-runVMThread only (this method runs before Execute). Do not
+                    // call commitSettings from the UI thread after the VM is live —
+                    // ScopedVMPause freezes input for seconds.
+                    NativeApp.commitSettings()
+                }
+            }
             // #254: cache whether this title runs with the emulated USB keyboard so
             // dispatchKeyEvent can forward physical-keyboard keys to it. applyTo()
             // already pushed [USB1] Type + the live attach (usbSetKeyboardEnabled).
@@ -635,7 +677,7 @@ open class MainActivityRuntime : ComponentActivity() {
             }
 
             runCatching {
-                val netOn = prefs.getBoolean("wn.ps2.net.enable", false)
+                val netOn = prefs.getBoolean("wn.ps2.net.enable", true)
                 NativeApp.setSetting("DEV9/Eth", "EthEnable", "bool", netOn.toString())
                 if (netOn) {
                     NativeApp.setSetting("DEV9/Eth", "EthApi", "string", "Sockets")
@@ -1334,49 +1376,40 @@ open class MainActivityRuntime : ComponentActivity() {
         // detected and trigger a restart instead of silently not taking effect.
         lastInitDataRoot = assetCopyRoot(applicationContext)
 
-        // #9: one-time recovery for a fresh install that reuses an old data folder — restore
-        // settings from the in-folder mirror, or seed from the folder's old PCSX2-Android.ini,
-        // BEFORE the core loads/rewrites it. No-op (guarded) for anyone already on the new UI.
-        runCatching { com.armsx2.config.ConfigStore.reconcileReusedFolder() }
+        // CRITICAL: all heavy work (asset copy, BIOS migrate, initializeOnce) MUST
+        // run off the UI thread. Doing copyAssetAll here on the main thread froze
+        // the host overlay/menu for seconds after launch and delayed attachOverlay
+        // posts until the copy finished — game rendered full-bleed before the
+        // letterbox + menu handlers were live.
+        invoke {
+            runCatching { com.armsx2.config.ConfigStore.reconcileReusedFolder() }
 
-        // Default resources — shaders, GameIndex, fonts, fullscreenui,
-        // patches.zip, controller DB. assetCopyRoot resolves to the
-        // user's chosen systemDir (now valid post-setup) so emucore
-        // finds them at <systemDir>/resources/...
-        copyAssetAll(applicationContext, "bios")
-        copyAssetAll(applicationContext, "resources")
+            // Default resources — shaders, GameIndex, fonts, fullscreenui,
+            // patches.zip, controller DB.
+            copyAssetAll(applicationContext, "bios")
+            copyAssetAll(applicationContext, "resources")
 
-        // Point the ANGLE EGL env vars at the bundled libs (or clear them) before the
-        // GS thread ever opens a GL context. Re-applied per launch below too.
-        applyAngleEnv(applicationContext)
+            // Point the ANGLE EGL env vars at the bundled libs (or clear them) before the
+            // GS thread ever opens a GL context.
+            applyAngleEnv(applicationContext)
 
-        // Keep the configured BIOS in app-private internal storage (NOT under a
-        // custom/SD data root). The native core can't reliably open a BIOS off a
-        // removable/SAF volume on Android 11+, so a data-root-on-SD setup failed VM
-        // init and bounced back to the library. This also MIGRATES any BIOS an older
-        // build moved onto the SD data root back to internal. No-op when no BIOS is
-        // set or it's already internal; on copy failure we leave the pref untouched
-        // so biosFolderPosix still points emucore at the old (working) location.
-        bios.value?.takeIf { it.isNotEmpty() }?.let { current ->
-            val src = File(current)
-            val target = File(internalBiosDir(applicationContext).apply { mkdirs() }, src.name)
-            if (!sameFilePath(target, src)) {
-                val present = (target.exists() && target.length() > 0L) ||
-                    copyFileViaTemp(src, target)
-                if (present) {
+            // Keep the configured BIOS in app-private internal storage.
+            bios.value?.takeIf { it.isNotEmpty() }?.let { current ->
+                val src = File(current)
+                val target = File(internalBiosDir(applicationContext).apply { mkdirs() }, src.name)
+                if (!sameFilePath(target, src)) {
+                    val present = (target.exists() && target.length() > 0L) ||
+                        copyFileViaTemp(src, target)
+                    if (present) {
+                        bios.value = target.absolutePath
+                        prefs.edit { putString("bios", target.absolutePath) }
+                    }
+                } else if (target.exists() && target.length() > 0L) {
                     bios.value = target.absolutePath
                     prefs.edit { putString("bios", target.absolutePath) }
                 }
-            } else if (target.exists() && target.length() > 0L) {
-                bios.value = target.absolutePath
-                prefs.edit { putString("bios", target.absolutePath) }
             }
-        }
 
-        // (BIOS data-root mirror runs in the background invoke{} block below — it's
-        // cosmetic and must not block first paint / risk an ANR on slow SD cards.)
-
-        invoke {
             NativeApp.initializeOnce(applicationContext)
             nativeReady.value = true
 
@@ -1656,13 +1689,16 @@ open class MainActivityRuntime : ComponentActivity() {
         }
         ViewCompat.requestApplyInsets(window.decorView)
 
-        if (com.armsx2.WinNativeHost.enabled()) {
-            window.decorView.post {
-                if (!isFinishing && !isDestroyed) {
-                    com.armsx2.WinNativeHost.attachOverlay?.invoke(this)
-                }
-            }
+        // Attach WinNative overlay FIRST (before heavy emucore init) so the menu
+        // and touch pad are live immediately. Use a direct call on the next frame
+        // and a fallback re-post so a null install race still recovers.
+        fun tryAttachHostOverlay() {
+            if (isFinishing || isDestroyed) return
+            com.armsx2.WinNativeHost.attachOverlay?.invoke(this)
         }
+        window.decorView.post { tryAttachHostOverlay() }
+        window.decorView.postDelayed({ tryAttachHostOverlay() }, 50L)
+        window.decorView.postDelayed({ tryAttachHostOverlay() }, 200L)
 
         // Sustained Performance Mode (API 24+): holds a steady, thermally-
         // sustainable clock instead of boost-then-throttle. GOOD for long sessions
@@ -1686,7 +1722,7 @@ open class MainActivityRuntime : ComponentActivity() {
         // Idempotent guard: kickoffEmucoreInit checks emucoreInitDone so
         // setupComplete flipping multiple times (re-entry via cog button
         // doesn't toggle it back to false, but be defensive) only fires
-        // the heavy init once.
+        // the heavy init once. Heavy work is off the UI thread.
         if (setupComplete.value) {
             kickoffEmucoreInit()
         }
@@ -1771,8 +1807,20 @@ open class MainActivityRuntime : ComponentActivity() {
             // Minimal composition: the emulation surface only. All menus, touch
             // controls and overlays are rendered by the WinNative host, which
             // attaches its own views over this activity (WinNativeHost.attachOverlay).
-            Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black)) {
+            //
+            // Letterbox the SurfaceView itself to the session aspect (default 4:3).
+            // GS Stretch / early Auto then only fill that rect — never the whole
+            // phone behind the touch pads — so first boots cannot full-bleed.
+            Box(
+                Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black),
+                contentAlignment = Alignment.Center,
+            ) {
                 if (surface.value != null) {
+                    val surfaceAspect =
+                        when (prefs.getInt("wn.ps2.aspect", 1).coerceIn(0, 3)) {
+                            3 -> 16f / 9f
+                            else -> 4f / 3f
+                        }
                     // Pull Compose focus onto the surface as soon as it's composed
                     // AND whenever a game starts running, so onKeyEvent receives
                     // gamepad input without the user having to tap the screen.
@@ -1783,53 +1831,65 @@ open class MainActivityRuntime : ComponentActivity() {
                             runCatching { focusRequester.requestFocus() }
                         }
                     }
-                    AndroidView(factory = { surface.value!! }, modifier = Modifier
-                        .focusable(true)
-                        .focusRequester(focusRequester)
-                        .fillMaxSize()
-                        .pointerInput(Unit) {
-                            // Any raw press on the surface means the user is using the
-                            // touchscreen — unlatch the controller-mode hide state.
-                            detectTapGestures(
-                                onPress = {
-                                    com.armsx2.ui.touch.TouchControls.onSurfaceTouched()
-                                },
-                            )
-                        }
-                        .onKeyEvent { event ->
-                            if (eState.value != EmuState.RUNNING)
-                                return@onKeyEvent false
-                            // Local co-op: route by the originating device — first
-                            // controller = P1 (port 0), next = P2 (port 1) — and
-                            // resolve the bind against THAT player's mapping.
-                            val port = com.armsx2.input.PadRouter.portForDevice(event.nativeKeyEvent.deviceId)
-                            // Physical-controller macro: a bound button fires the
-                            // macro's whole button set at once (down on press, up on
-                            // release). Checked before normal pad routing so a macro
-                            // overrides that button's regular mapping.
-                            val macro = com.armsx2.ui.touch.TouchControls.macroForPhysicalCode(event.key.nativeKeyCode)
-                            if (macro != null) {
-                                com.armsx2.ui.touch.TouchControls.fireMacro(
-                                    macro, "pad$port", event.type == KeyEventType.KeyDown,
-                                ) { code, pressed ->
-                                    sendKeyAction(
-                                        if (pressed) KeyEventType.KeyDown else KeyEventType.KeyUp,
-                                        code, port,
+                    AndroidView(
+                        factory = { surface.value!! },
+                        modifier =
+                            Modifier
+                                .focusable(true)
+                                .focusRequester(focusRequester)
+                                .fillMaxHeight()
+                                .aspectRatio(surfaceAspect)
+                                .pointerInput(Unit) {
+                                    // Any raw press on the surface means the user is using the
+                                    // touchscreen — unlatch the controller-mode hide state.
+                                    detectTapGestures(
+                                        onPress = {
+                                            com.armsx2.ui.touch.TouchControls.onSurfaceTouched()
+                                        },
                                     )
                                 }
-                                return@onKeyEvent true
-                            }
-                            val target = ControllerMappings.targetForPhysical(event.key.nativeKeyCode, port)
-                                ?: return@onKeyEvent false
-                            // Turbo/rapid-fire: while the physical button is held, the
-                            // PS2 button auto-presses at ~15 Hz (see handleTurbo).
-                            if (ControllerMappings.isTurboTarget(target, port)) {
-                                handleTurbo(event.key.nativeKeyCode, event.type, target, port)
-                                return@onKeyEvent true
-                            }
-                            sendKeyAction(event.type, target, port)
-                            true
-                        })
+                                .onKeyEvent { event ->
+                                    if (eState.value != EmuState.RUNNING) {
+                                        return@onKeyEvent false
+                                    }
+                                    // Local co-op: route by the originating device — first
+                                    // controller = P1 (port 0), next = P2 (port 1) — and
+                                    // resolve the bind against THAT player's mapping.
+                                    val port =
+                                        com.armsx2.input.PadRouter.portForDevice(event.nativeKeyEvent.deviceId)
+                                    // Physical-controller macro: a bound button fires the
+                                    // macro's whole button set at once (down on press, up on
+                                    // release). Checked before normal pad routing so a macro
+                                    // overrides that button's regular mapping.
+                                    val macro =
+                                        com.armsx2.ui.touch.TouchControls.macroForPhysicalCode(event.key.nativeKeyCode)
+                                    if (macro != null) {
+                                        com.armsx2.ui.touch.TouchControls.fireMacro(
+                                            macro,
+                                            "pad$port",
+                                            event.type == KeyEventType.KeyDown,
+                                        ) { code, pressed ->
+                                            sendKeyAction(
+                                                if (pressed) KeyEventType.KeyDown else KeyEventType.KeyUp,
+                                                code,
+                                                port,
+                                            )
+                                        }
+                                        return@onKeyEvent true
+                                    }
+                                    val target =
+                                        ControllerMappings.targetForPhysical(event.key.nativeKeyCode, port)
+                                            ?: return@onKeyEvent false
+                                    // Turbo/rapid-fire: while the physical button is held, the
+                                    // PS2 button auto-presses at ~15 Hz (see handleTurbo).
+                                    if (ControllerMappings.isTurboTarget(target, port)) {
+                                        handleTurbo(event.key.nativeKeyCode, event.type, target, port)
+                                        return@onKeyEvent true
+                                    }
+                                    sendKeyAction(event.type, target, port)
+                                    true
+                                },
+                    )
                 }
             }
         }
@@ -1859,23 +1919,17 @@ open class MainActivityRuntime : ComponentActivity() {
             event.isFromSource(InputDevice.SOURCE_JOYSTICK)) {
             NativeApp.sRumbleDeviceId = event.deviceId
         }
-        // Controller guide button (Xbox/PS/MODE) toggles the host's drawer menu —
-        // always available, independent of touch controls or hotkey bindings.
         if (kc == KeyEvent.KEYCODE_BUTTON_MODE) {
             val open = com.armsx2.WinNativeHost.openMenu
             if (open != null) {
-                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) open()
+                if (event.action == KeyEvent.ACTION_UP && event.repeatCount == 0) open()
                 return true
             }
         }
-        // #254 Emulated USB keyboard. When a game runs with the USB HID keyboard
-        // attached (Settings.usbKeyboard, e.g. EQOA / Konami-keyboard titles),
-        // forward physical/Bluetooth keyboard key events to it. Gated so it only
-        // fires for real keyboard-source keys while the game is front-and-centre —
-        // NOT while (re)binding, and NOT while any menu/overlay is up (those need
-        // normal D-pad/confirm nav). Only a mappable keyboard key is consumed;
-        // everything else (and all gamepad buttons) falls through to the pad /
-        // hotkey / nav handling below unchanged.
+        if (com.armsx2.WinNativeHost.isMenuOpen?.invoke() == true) {
+            val handled = com.armsx2.WinNativeHost.menuKeyHandler?.invoke(event) == true
+            if (handled) return true
+        }
         if (forwardKeyToUsbKeyboard(event, kc)) {
             return true
         }
@@ -1950,6 +2004,17 @@ open class MainActivityRuntime : ComponentActivity() {
                 return true
             }
         }
+        // MENU must work even before eState=RUNNING (BIOS/boot). Host openMenu
+        // is ready as soon as attachOverlay runs; gating on RUNNING left the
+        // retro server menu dead for the whole emucore init + first boot.
+        run {
+            val down = event.action == KeyEvent.ACTION_DOWN
+            val matchKeys = if (down) heldKeys else heldKeys + kc
+            if (ControllerMappings.matchHotkey(kc, matchKeys) == ControllerMappings.SysHotkey.MENU) {
+                if (down) com.armsx2.WinNativeHost.openMenu?.invoke()
+                return true
+            }
+        }
         // Runtime: bound system hotkeys. Caught here so back-button bindings work
         // (and aren't eaten by the back handler).
         if (eState.value == EmuState.RUNNING) {
@@ -1963,9 +2028,7 @@ open class MainActivityRuntime : ComponentActivity() {
                 // dispatchKeyEvent; it never reaches this one-shot action switch.
                 ControllerMappings.SysHotkey.PRESSURE_MOD -> {}
                 ControllerMappings.SysHotkey.MENU -> {
-                    // armsx2's own pause menu was removed; the WinNative host owns
-                    // the in-game menu — toggle it. Consumed so the key can't leak
-                    // to the pad.
+                    // Already handled above (pre-RUNNING); keep for clarity.
                     if (down) com.armsx2.WinNativeHost.openMenu?.invoke()
                     return true
                 }
@@ -2216,14 +2279,13 @@ open class MainActivityRuntime : ComponentActivity() {
     }
 
     override fun dispatchGenericMotionEvent(ev: MotionEvent): Boolean {
-        // While (re)binding a pad button or a hotkey, the physical D-pad on many
-        // handhelds (AYN Odin 3, RP6, etc.) arrives HERE as a HAT *axis*, never as
-        // a key in dispatchKeyEvent — so the capture (which only listens for key
-        // events) never saw it, and the HAT instead navigated the settings UI. When
-        // a capture is armed, translate the HAT direction into a synthetic D-pad
-        // KeyEvent and route it through dispatchKeyEvent (which reaches both the pad
-        // capture in Compose and the hotkey capture in dispatchKeyEvent), and
-        // consume the motion so nothing navigates.
+        if (com.armsx2.WinNativeHost.isMenuOpen?.invoke() == true) {
+            val x = ev.getAxisValue(MotionEvent.AXIS_HAT_X).takeIf { abs(it) > 0.5f }
+                ?: ev.getAxisValue(MotionEvent.AXIS_X)
+            val y = ev.getAxisValue(MotionEvent.AXIS_HAT_Y).takeIf { abs(it) > 0.5f }
+                ?: ev.getAxisValue(MotionEvent.AXIS_Y)
+            if (com.armsx2.WinNativeHost.menuAxisHandler?.invoke(x, y) == true) return true
+        }
         if (ControllerMappings.padCapturing.value || ControllerMappings.captureHotkey.value != null) {
             return handleCaptureMotion(ev)
         }

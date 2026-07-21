@@ -32,6 +32,15 @@ object WinNativeHost {
     @Volatile
     var openMenu: (() -> Unit)? = null
 
+    @Volatile
+    var isMenuOpen: (() -> Boolean)? = null
+
+    @Volatile
+    var menuKeyHandler: ((android.view.KeyEvent) -> Boolean)? = null
+
+    @Volatile
+    var menuAxisHandler: ((Float, Float) -> Boolean)? = null
+
     fun enabled(): Boolean =
         attachOverlay != null &&
             runCatching {

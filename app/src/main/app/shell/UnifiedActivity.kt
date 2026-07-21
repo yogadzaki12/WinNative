@@ -1221,6 +1221,7 @@ class UnifiedActivity :
     internal data class HomeShortcutUiState(
         val shortcut: Shortcut? = null,
         val isPinned: Boolean = false,
+        val loaded: Boolean = false,
     )
 
     internal data class ArtworkCacheId(

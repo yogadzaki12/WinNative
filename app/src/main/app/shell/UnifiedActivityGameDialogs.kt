@@ -899,6 +899,7 @@ internal fun UnifiedActivity.GameSettingsDialog(
                 HomeShortcutUiState(
                     shortcut = shortcut,
                     isPinned = shortcut?.let { LibraryShortcutUtils.hasPinnedHomeShortcut(context, it) } == true,
+                    loaded = true,
                 )
             }
     }
@@ -1427,6 +1428,7 @@ internal fun UnifiedActivity.GOGGameSettingsDialog(
                 HomeShortcutUiState(
                     shortcut = shortcut,
                     isPinned = shortcut?.let { LibraryShortcutUtils.hasPinnedHomeShortcut(context, it) } == true,
+                    loaded = true,
                 )
             }
     }
@@ -1680,37 +1682,6 @@ internal fun UnifiedActivity.LibraryGameDetailDialog(
     val isGog = gogGame != null
     val epicId = if (isEpic) app.id - 2000000000 else 0
 
-    var retroSystemId by remember(app.id) { mutableStateOf<String?>(null) }
-    var retroRomPath by remember(app.id) { mutableStateOf<String?>(null) }
-    LaunchedEffect(app.id, isCustom) {
-        if (isCustom) {
-            withContext(Dispatchers.IO) {
-                val sc = findLibraryShortcutForGame(ContainerManager(context), app, true, false, 0)
-                retroSystemId =
-                    sc
-                        ?.getExtra(com.winlator.cmod.feature.retro.RetroShortcuts.KEY_SYSTEM)
-                        ?.takeIf { it.isNotEmpty() }
-                retroRomPath =
-                    sc
-                        ?.getExtra(com.winlator.cmod.feature.retro.RetroShortcuts.KEY_ROM)
-                        ?.takeIf { it.isNotEmpty() }
-            }
-            val sid = retroSystemId
-            val rp = retroRomPath
-            if (sid != null && rp != null &&
-                com.winlator.cmod.feature.retro.RetroSystems.fromId(sid)?.isExternal != true
-            ) {
-                com.winlator.cmod.feature.retro.RetroAchievementsManager.prefetch(context, sid, rp)
-            }
-        } else {
-            retroSystemId = null
-            retroRomPath = null
-        }
-    }
-    val isRetro = retroSystemId != null
-    val isExternalRetro =
-        retroSystemId?.let { com.winlator.cmod.feature.retro.RetroSystems.fromId(it)?.isExternal } == true
-
     val libraryDownloadRecords by com.winlator.cmod.app.service.download.DownloadCoordinator.records.collectAsState(
         initial = com.winlator.cmod.app.service.download.DownloadCoordinator.snapshotRecords(),
     )
@@ -1793,6 +1764,7 @@ internal fun UnifiedActivity.LibraryGameDetailDialog(
                 HomeShortcutUiState(
                     shortcut = shortcut,
                     isPinned = shortcut?.let { LibraryShortcutUtils.hasPinnedHomeShortcut(context, it) } == true,
+                    loaded = true,
                 )
             }
     }
@@ -1813,6 +1785,32 @@ internal fun UnifiedActivity.LibraryGameDetailDialog(
         }
     }
     val hasPinnedShortcut = pinnedShortcutOverride ?: homeShortcutState.isPinned
+    val librarySystemIdHint = if (isCustom) retroLibrarySystemIds.value[app.id] else null
+    val retroCaps =
+        remember(homeShortcutState.shortcut, homeShortcutState.loaded, isCustom, librarySystemIdHint) {
+            when {
+                !isCustom -> com.winlator.cmod.feature.retro.RetroShortcuts.LibraryCapabilities()
+                homeShortcutState.loaded ->
+                    com.winlator.cmod.feature.retro.RetroShortcuts.libraryCapabilities(homeShortcutState.shortcut)
+                else ->
+                    com.winlator.cmod.feature.retro.RetroShortcuts.libraryCapabilitiesForSystemId(librarySystemIdHint)
+            }
+        }
+    val isRetro = retroCaps.isRetro
+    val isExternalRetro = retroCaps.isExternal
+    val retroSystemId = retroCaps.systemId
+    val retroRomPath =
+        retroCaps.romPath
+            ?: homeShortcutState.shortcut
+                ?.getExtra(com.winlator.cmod.feature.retro.RetroShortcuts.KEY_ROM)
+                ?.takeIf { it.isNotEmpty() }
+    LaunchedEffect(retroSystemId, retroRomPath, isExternalRetro) {
+        val sid = retroSystemId
+        val rp = retroRomPath
+        if (sid != null && rp != null && !isExternalRetro) {
+            com.winlator.cmod.feature.retro.RetroAchievementsManager.prefetch(context, sid, rp)
+        }
+    }
 
     BackHandler(enabled = activePopup != null) {
         activePopup = null
@@ -1902,7 +1900,14 @@ internal fun UnifiedActivity.LibraryGameDetailDialog(
         when {
             isGog -> "GOG"
             isEpic -> "Epic Games"
-            isCustom -> "Custom"
+            isCustom ->
+                retroCaps.sourceLabel
+                    ?: librarySystemIdHint?.let {
+                        com.winlator.cmod.feature.retro.RetroSystems
+                            .fromId(it)
+                            ?.badgeLabel
+                    }
+                    ?: "Custom"
             else -> "Steam"
         }
 
@@ -2433,6 +2438,8 @@ internal fun UnifiedActivity.LibraryGameDetailDialog(
                                 installSizeText = installSizeText,
                                 isCustom = isCustom,
                                 isRetro = isRetro,
+                                showBootToDesktop = retroCaps.showBootToDesktop,
+                                showSaveTransfer = retroCaps.showSaveTransfer,
                                 hasPinnedShortcut = hasPinnedShortcut,
                                 playEnabled = playEnabled,
                                 playDisabledLabel = playDisabledLabel,
@@ -2453,7 +2460,6 @@ internal fun UnifiedActivity.LibraryGameDetailDialog(
                                 onSettings = {
                                     val shortcut = resolveOrCreateShortcut()
                                     if (shortcut != null) {
-                                        // Layer the settings dialog on top; keep the detail dialog open underneath.
                                         ShortcutSettingsComposeDialog(this@LibraryGameDetailDialog, shortcut).show()
                                     }
                                 },
@@ -2470,35 +2476,46 @@ internal fun UnifiedActivity.LibraryGameDetailDialog(
                                         )
                                     }
                                 },
-                                onAchievements = when {
-                                    isRetro -> {
-                                        val sysId = retroSystemId
-                                        val rom = retroRomPath
-                                        if (sysId != null && rom != null &&
-                                            com.winlator.cmod.feature.retro.RetroAchievementsManager.consoleId(sysId) != 0
-                                        ) {
-                                            {
-                                                context.startActivity(
-                                                    android.content.Intent(
-                                                        context,
-                                                        com.winlator.cmod.feature.retro.RetroAchievementsActivity::class.java,
-                                                    ).apply {
-                                                        putExtra(com.winlator.cmod.feature.retro.RetroAchievementsActivity.EXTRA_SYSTEM_ID, sysId)
-                                                        putExtra(com.winlator.cmod.feature.retro.RetroAchievementsActivity.EXTRA_ROM_PATH, rom)
-                                                        putExtra(com.winlator.cmod.feature.retro.RetroAchievementsActivity.EXTRA_GAME_NAME, app.name)
-                                                        putExtra(com.winlator.cmod.feature.retro.RetroAchievementsActivity.EXTRA_IN_SESSION, false)
-                                                    },
-                                                )
+                                onAchievements =
+                                    when {
+                                        isRetro -> {
+                                            val sysId = retroSystemId
+                                            val rom = retroRomPath
+                                            if (sysId != null && rom != null && retroCaps.showAchievements) {
+                                                {
+                                                    context.startActivity(
+                                                        android.content.Intent(
+                                                            context,
+                                                            com.winlator.cmod.feature.retro.RetroAchievementsActivity::class.java,
+                                                        ).apply {
+                                                            putExtra(
+                                                                com.winlator.cmod.feature.retro.RetroAchievementsActivity.EXTRA_SYSTEM_ID,
+                                                                sysId,
+                                                            )
+                                                            putExtra(
+                                                                com.winlator.cmod.feature.retro.RetroAchievementsActivity.EXTRA_ROM_PATH,
+                                                                rom,
+                                                            )
+                                                            putExtra(
+                                                                com.winlator.cmod.feature.retro.RetroAchievementsActivity.EXTRA_GAME_NAME,
+                                                                app.name,
+                                                            )
+                                                            putExtra(
+                                                                com.winlator.cmod.feature.retro.RetroAchievementsActivity.EXTRA_IN_SESSION,
+                                                                false,
+                                                            )
+                                                        },
+                                                    )
+                                                }
+                                            } else {
+                                                null
                                             }
-                                        } else {
-                                            null
                                         }
-                                    }
-                                    !isCustom && !isEpic && !isGog -> {
-                                        { showAchievements = true }
-                                    }
-                                    else -> null
-                                },
+                                        !isCustom && !isEpic && !isGog -> {
+                                            { showAchievements = true }
+                                        }
+                                        else -> null
+                                    },
                                 onShortcut = {
                                     if (hasPinnedShortcut) {
                                         heroPopup = HeroLaunchPopup.RemoveShortcut
@@ -2533,17 +2550,28 @@ internal fun UnifiedActivity.LibraryGameDetailDialog(
                                     }
                                 },
                                 onCloudSaves = { activePopup = LibraryDetailPopup.CloudSaves },
-                                onSaveTransfer = if (isRetro && !isExternalRetro) ({ showSaveTransfer = true }) else null,
+                                onSaveTransfer =
+                                    if (retroCaps.showSaveTransfer) {
+                                        { showSaveTransfer = true }
+                                    } else {
+                                        null
+                                    },
                                 onCheats =
-                                    if (isRetro && !isExternalRetro && retroSystemId != null) {
+                                    if (retroCaps.showCheats && retroSystemId != null) {
                                         {
                                             context.startActivity(
                                                 android.content.Intent(
                                                     context,
                                                     com.winlator.cmod.feature.retro.RetroCheatsActivity::class.java,
                                                 ).apply {
-                                                    putExtra(com.winlator.cmod.feature.retro.RetroCheatsActivity.EXTRA_SYSTEM_ID, retroSystemId)
-                                                    putExtra(com.winlator.cmod.feature.retro.RetroCheatsActivity.EXTRA_GAME_NAME, app.name)
+                                                    putExtra(
+                                                        com.winlator.cmod.feature.retro.RetroCheatsActivity.EXTRA_SYSTEM_ID,
+                                                        retroSystemId,
+                                                    )
+                                                    putExtra(
+                                                        com.winlator.cmod.feature.retro.RetroCheatsActivity.EXTRA_GAME_NAME,
+                                                        app.name,
+                                                    )
                                                 },
                                             )
                                         }
@@ -2557,8 +2585,6 @@ internal fun UnifiedActivity.LibraryGameDetailDialog(
                                             com.winlator.cmod.feature.retro.RetroAchievementsManager.isHardcorePreferred(context)
                                     ),
                                 onUninstall = uninstallGame,
-                                // Store source tag actions. Steam exposes verify/update/workshop;
-                                // Epic and GOG expose verify/update for installed games.
                                 steamMenuEnabled = !isCustom &&
                                     (!isEpic || epicGame?.isInstalled == true) &&
                                     (!isGog || gogGame?.isInstalled == true),
@@ -2568,7 +2594,7 @@ internal fun UnifiedActivity.LibraryGameDetailDialog(
                                 showCheckForUpdate = !isCustom &&
                                     (!isEpic || epicGame?.isInstalled == true) &&
                                     (!isGog || gogGame?.isInstalled == true),
-                                showWorkshop = !isEpic && !isGog,
+                                showWorkshop = !isCustom && !isEpic && !isGog,
                                 areSteamActionsEnabled =
                                     when {
                                         isEpic -> !hasBlockingEpicDownloadForLibrary
@@ -2587,8 +2613,6 @@ internal fun UnifiedActivity.LibraryGameDetailDialog(
                                                     }
                                                 }
                                             if (started != null) {
-                                                // Hand off to the activity-root host so the
-                                                // pop-up + completion notice outlive this dialog.
                                                 showTaskProgressPopup(
                                                     started,
                                                     if (isGog) gogGame!!.title else app.name,
@@ -2614,7 +2638,7 @@ internal fun UnifiedActivity.LibraryGameDetailDialog(
                                         else -> startUpdateCheck(app.id, app.name)
                                     }
                                 },
-                                onWorkshop = { if (!isEpic && !isGog) showWorkshopDialog = true },
+                                onWorkshop = { if (!isEpic && !isGog && !isCustom) showWorkshopDialog = true },
                             )
 
                             when (heroPopup) {

@@ -57,6 +57,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.PopupProperties
 import com.winlator.cmod.R
+import com.winlator.cmod.shared.theme.GameSettingsStyle
+import com.winlator.cmod.shared.ui.settings.SharedGroupTitle
+import com.winlator.cmod.shared.ui.settings.SharedInfoRow
+import com.winlator.cmod.shared.ui.settings.SharedSettingGroup
+import com.winlator.cmod.shared.ui.settings.SharedSettingSwitch
 import com.winlator.cmod.feature.library.GameSettingsNav
 import com.winlator.cmod.feature.shortcuts.LibraryShortcutArtwork
 import com.winlator.cmod.runtime.container.Shortcut
@@ -68,20 +73,20 @@ import com.winlator.cmod.shared.ui.nav.paneNavItem
 import com.winlator.cmod.shared.ui.outlinedSwitchColors
 import com.winlator.cmod.shared.ui.widget.chasingBorder
 
-private val BgDeep = Color(0xFF11111C)
-private val SidebarBg = Color(0xFF11111C)
-private val ContentBg = Color(0xFF11111C)
-private val CardSurface = Color(0xFF1C1C2A)
-private val CardBorder = Color(0xFF2A2A3A)
-private val InputSurface = Color(0xFF171722)
-private val InputBorder = Color(0xFF2A2A3A)
-private val AccentBlue = Color(0xFF1A9FFF)
-private val TextPrimary = Color(0xFFF0F4FF)
-private val TextSecondary = Color(0xFF7A8FA8)
-private val TextDim = Color(0xFF6E7681)
-private val DividerColor = Color(0xFF2A2A3A)
-private val NavHighlight = Color(0xFF4FC3F7)
-private val DangerRed = Color(0xFFFF6B6B)
+private val BgDeep = GameSettingsStyle.BgDeep
+private val SidebarBg = GameSettingsStyle.SidebarBg
+private val ContentBg = GameSettingsStyle.ContentBg
+private val CardSurface = GameSettingsStyle.CardSurface
+private val CardBorder = GameSettingsStyle.CardBorder
+private val InputSurface = GameSettingsStyle.InputSurface
+private val InputBorder = GameSettingsStyle.InputBorder
+private val AccentBlue = GameSettingsStyle.AccentBlue
+private val TextPrimary = GameSettingsStyle.TextPrimary
+private val TextSecondary = GameSettingsStyle.TextSecondary
+private val TextDim = GameSettingsStyle.TextDim
+private val DividerColor = GameSettingsStyle.Divider
+private val NavHighlight = GameSettingsStyle.NavHighlight
+private val DangerRed = GameSettingsStyle.DangerRed
 
 private val LabelSize = 11.sp
 private val ValueSize = 12.sp
@@ -212,24 +217,39 @@ class RetroSettingsState(
     }
 }
 
+private enum class RetroSectionId {
+    GENERAL,
+    GRAPHICS,
+    PERFORMANCE,
+    HUD,
+    INPUT,
+    AUDIO,
+    ONLINE,
+    CHEATS,
+}
+
 private data class RetroSection(
+    val id: RetroSectionId,
     val icon: ImageVector,
     val labelRes: Int,
 )
 
 private fun buildRetroSections(state: RetroSettingsState): List<RetroSection> {
     val sections = mutableListOf<RetroSection>()
-    sections += RetroSection(Icons.Outlined.Tune, R.string.retro_gs_section_general)
-    sections += RetroSection(Icons.Outlined.Monitor, R.string.retro_gs_section_graphics)
+    val systemId = state.system?.id
+    sections += RetroSection(RetroSectionId.GENERAL, Icons.Outlined.Tune, R.string.retro_gs_section_general)
+    sections += RetroSection(RetroSectionId.GRAPHICS, Icons.Outlined.Monitor, R.string.retro_gs_section_graphics)
     if (state.system?.isExternal == true) {
-        sections += RetroSection(Icons.Outlined.Bolt, R.string.retro_gs_section_performance)
-        sections += RetroSection(Icons.Outlined.Speed, R.string.retro_gs_section_hud)
+        sections += RetroSection(RetroSectionId.PERFORMANCE, Icons.Outlined.Bolt, R.string.retro_gs_section_performance)
+        sections += RetroSection(RetroSectionId.HUD, Icons.Outlined.Speed, R.string.retro_gs_section_hud)
     }
-    sections += RetroSection(Icons.Outlined.SportsEsports, R.string.retro_gs_section_input)
-    sections += RetroSection(Icons.AutoMirrored.Outlined.VolumeUp, R.string.retro_gs_section_audio)
+    sections += RetroSection(RetroSectionId.INPUT, Icons.Outlined.SportsEsports, R.string.retro_gs_section_input)
+    sections += RetroSection(RetroSectionId.AUDIO, Icons.AutoMirrored.Outlined.VolumeUp, R.string.retro_gs_section_audio)
+    if (RetroOnlineSupport.supportsDev9(systemId) || RetroOnlineSupport.supportsNetplayCore(systemId)) {
+        sections += RetroSection(RetroSectionId.ONLINE, Icons.Outlined.Public, R.string.retro_gs_section_online)
+    }
     if (state.system?.isExternal == true) {
-        sections += RetroSection(Icons.Outlined.Public, R.string.retro_gs_section_online)
-        sections += RetroSection(Icons.Outlined.Code, R.string.retro_gs_group_cheats)
+        sections += RetroSection(RetroSectionId.CHEATS, Icons.Outlined.Code, R.string.retro_gs_group_cheats)
     }
     return sections
 }
@@ -330,6 +350,7 @@ private fun RetroSectionContent(
                 if (isCurrent) contentNav.reset()
             }
         }
+        val sections = remember(state) { buildRetroSections(state) }
         val sectionBody: @Composable () -> Unit = {
             Column(
                 modifier =
@@ -338,24 +359,22 @@ private fun RetroSectionContent(
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 20.dp, vertical = 14.dp),
             ) {
-                if (state.system?.isExternal == true) {
-                    when (idx) {
-                        0 -> RetroGeneralSection(state, onPickArtwork, onRemoveArtwork, onImportBios)
-                        1 -> RetroGraphicsSection(state)
-                        2 -> RetroPs2PerformanceSection()
-                        3 -> RetroPs2HudSection()
-                        4 -> RetroInputSection(state)
-                        5 -> RetroAudioSection(state)
-                        6 -> RetroPs2OnlineSection(state)
-                        else -> RetroPs2CheatsSection(state)
+                when (sections.getOrNull(idx)?.id) {
+                    RetroSectionId.GENERAL -> RetroGeneralSection(state, onPickArtwork, onRemoveArtwork, onImportBios)
+                    RetroSectionId.GRAPHICS -> RetroGraphicsSection(state)
+                    RetroSectionId.PERFORMANCE -> RetroPs2PerformanceSection()
+                    RetroSectionId.HUD -> RetroPs2HudSection()
+                    RetroSectionId.INPUT -> RetroInputSection(state)
+                    RetroSectionId.AUDIO -> RetroAudioSection(state)
+                    RetroSectionId.ONLINE -> {
+                        if (RetroOnlineSupport.supportsDev9(state.system?.id)) {
+                            RetroPs2OnlineSection(state)
+                        } else {
+                            RetroNetplaySection(state)
+                        }
                     }
-                } else {
-                    when (idx) {
-                        0 -> RetroGeneralSection(state, onPickArtwork, onRemoveArtwork, onImportBios)
-                        1 -> RetroGraphicsSection(state)
-                        2 -> RetroInputSection(state)
-                        else -> RetroAudioSection(state)
-                    }
+                    RetroSectionId.CHEATS -> RetroPs2CheatsSection(state)
+                    null -> Unit
                 }
                 Spacer(Modifier.height(12.dp))
             }
@@ -549,53 +568,21 @@ private fun RetroSidebarItem(
 
 @Composable
 internal fun RetroSettingGroup(content: @Composable () -> Unit) {
-    Column(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(GroupCorner))
-                .background(CardSurface)
-                .border(1.dp, CardBorder, RoundedCornerShape(GroupCorner))
-                .padding(GroupPadding),
-    ) {
-        content()
-    }
+    SharedSettingGroup(content)
 }
 
 @Composable
 internal fun RetroGroupTitle(text: String) {
-    Text(
-        text = text,
-        color = TextSecondary,
-        fontSize = LabelSize,
-        fontWeight = FontWeight.SemiBold,
-        letterSpacing = 0.4.sp,
-        modifier = Modifier.padding(bottom = ItemGap),
-    )
+    SharedGroupTitle(text)
 }
 
 @Composable
 internal fun RetroInfoRow(
     label: String,
     value: String,
+    singleLineValue: Boolean = false,
 ) {
-    Column(Modifier.fillMaxWidth().padding(bottom = ItemGap)) {
-        Text(
-            label,
-            color = TextSecondary,
-            fontSize = LabelSize,
-            fontWeight = FontWeight.Medium,
-            letterSpacing = 0.3.sp,
-            modifier = Modifier.padding(bottom = TightGap),
-        )
-        Text(
-            value.ifBlank { "-" },
-            color = TextPrimary,
-            fontSize = ValueSize,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
+    SharedInfoRow(label, value, singleLineValue = singleLineValue)
 }
 
 @Composable
@@ -714,44 +701,7 @@ internal fun RetroSettingSwitch(
     subtitle: String? = null,
     onCheckedChange: (Boolean) -> Unit,
 ) {
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(8.dp))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                ) { onCheckedChange(!checked) }
-                .paneNavItem(
-                    cornerRadius = 8.dp,
-                    onActivate = { onCheckedChange(!checked) },
-                    highlightColor = NavHighlight,
-                    tapToSelect = true,
-                )
-                .padding(vertical = TightGap),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                label,
-                color = TextPrimary,
-                fontSize = ValueSize,
-            )
-            if (subtitle != null) {
-                Text(
-                    subtitle,
-                    color = TextSecondary,
-                    fontSize = LabelSize,
-                )
-            }
-        }
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = outlinedSwitchColors(accentColor = AccentBlue, textSecondaryColor = TextSecondary),
-        )
-    }
+    SharedSettingSwitch(label, checked, subtitle, onCheckedChange)
 }
 
 @Composable
@@ -804,11 +754,22 @@ internal fun RetroSettingTextField(
                 .padding(vertical = TightGap),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, color = TextPrimary, fontSize = ValueSize, modifier = Modifier.weight(1f))
+        Text(
+            label,
+            color = TextPrimary,
+            fontSize = ValueSize,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.weight(0.4f),
+        )
         Text(
             value.ifBlank { placeholder },
             color = if (value.isBlank()) TextSecondary else AccentBlue,
             fontSize = ValueSize,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            textAlign = androidx.compose.ui.text.style.TextAlign.End,
+            modifier = Modifier.weight(0.6f),
         )
     }
 }
@@ -820,18 +781,26 @@ private fun RetroGeneralSection(
     onRemoveArtwork: ((LibraryShortcutArtwork.LibraryArtworkSlot) -> Unit)? = null,
     onImportBios: (() -> Unit)? = null,
 ) {
-    RetroSettingGroup {
-        RetroGroupTitle(stringResource(R.string.retro_gs_group_game))
-        RetroInfoRow(stringResource(R.string.retro_gs_label_name), state.name)
-        RetroInfoRow(stringResource(R.string.retro_gs_label_system), state.system?.displayName ?: "")
-        RetroInfoRow(stringResource(R.string.retro_gs_label_emulator_core), state.system?.coreFileName ?: "")
-        RetroInfoRow(stringResource(R.string.retro_gs_label_rom_path), state.romPath)
+    SharedSettingGroup {
+        SharedGroupTitle(stringResource(R.string.retro_gs_group_game))
+        SharedInfoRow(stringResource(R.string.retro_gs_label_name), state.name)
+        SharedInfoRow(stringResource(R.string.retro_gs_label_system), state.system?.displayName ?: "")
+        SharedInfoRow(
+            stringResource(R.string.retro_gs_label_emulator_core),
+            state.system?.coreFileName ?: "",
+            singleLineValue = true,
+        )
+        SharedInfoRow(
+            stringResource(R.string.retro_gs_label_rom_path),
+            state.romPath,
+            singleLineValue = true,
+        )
         if (state.system?.isExternal == true) {
             val context = androidx.compose.ui.platform.LocalContext.current
             val ps2Prefs = remember(context) { context.getSharedPreferences("ARMSX2", android.content.Context.MODE_PRIVATE) }
             var version by remember { androidx.compose.runtime.mutableIntStateOf(0) }
             @Suppress("UNUSED_EXPRESSION") version
-            RetroSettingSwitch(stringResource(R.string.retro_gs_fast_boot), ps2Prefs.getBoolean("wn.ps2.fastboot", true)) {
+            SharedSettingSwitch(stringResource(R.string.retro_gs_fast_boot), ps2Prefs.getBoolean("wn.ps2.fastboot", true)) {
                 ps2Prefs.edit().putBoolean("wn.ps2.fastboot", it).apply(); version++
             }
         }
@@ -1051,10 +1020,9 @@ private fun RetroGraphicsSection(state: RetroSettingsState) {
     }
 }
 
-// Curated Turnip (Mesa) TU_DEBUG flags that help with flickering / rendering
-// artifacts on PS2 games, mirroring the PC side's TU_DEBUG env var. flag -> hint.
 internal val PS2_TURNIP_FLAGS: List<Pair<String, String>> = listOf(
-    "sysmem" to "Force system-memory rendering (fixes tiling flicker)",
+    "sysmem" to "Force system-memory rendering",
+    "gmem" to "Force GMEM (tiled GPU memory) rendering",
     "flushall" to "Flush all caches every draw",
     "nolrz" to "Disable low-resolution Z (LRZ)",
     "nolrzfc" to "Disable LRZ fast-clear",
@@ -1306,25 +1274,95 @@ private fun RetroPs2PerformanceSection() {
 @Composable
 private fun RetroPs2HudSection() {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val prefs = remember(context) { context.getSharedPreferences("ARMSX2", android.content.Context.MODE_PRIVATE) }
     var version by remember { androidx.compose.runtime.mutableIntStateOf(0) }
 
     @Suppress("UNUSED_EXPRESSION") version
 
-    fun putBool(key: String, value: Boolean) { prefs.edit().putBoolean(key, value).apply(); version++ }
+    val hudOn = RetroHudSupport.resolvePs2HudEnabled(context)
+    val elements = remember(version) { RetroHudSupport.loadPs2Elements(context) }
 
     RetroSettingGroup {
         RetroGroupTitle(stringResource(R.string.retro_gs_group_performance_hud))
-        RetroSettingSwitch(stringResource(R.string.retro_gs_hud_fps), prefs.getBoolean("wn.osd.fps", false)) { putBool("wn.osd.fps", it) }
-        RetroSettingSwitch(stringResource(R.string.retro_gs_hud_emulation_speed), prefs.getBoolean("wn.osd.speed", false)) { putBool("wn.osd.speed", it) }
-        RetroSettingSwitch(stringResource(R.string.retro_gs_hud_internal_resolution), prefs.getBoolean("wn.osd.res", false)) { putBool("wn.osd.res", it) }
-        RetroSettingSwitch(stringResource(R.string.retro_gs_hud_cpu_usage), prefs.getBoolean("wn.osd.cpu", false)) { putBool("wn.osd.cpu", it) }
-        RetroSettingSwitch(stringResource(R.string.retro_gs_hud_gpu_usage), prefs.getBoolean("wn.osd.gpu", false)) { putBool("wn.osd.gpu", it) }
-        RetroSettingSwitch(stringResource(R.string.retro_gs_hud_frame_times), prefs.getBoolean("wn.osd.frametimes", false)) { putBool("wn.osd.frametimes", it) }
-        RetroSettingSwitch(stringResource(R.string.retro_gs_hud_gs_stats), prefs.getBoolean("wn.osd.gsstats", false)) { putBool("wn.osd.gsstats", it) }
-        RetroSettingSwitch(stringResource(R.string.retro_gs_hud_input_display), prefs.getBoolean("wn.osd.inputs", false)) { putBool("wn.osd.inputs", it) }
-        RetroSettingSwitch(stringResource(R.string.retro_gs_hud_hw_info), prefs.getBoolean("wn.osd.hwinfo", false)) { putBool("wn.osd.hwinfo", it) }
-        RetroSettingSwitch(stringResource(R.string.retro_gs_hud_version), prefs.getBoolean("wn.osd.version", false)) { putBool("wn.osd.version", it) }
+        RetroSettingSwitch(stringResource(R.string.retro_lr_performance_hud), hudOn) {
+            RetroHudSupport.setPs2HudEnabled(context, it)
+            version++
+        }
+        if (hudOn) {
+            RetroHudSupport.ELEMENT_ORDER.forEach { index ->
+                RetroSettingSwitch(
+                    stringResource(RetroHudSupport.ELEMENT_LABEL_RES[index]),
+                    elements[index],
+                ) { on ->
+                    val next = elements.copyOf()
+                    next[index] = on
+                    RetroHudSupport.savePs2Elements(context, next)
+                    version++
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RetroNetplaySection(state: RetroSettingsState) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val systemId = state.system?.id ?: return
+    var version by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    @Suppress("UNUSED_EXPRESSION") version
+    val enabled = RetroDefaults.netplayEnabled(context, systemId)
+    val host = RetroDefaults.netplayHost(context, systemId)
+    val port = RetroDefaults.netplayPort(context, systemId)
+    val frontendReady = RetroOnlineSupport.netplayFrontendReady()
+
+    RetroSettingGroup {
+        RetroGroupTitle(stringResource(R.string.retro_gs_section_online))
+        if (!frontendReady) {
+            Text(
+                stringResource(R.string.retro_gs_netplay_not_ready),
+                color = TextSecondary,
+                fontSize = ValueSize,
+                modifier = Modifier.padding(vertical = TightGap),
+            )
+        }
+        RetroSettingSwitch(
+            stringResource(R.string.retro_gs_netplay_enable),
+            enabled,
+            subtitle = stringResource(R.string.retro_gs_netplay_enable_subtitle),
+        ) {
+            RetroDefaults.setNetplayEnabled(context, systemId, it)
+            version++
+        }
+        if (enabled) {
+            val hostMode = RetroDefaults.netplayHostMode(context, systemId)
+            RetroSettingSwitch(
+                stringResource(R.string.retro_gs_netplay_host_mode),
+                hostMode,
+                subtitle = stringResource(R.string.retro_gs_netplay_host_mode_subtitle),
+            ) {
+                RetroDefaults.setNetplayHostMode(context, systemId, it)
+                version++
+            }
+            if (!hostMode) {
+                RetroSettingTextField(
+                    stringResource(R.string.retro_gs_netplay_host),
+                    host,
+                    stringResource(R.string.retro_gs_netplay_host_hint),
+                ) {
+                    RetroDefaults.setNetplayHost(context, systemId, it)
+                    version++
+                }
+            }
+            RetroSettingTextField(
+                stringResource(R.string.retro_gs_netplay_port),
+                port.toString(),
+                "55435",
+            ) {
+                it.toIntOrNull()?.let { p ->
+                    RetroDefaults.setNetplayPort(context, systemId, p)
+                    version++
+                }
+            }
+        }
     }
 }
 
@@ -1341,7 +1379,7 @@ private fun RetroPs2OnlineSection(state: RetroSettingsState) {
 
     RetroSettingGroup {
         RetroGroupTitle(stringResource(R.string.retro_gs_group_online_dev9))
-        val onlineEnabled = prefs.getBoolean("wn.ps2.net.enable", false)
+        val onlineEnabled = prefs.getBoolean("wn.ps2.net.enable", true)
         RetroSettingSwitch(stringResource(R.string.retro_gs_enable_online), onlineEnabled) { putBool("wn.ps2.net.enable", it) }
         // Per-game HDD image. Import a downloaded .raw / .zip (e.g. SOCOM II's
         // pre-made HDD with its maps/DLC) right here — no need to go to the Retro
@@ -1458,36 +1496,37 @@ private fun RetroPs2CheatsSection(state: RetroSettingsState) {
     var dnasGlobalOn by remember { mutableStateOf(true) }
     var dnasDisabled by remember { mutableStateOf<Set<String>>(emptySet()) }
 
-    // Re-read repo + staging whenever an import bumps cheatsRefresh.
     LaunchedEffect(serial, state.cheatsRefresh) {
-        loading = true
-        val repo = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            runCatching { com.armsx2.PatchRepo.fetchForSerial(serial) }.getOrNull()
-        }
         val stagedC = Ps2CheatStaging.read(context, serial, false)
         val stagedP = Ps2CheatStaging.read(context, serial, true)
-        val repoCheats = repo?.entries?.filter { it.source != "patches" }.orEmpty()
-        val repoPatches = repo?.entries?.filter { it.source == "patches" }.orEmpty()
-        repoCheatNames = repoCheats.map { it.name }.toSet()
-        repoPatchNames = repoPatches.map { it.name }.toSet()
-        cheats = repoCheats + stagedC.filter { s -> repoCheats.none { it.name == s.name } }
-        patches = repoPatches + stagedP.filter { s -> repoPatches.none { it.name == s.name } }
+        cheats = stagedC
+        patches = stagedP
         selCheats = stagedC.map { it.name }.toSet()
         selPatches = stagedP.map { it.name }.toSet()
         dnasEntries = Ps2DnasBypass.bypassEntries(context, serial).filter { it.auto }
         dnasGlobalOn = context.getSharedPreferences("ARMSX2", android.content.Context.MODE_PRIVATE).getBoolean(Ps2DnasBypass.PREF, true)
-        dnasDisabled = Ps2DnasBypass.disabledNames(context, serial)
+        dnasDisabled = Ps2DnasBypass.ensureSingleDnasEnabled(context, serial, dnasEntries.map { it.name }.toSet())
         loading = false
+        val repo = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { com.armsx2.PatchRepo.fetchForSerial(serial) }.getOrNull()
+        }
+        if (repo != null) {
+            val repoCheats = repo.entries.filter { it.source != "patches" }
+            val repoPatches = repo.entries.filter { it.source == "patches" }
+            repoCheatNames = repoCheats.map { it.name }.toSet()
+            repoPatchNames = repoPatches.map { it.name }.toSet()
+            cheats = repoCheats + stagedC.filter { s -> repoCheats.none { it.name == s.name } }
+            patches = repoPatches + stagedP.filter { s -> repoPatches.none { it.name == s.name } }
+        }
     }
 
-    // Toggle a bundled DNAS-bypass variant. Turning one on when the master switch is
-    // off flips the master on too (mirrors the Online section's DNAS toggle).
     fun toggleDnas(name: String, currentlyOn: Boolean) {
         if (currentlyOn) {
             dnasDisabled = dnasDisabled + name
         } else {
             if (!dnasGlobalOn) { Ps2DnasBypass.setEnabled(context, true); dnasGlobalOn = true }
-            dnasDisabled = dnasDisabled - name
+            val all = dnasEntries.map { it.name }.toSet()
+            dnasDisabled = all - name
         }
         Ps2DnasBypass.setDisabledNames(context, serial, dnasDisabled)
     }

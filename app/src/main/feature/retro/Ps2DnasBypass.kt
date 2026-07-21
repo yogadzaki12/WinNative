@@ -102,6 +102,17 @@ object Ps2DnasBypass {
             .putString(disabledKey(serial), arr.toString()).apply()
     }
 
+    fun ensureSingleDnasEnabled(ctx: Context, serial: String, allNames: Set<String>): Set<String> {
+        if (allNames.isEmpty()) return emptySet()
+        val disabled = disabledNames(ctx, serial).toMutableSet()
+        val enabled = allNames.filter { it !in disabled }
+        if (enabled.size <= 1) return disabled
+        val keep = enabled.first()
+        val next = allNames - keep
+        setDisabledNames(ctx, serial, next)
+        return next
+    }
+
     /** The bundled DNAS-bypass sections for [serial], with the same unique labels
      *  [apply] uses — so the pre-game Cheats view can show exactly what will be
      *  written/enabled at boot. Empty if the game has no bundled bypass. */
@@ -167,12 +178,14 @@ object Ps2DnasBypass {
                 append("[").append(nm).append("]\n")
                 lines.forEach { append(it).append('\n') }
             }
-            // CRC-safe: auto AND (untagged OR CRC matches) AND not user-disabled.
-            val on = globalOn && v.auto && nm !in disabled &&
-                (v.crc == null || v.crc.equals(crc, ignoreCase = true))
+            val crcOk = v.crc == null || v.crc.equals(crc, ignoreCase = true)
+            val on = globalOn && v.auto && nm !in disabled && crcOk
             out.add(Section(nm, body, on))
         }
-        return out
+        val enabled = out.filter { it.enabledByDefault }
+        if (enabled.size <= 1) return out
+        val keep = enabled.first().name
+        return out.map { if (it.enabledByDefault && it.name != keep) it.copy(enabledByDefault = false) else it }
     }
 
     /**

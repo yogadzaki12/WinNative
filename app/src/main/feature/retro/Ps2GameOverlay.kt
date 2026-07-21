@@ -1,89 +1,44 @@
 package com.winlator.cmod.feature.retro
 
 import android.view.KeyEvent
+import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.VolumeUp
-import androidx.compose.material.icons.outlined.Apps
-import androidx.compose.material.icons.outlined.Bolt
-import androidx.compose.material.icons.outlined.Monitor
-import androidx.compose.material.icons.outlined.Public
-import androidx.compose.material.icons.outlined.Speed
-import androidx.compose.material.icons.outlined.SportsEsports
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
 import com.armsx2.WinNativeHost
 import com.winlator.cmod.R
 import com.armsx2.runtime.MainActivityRuntime
 import com.armsx2.ui.WindowImpl
+import com.winlator.cmod.runtime.display.ui.FrameRating
 import com.winlator.cmod.shared.theme.WinNativeTheme
 import kr.co.iefriends.pcsx2.NativeApp
-
-@Composable
-private fun Ps2NetEditDialog(state: MutableState<Ps2NetEdit?>) {
-    val edit = state.value ?: return
-    var draft by remember(edit) { mutableStateOf(edit.value) }
-    AlertDialog(
-        onDismissRequest = { state.value = null },
-        title = { Text(edit.title) },
-        text = {
-            OutlinedTextField(
-                value = draft,
-                onValueChange = { draft = it },
-                singleLine = true,
-                placeholder = { Text(edit.placeholder) },
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                edit.onSave(draft)
-                state.value = null
-            }) { Text(stringResource(R.string.retro_ps2_save)) }
-        },
-        dismissButton = {
-            TextButton(onClick = { state.value = null }) { Text(stringResource(R.string.retro_ps2_cancel)) }
-        },
-    )
-}
 
 const val PS2_DEFAULT_DNS = "45.7.228.197"
 
 data class Ps2NetHost(val url: String, val ip: String)
 
-class Ps2NetEdit(
-    val title: String,
-    val value: String,
-    val placeholder: String,
-    val onSave: (String) -> Unit,
-)
-
-/**
- * Attaches WinNative's standard retro in-game UI — the 3D on-screen pad
- * (RetroInputView) and the retro drawer menu (RetroDrawerMenu) — over the
- * embedded ARMSX2 PS2 activity, wiring every action to ARMSX2's native
- * emulator functions so PS2 behaves exactly like the other retro consoles.
- */
 object Ps2GameOverlay {
     private const val FULL = 32767
 
+    @Volatile
+    private var overlayAttached = false
+
     fun install() {
-        WinNativeHost.attachOverlay = { activity -> attach(activity) }
+        overlayAttached = false
+        WinNativeHost.attachOverlay = attach@{ activity ->
+            // Idempotent — MainActivityRuntime re-posts attach during boot.
+            if (overlayAttached) return@attach
+            overlayAttached = true
+            attach(activity)
+        }
         WinNativeHost.applyBootSettings = { ctx -> applyBootConfig(ctx) }
     }
 
@@ -162,7 +117,7 @@ object Ps2GameOverlay {
     /** Write the full DEV9 config (Ethernet NIC + virtual HDD) into EmuConfig. */
     private fun writeDev9Settings(ctx: android.content.Context) {
         val prefs = ps2Prefs(ctx)
-        val on = prefs.getBoolean("wn.ps2.net.enable", false)
+        val on = prefs.getBoolean("wn.ps2.net.enable", true)
         NativeApp.setSetting("DEV9/Eth", "EthEnable", "bool", on.toString())
         NativeApp.setSetting("DEV9/Eth", "EthApi", "string", "Sockets")
         NativeApp.setSetting("DEV9/Eth", "EthDevice", "string", (prefs.getString("wn.ps2.net.ethdevice", "Auto") ?: "Auto").ifBlank { "Auto" })
@@ -215,7 +170,53 @@ object Ps2GameOverlay {
             ensureHddImage(ctx)
             writeDev9Settings(ctx)
             writePatchSettings(ctx)
-            NativeApp.commitSettings()
+            RetroHudSupport.suppressNativePs2Osd()
+            // Apply display aspect before the first frame so the image is never
+            // briefly stretched edge-to-edge under the on-screen pad chrome.
+            applyDisplayAspect(ctx, live = false)
+        }
+    }
+
+    /**
+     * Force the GS present aspect for WinNative sessions.
+     *
+     * Stretch fills the window. Auto uses 3:2 on progressive BIOS frames (nearly
+     * full-bleed on phones) then snaps to 4:3. Pin 4:3 (or explicit 16:9).
+     *
+     * [live] must NEVER call [NativeApp.commitSettings] / applyGSSettingsLive —
+     * those take ScopedVMPause on a running VM and can freeze the UI for seconds
+     * (menu dead, game frozen) before the aspect finally sticks.
+     */
+    private fun applyDisplayAspect(
+        ctx: android.content.Context,
+        live: Boolean,
+    ) {
+        val prefs = ps2Prefs(ctx)
+        val aspect = resolveBootAspect(prefs)
+        val name =
+            when (aspect) {
+                3 -> "16:9"
+                else -> "4:3"
+            }
+        runCatching {
+            // setAspectRatio updates EmuConfig.CurrentAspectRatio which the present
+            // path reads every frame — no pause required.
+            NativeApp.setSetting("EmuCore/GS", "AspectRatio", "string", name)
+            NativeApp.setAspectRatio(aspect)
+            if (!live) {
+                // Pre-VM only: flush base INI so Initialize/LoadSettings sees 4:3.
+                NativeApp.commitSettings()
+            }
+        }
+    }
+
+    /** 0 Stretch · 1 Auto · 2 4:3 · 3 16:9 — map Stretch/Auto → 4:3 for stable boot. */
+    private fun resolveBootAspect(prefs: android.content.SharedPreferences): Int {
+        val aspect = prefs.getInt("wn.ps2.aspect", 1).coerceIn(0, 3)
+        return when (aspect) {
+            3 -> 3
+            2 -> 2
+            else -> 2
         }
     }
 
@@ -277,14 +278,36 @@ object Ps2GameOverlay {
         val inputManager = activity.getSystemService(android.hardware.input.InputManager::class.java)
         inputManager?.registerInputDeviceListener(
             object : android.hardware.input.InputManager.InputDeviceListener {
-                override fun onInputDeviceAdded(deviceId: Int) { controllerConnected.value = anyGameController() }
-                override fun onInputDeviceRemoved(deviceId: Int) { controllerConnected.value = anyGameController() }
-                override fun onInputDeviceChanged(deviceId: Int) { controllerConnected.value = anyGameController() }
+                private fun refreshPadPresence() {
+                    controllerConnected.value = anyGameController()
+                    val showPad = touchVisible.value && !controllerConnected.value
+                    RetroAchievementOverlayState.syncPlacement(showPad, controllerConnected.value)
+                    Thread {
+                        runCatching { RetroPs2OsdPlacement.apply(showPad, controllerConnected.value) }
+                    }.start()
+                }
+
+                override fun onInputDeviceAdded(deviceId: Int) = refreshPadPresence()
+
+                override fun onInputDeviceRemoved(deviceId: Int) = refreshPadPresence()
+
+                override fun onInputDeviceChanged(deviceId: Int) = refreshPadPresence()
             },
             null,
         )
         var customColors = RetroControlLayouts.loadColors(activity, RetroSystems.PS2.id)
         var wnPaused = false
+        val prefs = activity.getSharedPreferences("ARMSX2", android.content.Context.MODE_PRIVATE)
+        var frameRating: FrameRating? = null
+        var hudVisible = RetroHudSupport.resolvePs2HudEnabled(activity)
+        var hudStyle = RetroHudSupport.loadPs2HudStyle(activity)
+        var hudElements = RetroHudSupport.loadPs2Elements(activity)
+        val menuToggleGate = RetroHudSupport.MenuToggleGate()
+        val frameSource =
+            RetroHudSupport.Ps2FrameSource(
+                ratingProvider = { frameRating },
+                enabledProvider = { hudVisible },
+            )
 
         fun persistColors() {
             RetroControlLayouts.saveColors(activity, RetroSystems.PS2.id, customColors)
@@ -292,7 +315,41 @@ object Ps2GameOverlay {
             menu.rebuild()
         }
 
-        val prefs = activity.getSharedPreferences("ARMSX2", android.content.Context.MODE_PRIVATE)
+        fun applyHudToRating() {
+            val rating = frameRating ?: return
+            RetroHudSupport.applyStyle(rating, hudStyle, hudElements)
+        }
+
+        fun showHud() {
+            var rating = frameRating
+            if (rating == null) {
+                val root = activity.findViewById<ViewGroup>(android.R.id.content) ?: return
+                val renderer =
+                    when (prefs.getString("wn.ps2.renderer", "vulkan")) {
+                        "opengl" -> "OpenGL"
+                        "software" -> "Software"
+                        else -> "Vulkan"
+                    }
+                rating = RetroHudSupport.createFrameRating(activity, renderer)
+                frameRating = rating
+                RetroHudSupport.attachFrameRating(root, rating)
+                applyHudToRating()
+            }
+            rating.visibility = View.VISIBLE
+            rating.reset()
+            frameSource.start()
+        }
+
+        fun hideHud() {
+            frameRating?.visibility = View.GONE
+        }
+
+        fun setHudVisible(value: Boolean) {
+            hudVisible = value
+            RetroHudSupport.setPs2HudEnabled(activity, value)
+            if (value) showHud() else hideHud()
+            menu.rebuild()
+        }
 
         fun gsSet(key: String, type: String, value: String) {
             runCatching {
@@ -322,24 +379,9 @@ object Ps2GameOverlay {
             }
         }
 
-        val netEdit = mutableStateOf<Ps2NetEdit?>(null)
-
-        fun readHosts(): List<Ps2NetHost> = readHosts(prefs)
-
-        fun writeHosts(hosts: List<Ps2NetHost>) {
-            val arr = org.json.JSONArray()
-            hosts.forEach { arr.put(org.json.JSONObject().put("url", it.url).put("ip", it.ip)) }
-            prefs.edit().putString("wn.ps2.net.hosts", arr.toString()).apply()
-        }
-
         fun ensureHddImage() = ensureHddImage(activity)
 
         fun writeNetworkSettings() = writeDev9Settings(activity)
-
-        fun applyNetwork() = bg {
-            writeNetworkSettings()
-            NativeApp.commitSettings()
-        }
 
         // Auto-apply the per-game DNAS bypass once the disc serial/CRC are known,
         // so online-revival games get past Sony's dead DNAS check by default.
@@ -364,8 +406,10 @@ object Ps2GameOverlay {
                 else -> NativeApp.renderVulkan()
             }
             NativeApp.renderUpscalemultiplier(prefs.getFloat("wn.ps2.upscale", 1f))
-            NativeApp.osdShowFPS(prefs.getBoolean("wn.osd.fps", false))
-            NativeApp.setAspectRatio(prefs.getInt("wn.ps2.aspect", 1).coerceIn(0, 3))
+            RetroHudSupport.suppressNativePs2Osd()
+            val touchOn = prefs.getBoolean("wn.ps2.touchcontrols", RetroDefaults.touchControls(activity, RetroSystems.PS2.id))
+            RetroPs2OsdPlacement.apply(touchOn, false)
+            applyDisplayAspect(activity, live = true)
             NativeApp.setFrameSkip(prefs.getInt("wn.ps2.frameskip", 0).coerceIn(0, 3))
             NativeApp.speedhackEecyclerate(prefs.getInt("wn.ps2.eeRate", 0).coerceIn(-3, 3))
             NativeApp.speedhackEecycleskip(prefs.getInt("wn.ps2.eeSkip", 0).coerceIn(0, 3))
@@ -386,15 +430,6 @@ object Ps2GameOverlay {
             NativeApp.setSetting("SPU2/Output", "SyncMode", "string", if (prefs.getBoolean("wn.ps2.timestretch", true)) "TimeStretch" else "Disabled")
             NativeApp.setSetting("SPU2/Output", "BufferMS", "int", prefs.getInt("wn.ps2.audiobuffer", 50).coerceIn(10, 200).toString())
             NativeApp.setSetting("SPU2/Output", "OutputLatencyMS", "int", prefs.getInt("wn.ps2.audiolatency", 20).coerceIn(5, 200).toString())
-            NativeApp.osdShowSpeed(prefs.getBoolean("wn.osd.speed", false))
-            NativeApp.osdShowCPU(prefs.getBoolean("wn.osd.cpu", false))
-            NativeApp.osdShowGPU(prefs.getBoolean("wn.osd.gpu", false))
-            NativeApp.osdShowResolution(prefs.getBoolean("wn.osd.res", false))
-            NativeApp.osdShowFrameTimes(prefs.getBoolean("wn.osd.frametimes", false))
-            NativeApp.osdShowGSStats(prefs.getBoolean("wn.osd.gsstats", false))
-            NativeApp.osdShowHardwareInfo(prefs.getBoolean("wn.osd.hwinfo", false))
-            NativeApp.osdShowVersion(prefs.getBoolean("wn.osd.version", false))
-            NativeApp.osdShowInputs(prefs.getBoolean("wn.osd.inputs", false))
             prefs.getString("wn.ps2.mc.slot1", null)?.takeIf { it.isNotBlank() }?.let { name ->
                 NativeApp.setSetting("MemoryCards", "Slot1_Filename", "string", name)
                 NativeApp.setSetting("MemoryCards", "Slot1_Enable", "bool", "true")
@@ -405,13 +440,13 @@ object Ps2GameOverlay {
             }
             ensureHddImage()
             writeNetworkSettings()
-            NativeApp.commitSettings()
-        }
-        fun osd(key: String) = prefs.getBoolean("wn.osd.$key", false)
-        fun setOsd(key: String, value: Boolean, apply: (Boolean) -> Unit) {
-            prefs.edit().putBoolean("wn.osd.$key", value).apply()
-            bg { apply(value) }
-            menu.rebuild()
+            // NEVER commitSettings() here while the VM may already be running —
+            // ScopedVMPause parks the EE on this thread and freezes the game + host
+            // menu for seconds (the "can't open retro menu at boot" symptom). Boot
+            // already committed via applyRendererPrefs; live GS options use the
+            // lighter applyGSSettingsLive path, and aspect is setAspectRatio-only.
+            runCatching { NativeApp.applyGSSettingsLive() }
+            applyDisplayAspect(activity, live = true)
         }
 
         fun openWinNativeScreen(screen: String) {
@@ -562,126 +597,6 @@ object Ps2GameOverlay {
                 add(RetroMenuEntry.Action(activity.getString(R.string.retro_ps2_import_card), RetroDrawerIcons.Load) { launchMemcardImport?.invoke() })
             }
 
-        fun networkEntries(): List<RetroMenuEntry> =
-            buildList {
-                val enabled = prefs.getBoolean("wn.ps2.net.enable", false)
-                add(
-                    RetroMenuEntry.Toggle(
-                        activity.getString(R.string.retro_ps2_enable_online_dev9),
-                        subtitle = activity.getString(R.string.retro_ps2_enable_online_subtitle),
-                        checked = enabled,
-                    ) { value ->
-                        prefs.edit().putBoolean("wn.ps2.net.enable", value).apply()
-                        bg {
-                            writeNetworkSettings()
-                            NativeApp.commitSettings()
-                            activity.runOnUiThread {
-                                menu.close()
-                                MainActivityRuntime.restart()
-                            }
-                        }
-                    },
-                )
-                // The virtual PS2 HDD is a per-game, boot-time device — it's configured
-                // in each game's Shortcut Settings (Online → HDD Image / PS2 HDD), NOT
-                // here, so toggling it globally mid-session can't leak across games.
-                if (!enabled) return@buildList
-                val devices = listOf("Auto", "Wi-Fi")
-                add(
-                    RetroMenuEntry.Choice(
-                        activity.getString(R.string.retro_ps2_ethernet_device),
-                        devices,
-                        devices.indexOf(prefs.getString("wn.ps2.net.ethdevice", "Auto")).coerceAtLeast(0),
-                    ) { next ->
-                        prefs.edit().putString("wn.ps2.net.ethdevice", devices[next]).apply()
-                        applyNetwork()
-                        menu.rebuild()
-                    },
-                )
-                val dnsModes = listOf("Manual", "Auto", "Internal")
-                add(
-                    RetroMenuEntry.Choice(
-                        activity.getString(R.string.retro_ps2_dns_mode),
-                        dnsModes,
-                        dnsModes.indexOf(prefs.getString("wn.ps2.net.dnsmode", "Manual")).coerceAtLeast(0),
-                    ) { next ->
-                        prefs.edit().putString("wn.ps2.net.dnsmode", dnsModes[next]).apply()
-                        applyNetwork()
-                        menu.rebuild()
-                    },
-                )
-                add(
-                    RetroMenuEntry.TextInput(activity.getString(R.string.retro_ps2_primary_dns), prefs.getString("wn.ps2.net.dns1", PS2_DEFAULT_DNS).orEmpty(), PS2_DEFAULT_DNS) {
-                        netEdit.value = Ps2NetEdit(activity.getString(R.string.retro_ps2_primary_dns), prefs.getString("wn.ps2.net.dns1", PS2_DEFAULT_DNS).orEmpty(), PS2_DEFAULT_DNS) { v ->
-                            prefs.edit().putString("wn.ps2.net.dns1", v.trim()).apply()
-                            applyNetwork()
-                            menu.rebuild()
-                        }
-                    },
-                )
-                add(
-                    RetroMenuEntry.TextInput(activity.getString(R.string.retro_ps2_secondary_dns), prefs.getString("wn.ps2.net.dns2", "").orEmpty(), activity.getString(R.string.retro_ps2_optional)) {
-                        netEdit.value = Ps2NetEdit(activity.getString(R.string.retro_ps2_secondary_dns), prefs.getString("wn.ps2.net.dns2", "").orEmpty(), "0.0.0.0") { v ->
-                            prefs.edit().putString("wn.ps2.net.dns2", v.trim()).apply()
-                            applyNetwork()
-                            menu.rebuild()
-                        }
-                    },
-                )
-                add(
-                    RetroMenuEntry.Toggle(
-                        activity.getString(R.string.retro_ps2_dnas_bypass),
-                        subtitle = activity.getString(R.string.retro_ps2_dnas_bypass_subtitle),
-                        checked = prefs.getBoolean(Ps2DnasBypass.PREF, true),
-                    ) { value ->
-                        prefs.edit().putBoolean(Ps2DnasBypass.PREF, value).apply()
-                        kotlin.concurrent.thread(name = "ps2-dnas-bypass") { Ps2DnasBypass.applyWhenReady(activity) }
-                        menu.rebuild()
-                    },
-                )
-                add(
-                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_auto_ip_dhcp), checked = prefs.getBoolean("wn.ps2.net.dhcp", true)) { value ->
-                        prefs.edit().putBoolean("wn.ps2.net.dhcp", value).apply()
-                        applyNetwork()
-                        menu.rebuild()
-                    },
-                )
-                val hosts = readHosts()
-                hosts.forEachIndexed { i, host ->
-                    add(
-                        RetroMenuEntry.TextInput(activity.getString(R.string.retro_ps2_server_host, host.url), host.ip, activity.getString(R.string.retro_ps2_tap_to_set_ip)) {
-                            netEdit.value = Ps2NetEdit(activity.getString(R.string.retro_ps2_host_to_ip, host.url), host.ip, "0.0.0.0") { v ->
-                                val list = readHosts().toMutableList()
-                                if (i < list.size) {
-                                    if (v.isBlank()) list.removeAt(i) else list[i] = list[i].copy(ip = v.trim())
-                                    writeHosts(list)
-                                    applyNetwork()
-                                    menu.rebuild()
-                                }
-                            }
-                        },
-                    )
-                }
-                add(
-                    RetroMenuEntry.Action(activity.getString(R.string.retro_ps2_add_server_host), RetroDrawerIcons.Add) {
-                        netEdit.value = Ps2NetEdit(activity.getString(R.string.retro_ps2_new_server_hostname), "", activity.getString(R.string.retro_ps2_server_hostname_hint)) { v ->
-                            if (v.isNotBlank()) {
-                                writeHosts(readHosts() + Ps2NetHost(v.trim(), "0.0.0.0"))
-                                // Host overrides only resolve via the Internal DNS server —
-                                // flip the mode so the new host actually takes effect, and
-                                // tell the user why their choice changed.
-                                if ((prefs.getString("wn.ps2.net.dnsmode", "Manual") ?: "Manual") != "Internal") {
-                                    prefs.edit().putString("wn.ps2.net.dnsmode", "Internal").apply()
-                                    Toast.makeText(activity, activity.getString(R.string.retro_ps2_dns_auto_internal), Toast.LENGTH_LONG).show()
-                                }
-                                applyNetwork()
-                                menu.rebuild()
-                            }
-                        }
-                    },
-                )
-            }
-
         fun controlsEntries(): List<RetroMenuEntry> =
             buildList {
                 add(
@@ -691,6 +606,11 @@ object Ps2GameOverlay {
                         // Settings reads/writes — single source of truth.
                         ps2Prefs(activity).edit().putBoolean("wn.ps2.touchcontrols", value).apply()
                         RetroDefaults.setTouchControls(activity, RetroSystems.PS2.id, value)
+                        val showPad = value && !controllerConnected.value
+                        RetroAchievementOverlayState.syncPlacement(showPad, controllerConnected.value)
+                        bg {
+                            RetroPs2OsdPlacement.apply(showPad, controllerConnected.value)
+                        }
                         menu.rebuild()
                     },
                 )
@@ -776,29 +696,6 @@ object Ps2GameOverlay {
 
         fun displayEntries(): List<RetroMenuEntry> =
             buildList {
-                val rendererKeys = listOf("vulkan", "opengl", "software")
-                val rendererLabels = listOf(
-                    activity.getString(R.string.retro_ps2_renderer_vulkan),
-                    activity.getString(R.string.retro_ps2_renderer_opengl),
-                    activity.getString(R.string.retro_ps2_renderer_software),
-                )
-                add(
-                    RetroMenuEntry.Choice(
-                        activity.getString(R.string.retro_ps2_renderer),
-                        rendererLabels,
-                        rendererKeys.indexOf(prefs.getString("wn.ps2.renderer", "vulkan")).coerceAtLeast(0),
-                    ) { next ->
-                        prefs.edit().putString("wn.ps2.renderer", rendererKeys[next]).apply()
-                        bg {
-                            when (rendererKeys[next]) {
-                                "opengl" -> NativeApp.renderOpenGL()
-                                "software" -> NativeApp.renderSoftware()
-                                else -> NativeApp.renderVulkan()
-                            }
-                        }
-                        menu.rebuild()
-                    },
-                )
                 val scales = listOf(1f, 1.5f, 2f, 3f, 4f)
                 val scaleLabels = listOf(
                     activity.getString(R.string.retro_ps2_scale_1x_native),
@@ -1023,30 +920,6 @@ object Ps2GameOverlay {
                         menu.rebuild()
                     },
                 )
-                val bufferValues = listOf(40, 50, 60, 80, 100, 120, 160, 200)
-                add(
-                    RetroMenuEntry.Choice(
-                        activity.getString(R.string.retro_ps2_audio_buffer),
-                        bufferValues.map { activity.getString(R.string.retro_ps2_ms, it) },
-                        bufferValues.indexOf(prefs.getInt("wn.ps2.audiobuffer", 50)).coerceAtLeast(0),
-                    ) { next ->
-                        prefs.edit().putInt("wn.ps2.audiobuffer", bufferValues[next]).apply()
-                        spu2Set("BufferMS", "int", bufferValues[next].toString())
-                        menu.rebuild()
-                    },
-                )
-                val latencyValues = listOf(10, 15, 20, 30, 40, 60, 80, 100)
-                add(
-                    RetroMenuEntry.Choice(
-                        activity.getString(R.string.retro_ps2_audio_latency),
-                        latencyValues.map { activity.getString(R.string.retro_ps2_ms, it) },
-                        latencyValues.indexOf(prefs.getInt("wn.ps2.audiolatency", 20)).coerceAtLeast(0),
-                    ) { next ->
-                        prefs.edit().putInt("wn.ps2.audiolatency", latencyValues[next]).apply()
-                        spu2Set("OutputLatencyMS", "int", latencyValues[next].toString())
-                        menu.rebuild()
-                    },
-                )
                 add(
                     RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_swap_stereo_channels), checked = swap) { value ->
                         prefs.edit().putBoolean("wn.ps2.swap", value).apply()
@@ -1092,13 +965,6 @@ object Ps2GameOverlay {
                     },
                 )
                 add(
-                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_mtvu), checked = prefs.getBoolean("wn.ps2.mtvu", true)) { value ->
-                        prefs.edit().putBoolean("wn.ps2.mtvu", value).apply()
-                        spSet("vuThread", "bool", value.toString())
-                        menu.rebuild()
-                    },
-                )
-                add(
                     RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_instant_vu1), checked = prefs.getBoolean("wn.ps2.instantVu1", true)) { value ->
                         prefs.edit().putBoolean("wn.ps2.instantVu1", value).apply()
                         bg { NativeApp.setInstantVU1(value) }
@@ -1136,33 +1002,26 @@ object Ps2GameOverlay {
             }
 
         fun hudEntries(): List<RetroMenuEntry> =
-            buildList {
-                add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_fps), checked = osd("fps")) { v -> setOsd("fps", v) { NativeApp.osdShowFPS(it) } })
-                add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_emulation_speed), checked = osd("speed")) { v -> setOsd("speed", v) { NativeApp.osdShowSpeed(it) } })
-                add(
-                    RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_internal_resolution), checked = osd("res")) { v ->
-                        setOsd("res", v) { NativeApp.osdShowResolution(it) }
-                    },
-                )
-                add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_cpu_usage), checked = osd("cpu")) { v -> setOsd("cpu", v) { NativeApp.osdShowCPU(it) } })
-                add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_gpu_usage), checked = osd("gpu")) { v -> setOsd("gpu", v) { NativeApp.osdShowGPU(it) } })
-                add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_frame_times), checked = osd("frametimes")) { v -> setOsd("frametimes", v) { NativeApp.osdShowFrameTimes(it) } })
-                add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_gs_stats), checked = osd("gsstats")) { v -> setOsd("gsstats", v) { NativeApp.osdShowGSStats(it) } })
-                add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_input_display), checked = osd("inputs")) { v -> setOsd("inputs", v) { NativeApp.osdShowInputs(it) } })
-                add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_hw_info), checked = osd("hwinfo")) { v -> setOsd("hwinfo", v) { NativeApp.osdShowHardwareInfo(it) } })
-                add(RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_hud_version), checked = osd("version")) { v -> setOsd("version", v) { NativeApp.osdShowVersion(it) } })
-            }
-
-        menu.tabs =
-            listOf(
-                RetroTabSpec(null, Icons.Outlined.Apps, activity.getString(R.string.retro_ps2_tab_menu)),
-                RetroTabSpec(RetroPane.DISPLAY, Icons.Outlined.Monitor, activity.getString(R.string.retro_ps2_tab_display)),
-                RetroTabSpec(RetroPane.PERFORMANCE, Icons.Outlined.Bolt, activity.getString(R.string.retro_ps2_tab_performance)),
-                RetroTabSpec(RetroPane.HUD, Icons.Outlined.Speed, activity.getString(R.string.retro_ps2_tab_hud)),
-                RetroTabSpec(RetroPane.SOUND, Icons.AutoMirrored.Outlined.VolumeUp, activity.getString(R.string.retro_ps2_tab_sound)),
-                RetroTabSpec(RetroPane.NETWORK, Icons.Outlined.Public, activity.getString(R.string.retro_ps2_tab_online)),
-                RetroTabSpec(RetroPane.CONTROLS, Icons.Outlined.SportsEsports, activity.getString(R.string.retro_ps2_tab_controls)),
+            RetroHudSupport.buildHudEntries(
+                context = activity,
+                hudVisible = hudVisible,
+                style = hudStyle,
+                elements = hudElements,
+                onMaster = { setHudVisible(it) },
+                onStyle = { next ->
+                    hudStyle = next
+                    RetroHudSupport.savePs2HudStyle(activity, next)
+                    applyHudToRating()
+                },
+                onElements = { next ->
+                    hudElements = next
+                    RetroHudSupport.savePs2Elements(activity, next)
+                    applyHudToRating()
+                },
+                onRebuild = { menu.rebuild() },
             )
+
+        menu.tabs = RetroDrawerTabs.build(activity, includePerformance = true)
         menu.entriesProvider = { pane ->
             when (pane) {
                 null -> mainEntries()
@@ -1173,7 +1032,7 @@ object Ps2GameOverlay {
                 RetroPane.MEMCARDS -> memcardEntries()
                 RetroPane.CONTROLS -> controlsEntries()
                 RetroPane.HUD -> hudEntries()
-                RetroPane.NETWORK -> networkEntries()
+                RetroPane.NETWORK -> emptyList()
             }
         }
         menu.bottomProvider = {
@@ -1230,27 +1089,90 @@ object Ps2GameOverlay {
                 }
             }
 
-        // Back gesture/button and the controller guide button (Xbox/PS) toggle the
-        // drawer via this hook — the menu stays reachable even with touch controls
-        // hidden.
+        // Install openMenu EARLY so guide/Back work even before Compose finishes.
         WinNativeHost.openMenu = {
             activity.runOnUiThread {
-                if (!activity.isFinishing && !activity.isDestroyed) {
-                    if (menu.visible) {
-                        menu.close()
-                    } else {
-                        pad?.releaseAll()
-                        menu.rebuild()
-                        menu.open()
-                    }
+                if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                // No debounce on open — only prevent double-toggle spam when already open.
+                if (menu.visible) {
+                    if (!menuToggleGate.allow()) return@runOnUiThread
+                    menu.close()
+                } else {
+                    pad?.releaseAll()
+                    menu.rebuild()
+                    menu.open()
                 }
             }
         }
+        WinNativeHost.isMenuOpen = { menu.visible && ps2Screen.value == null }
+        WinNativeHost.menuKeyHandler = handler@{ event ->
+            if (!menu.visible || ps2Screen.value != null) return@handler false
+            if (event.keyCode == KeyEvent.KEYCODE_BACK) return@handler false
+            menu.handleKey(event.keyCode, event.action)
+        }
+        WinNativeHost.menuAxisHandler = { x, y ->
+            if (!menu.visible || ps2Screen.value != null) false
+            else menu.handleAxis(x, y)
+        }
+
+        if (hudVisible) {
+            activity.window.decorView.post {
+                if (!activity.isFinishing && !activity.isDestroyed && hudVisible) showHud()
+            }
+        }
+
+        Thread {
+            runCatching {
+                Ps2RaBridge.pushSharedLogin(activity)
+                NativeApp.setAchievementsOption("notifications", false)
+                NativeApp.setAchievementsOption("leaderboardNotifications", false)
+                NativeApp.setSetting("Achievements", "Notifications", "bool", "false")
+                NativeApp.setSetting("Achievements", "LeaderboardNotifications", "bool", "false")
+                NativeApp.commitSettings()
+            }
+        }.start()
+
+        val achievementPollHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        var knownUnlocked = emptySet<Int>()
+        var achievementsSeeded = false
+        val achievementPoll =
+            object : Runnable {
+                override fun run() {
+                    if (activity.isFinishing || activity.isDestroyed) return
+                    runCatching {
+                        val json = NativeApp.getAchievementsJSON() ?: return@runCatching
+                        val items = com.armsx2.ui.achievements.parseAchievementItems(json)
+                        val unlocked = items.filter { it.unlocked }.map { it.id }.toSet()
+                        if (!achievementsSeeded) {
+                            knownUnlocked = unlocked
+                            achievementsSeeded = true
+                        } else {
+                            val newly = unlocked - knownUnlocked
+                            if (newly.isNotEmpty()) {
+                                knownUnlocked = unlocked
+                                items.filter { it.id in newly }.forEach { item ->
+                                    val showPad =
+                                        touchVisible.value &&
+                                            (pad?.editMode == true || !controllerConnected.value)
+                                    RetroAchievementOverlayState.syncPlacement(showPad, controllerConnected.value)
+                                    RetroAchievementOverlayState.show(item.title, item.points, item.description)
+                                }
+                            }
+                        }
+                    }
+                    achievementPollHandler.postDelayed(this, 1500L)
+                }
+            }
+        achievementPollHandler.postDelayed(achievementPoll, 3000L)
 
         val overlayView =
             ComposeView(activity).apply {
+                elevation = 2000f
                 setContent {
                     WinNativeTheme {
+                        androidx.compose.foundation.layout.Box(
+                            modifier = Modifier.fillMaxSize(),
+                        ) {
                         val memImport = androidx.activity.compose.rememberLauncherForActivityResult(
                             androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
                         ) { uri ->
@@ -1347,8 +1269,11 @@ object Ps2GameOverlay {
                             )
                         }
                         if (!covered) {
+                            val showPadForHud = touchVisible.value && (pad?.editMode == true || !controllerConnected.value)
+                            RetroAchievementOverlayState.syncPlacement(showPadForHud, controllerConnected.value)
+                            RetroAchievementOverlayBanner()
                             RetroDrawerMenu(menu)
-                            Ps2NetEditDialog(netEdit)
+                        }
                         }
                     }
                 }
@@ -1357,6 +1282,24 @@ object Ps2GameOverlay {
             overlayView,
             ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
         )
+
+        // Lightweight re-pin (setAspectRatio only — never commitSettings while the
+        // VM is running; that parks the EE and freezes the UI / menu for seconds).
+        val aspectPinHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        var aspectPinTicks = 0
+        val aspectPin =
+            object : Runnable {
+                override fun run() {
+                    if (activity.isFinishing || activity.isDestroyed) return
+                    applyDisplayAspect(activity, live = true)
+                    aspectPinTicks++
+                    // Keep pinning for ~2s of early presents without blocking the UI.
+                    if (aspectPinTicks < 20) {
+                        aspectPinHandler.postDelayed(this, 100L)
+                    }
+                }
+            }
+        aspectPinHandler.post(aspectPin)
 
         val prevCallback = activity.window.callback
         if (prevCallback != null) {

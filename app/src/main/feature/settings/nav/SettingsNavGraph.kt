@@ -198,7 +198,7 @@ fun SettingsHost(
                         AndroidFragment<OtherSettingsFragment>()
                     }
                     composable(SettingsRoutes.fromNavItem(SettingsNavItem.RETRO)) {
-                        com.winlator.cmod.feature.retro.RetroDefaultsScreen()
+                        com.winlator.cmod.feature.retro.RetroDefaultsScreen(bridge = bridge)
                     }
                 }
             }

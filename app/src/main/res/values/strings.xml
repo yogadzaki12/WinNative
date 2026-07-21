@@ -2007,6 +2007,14 @@ Installed path:
     <string name="retro_gs_fast_boot">Fast Boot</string>
     <string name="retro_gs_group_online_dev9">ONLINE (DEV9)</string>
     <string name="retro_gs_enable_online">Enable Online</string>
+    <string name="retro_gs_netplay_enable">Enable NetPlay</string>
+    <string name="retro_gs_netplay_enable_subtitle">Join or host a NetPlay session when launching this game</string>
+    <string name="retro_gs_netplay_host_mode">Host session</string>
+    <string name="retro_gs_netplay_host_mode_subtitle">On = wait for a player. Off = join host address</string>
+    <string name="retro_gs_netplay_host">Host address</string>
+    <string name="retro_gs_netplay_host_hint">IP or hostname</string>
+    <string name="retro_gs_netplay_port">Port</string>
+    <string name="retro_gs_netplay_not_ready">NetPlay uses local multiplayer ports over TCP (player 1 host / player 2 client). PS2 online uses DEV9 Ethernet instead.</string>
     <string name="retro_gs_ethernet_device">Ethernet Device</string>
     <string name="retro_gs_net_auto">Auto</string>
     <string name="retro_gs_net_wifi">Wi-Fi</string>
@@ -2046,14 +2054,14 @@ Installed path:
     <string name="retro_scr_achievements_enabled">Achievements enabled</string>
     <string name="retro_scr_hardcore_default">Hardcore mode by default (no save states)</string>
     <string name="retro_scr_sign_out">Sign Out</string>
-    <string name="retro_scr_playstation_bios">PLAYSTATION BIOS</string>
+    <string name="retro_scr_playstation_bios">PS1 BIOS</string>
     <string name="retro_scr_installed">Installed</string>
     <string name="retro_scr_none_ps1_bios">None — PS1 games require a BIOS</string>
     <string name="retro_scr_import_ps1_bios">Import PS1 BIOS…</string>
     <string name="retro_scr_ps1_bios_removed">PS1 BIOS removed</string>
     <string name="retro_scr_no_bios_to_remove">No BIOS to remove</string>
     <string name="retro_scr_remove_ps1_bios">Remove PS1 BIOS</string>
-    <string name="retro_scr_playstation_2_bios">PLAYSTATION 2 BIOS</string>
+    <string name="retro_scr_playstation_2_bios">PS2 BIOS</string>
     <string name="retro_scr_none_ps2_bios">None — PS2 games require a BIOS</string>
     <string name="retro_scr_format">Format</string>
     <string name="retro_scr_ps2_bios_format">Merged single-file dump (region-tagged .bin, ~4MB). Split ROM0/MEC/NVM sets are not accepted.</string>
