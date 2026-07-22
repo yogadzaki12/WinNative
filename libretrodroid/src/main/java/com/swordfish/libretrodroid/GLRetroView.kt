@@ -222,6 +222,26 @@ class GLRetroView(
         LibretroDroid.setControllerType(port, type)
     }
 
+    fun netpacketHasCore(): Boolean = LibretroDroid.netpacketHasCore()
+
+    fun netpacketStartHost(listenPort: Int): Boolean =
+        LibretroDroid.netpacketStartHost(listenPort)
+
+    fun netpacketStartClient(host: String, port: Int): Boolean =
+        LibretroDroid.netpacketStartClient(host, port)
+
+    fun netpacketStop() {
+        LibretroDroid.netpacketStop()
+    }
+
+    fun netpacketIsActive(): Boolean = LibretroDroid.netpacketIsActive()
+
+    fun netpacketPeerCount(): Int = LibretroDroid.netpacketPeerCount()
+
+    fun setNetpacketPeerListener(listener: LibretroDroid.NetpacketPeerListener?) {
+        LibretroDroid.setNetpacketPeerListener(listener)
+    }
+
     fun getVariables(): Array<Variable> {
         return LibretroDroid.getVariables()
     }

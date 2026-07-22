@@ -37,6 +37,7 @@
 #include "shadermanager.h"
 #include "utils/javautils.h"
 #include "environment.h"
+#include "netpacket.h"
 #include "renderers/es3/framebufferrenderer.h"
 #include "renderers/es2/imagerendereres2.h"
 #include "renderers/es3/imagerendereres3.h"
@@ -142,6 +143,33 @@ std::vector<std::vector<struct Controller>> LibretroDroid::getControllers() {
 
 void LibretroDroid::setControllerType(unsigned int port, unsigned int type) {
     core->retro_set_controller_port_device(port, type);
+}
+
+bool LibretroDroid::netpacketHasCore() {
+    return NetpacketBridge::getInstance().hasCoreInterface();
+}
+
+bool LibretroDroid::netpacketStartHost(int listenPort) {
+    std::lock_guard<std::mutex> lock(coreLock);
+    return NetpacketBridge::getInstance().startHost(listenPort);
+}
+
+bool LibretroDroid::netpacketStartClient(const std::string& host, int port) {
+    std::lock_guard<std::mutex> lock(coreLock);
+    return NetpacketBridge::getInstance().startClient(host, port);
+}
+
+void LibretroDroid::netpacketStop() {
+    std::lock_guard<std::mutex> lock(coreLock);
+    NetpacketBridge::getInstance().stop();
+}
+
+bool LibretroDroid::netpacketIsActive() {
+    return NetpacketBridge::getInstance().isActive();
+}
+
+int LibretroDroid::netpacketPeerCount() {
+    return NetpacketBridge::getInstance().peerCount();
 }
 
 bool LibretroDroid::unserializeState(int8_t *data, size_t size) {
@@ -426,12 +454,17 @@ void LibretroDroid::destroy() {
 
     LOGD("Performing libretrodroid destroy");
 
+    NetpacketBridge::getInstance().stop();
+    NetpacketBridge::getInstance().clearCoreInterface();
+
     if (Environment::getInstance().getHwContextDestroy() != nullptr) {
         Environment::getInstance().getHwContextDestroy()();
     }
 
-    core->retro_unload_game();
-    core->retro_deinit();
+    if (core) {
+        core->retro_unload_game();
+        core->retro_deinit();
+    }
 
     video = nullptr;
     core = nullptr;
@@ -475,8 +508,11 @@ bool LibretroDroid::step() {
 
     bool ranNewFrame = frames * frameSpeed > 0;
 
-    for (size_t i = 0; i < frames * frameSpeed; i++)
+    for (size_t i = 0; i < frames * frameSpeed; i++) {
+        // Deliver netpacket traffic before each emulated frame (gpSP RFU).
+        NetpacketBridge::getInstance().poll();
         core->retro_run();
+    }
 
     if (video) {
         video->renderFrame();
@@ -490,7 +526,6 @@ bool LibretroDroid::step() {
         rumble->fetchFromEnvironment();
     }
 
-    // Some games override the core geometry at runtime. These fields get updated in retro_run().
     if (video && Environment::getInstance().isGameGeometryUpdated()) {
         Environment::getInstance().clearGameGeometryUpdated();
 

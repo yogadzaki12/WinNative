@@ -9,10 +9,29 @@ object RetroCoreManager {
         system: RetroSystem,
     ): File = File(context.applicationInfo.nativeLibraryDir, system.coreFileName)
 
+    /**
+     * Core path for multiplayer sessions. GBA uses gpSP (Wireless Adapter + netpacket);
+     * other systems use the default core.
+     */
+    fun multiplayerCoreFile(
+        context: Context,
+        system: RetroSystem,
+    ): File =
+        if (system.id == RetroSystems.GBA.id) {
+            File(context.applicationInfo.nativeLibraryDir, RetroSystems.GBA_MULTIPLAYER_CORE)
+        } else {
+            coreFile(context, system)
+        }
+
     fun isCoreAvailable(
         context: Context,
         system: RetroSystem,
     ): Boolean = coreFile(context, system).isFile
+
+    fun isMultiplayerCoreAvailable(
+        context: Context,
+        system: RetroSystem,
+    ): Boolean = multiplayerCoreFile(context, system).isFile
 
     fun systemDir(context: Context): File = File(context.filesDir, "retro/system").also { it.mkdirs() }
 

@@ -116,11 +116,26 @@ fun SharedSettingSwitch(
                 .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(label, color = GameSettingsStyle.TextPrimary, fontSize = 12.sp)
+        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+            Text(
+                label,
+                color = GameSettingsStyle.TextPrimary,
+                fontSize = 12.sp,
+                softWrap = true,
+                maxLines = 3,
+                overflow = TextOverflow.Clip,
+            )
             if (subtitle != null) {
                 Spacer(Modifier.height(2.dp))
-                Text(subtitle, color = GameSettingsStyle.TextSecondary, fontSize = 11.sp)
+                Text(
+                    subtitle,
+                    color = GameSettingsStyle.TextSecondary,
+                    fontSize = 11.sp,
+                    softWrap = true,
+                    maxLines = 4,
+                    overflow = TextOverflow.Clip,
+                    lineHeight = 14.sp,
+                )
             }
         }
         Switch(

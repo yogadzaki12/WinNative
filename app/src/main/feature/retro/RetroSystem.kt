@@ -53,9 +53,13 @@ object RetroSystems {
             id = "gba",
             displayName = "Game Boy Advance",
             shortName = "GBA",
+            // mGBA for single-player accuracy; multiplayer (Pokémon RFU) uses gpSP.
             coreFileName = "libmgba_libretro_android.so",
             extensions = setOf("gba"),
         )
+
+    /** gpSP core used for GBA Wireless Adapter multiplayer (netpacket). */
+    const val GBA_MULTIPLAYER_CORE = "libgpsp_libretro_android.so"
     val GENESIS =
         RetroSystem(
             id = "genesis",

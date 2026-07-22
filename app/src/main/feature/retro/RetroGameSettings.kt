@@ -245,7 +245,7 @@ private fun buildRetroSections(state: RetroSettingsState): List<RetroSection> {
     }
     sections += RetroSection(RetroSectionId.INPUT, Icons.Outlined.SportsEsports, R.string.retro_gs_section_input)
     sections += RetroSection(RetroSectionId.AUDIO, Icons.AutoMirrored.Outlined.VolumeUp, R.string.retro_gs_section_audio)
-    if (RetroOnlineSupport.supportsDev9(systemId) || RetroOnlineSupport.supportsNetplayCore(systemId)) {
+    if (RetroOnlineSupport.supportsDev9(systemId) || RetroOnlineSupport.supportsMultiplayerUi(systemId)) {
         sections += RetroSection(RetroSectionId.ONLINE, Icons.Outlined.Public, R.string.retro_gs_section_online)
     }
     if (state.system?.isExternal == true) {
@@ -736,7 +736,7 @@ internal fun RetroSettingTextField(
             },
         )
     }
-    Row(
+    Column(
         modifier =
             Modifier
                 .fillMaxWidth()
@@ -751,25 +751,26 @@ internal fun RetroSettingTextField(
                     highlightColor = NavHighlight,
                     tapToSelect = true,
                 )
-                .padding(vertical = TightGap),
-        verticalAlignment = Alignment.CenterVertically,
+                .padding(vertical = TightGap + 2.dp),
     ) {
         Text(
             label,
-            color = TextPrimary,
-            fontSize = ValueSize,
-            maxLines = 1,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-            modifier = Modifier.weight(0.4f),
+            color = TextSecondary,
+            fontSize = LabelSize,
+            fontWeight = FontWeight.Medium,
+            maxLines = 2,
+            softWrap = true,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Clip,
         )
+        Spacer(Modifier.height(2.dp))
         Text(
             value.ifBlank { placeholder },
             color = if (value.isBlank()) TextSecondary else AccentBlue,
             fontSize = ValueSize,
-            maxLines = 1,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-            textAlign = androidx.compose.ui.text.style.TextAlign.End,
-            modifier = Modifier.weight(0.6f),
+            fontWeight = FontWeight.Medium,
+            maxLines = 3,
+            softWrap = true,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Clip,
         )
     }
 }
@@ -1305,65 +1306,13 @@ private fun RetroPs2HudSection() {
 
 @Composable
 private fun RetroNetplaySection(state: RetroSettingsState) {
-    val context = androidx.compose.ui.platform.LocalContext.current
     val systemId = state.system?.id ?: return
     var version by remember { androidx.compose.runtime.mutableIntStateOf(0) }
-    @Suppress("UNUSED_EXPRESSION") version
-    val enabled = RetroDefaults.netplayEnabled(context, systemId)
-    val host = RetroDefaults.netplayHost(context, systemId)
-    val port = RetroDefaults.netplayPort(context, systemId)
-    val frontendReady = RetroOnlineSupport.netplayFrontendReady()
-
-    RetroSettingGroup {
-        RetroGroupTitle(stringResource(R.string.retro_gs_section_online))
-        if (!frontendReady) {
-            Text(
-                stringResource(R.string.retro_gs_netplay_not_ready),
-                color = TextSecondary,
-                fontSize = ValueSize,
-                modifier = Modifier.padding(vertical = TightGap),
-            )
-        }
-        RetroSettingSwitch(
-            stringResource(R.string.retro_gs_netplay_enable),
-            enabled,
-            subtitle = stringResource(R.string.retro_gs_netplay_enable_subtitle),
-        ) {
-            RetroDefaults.setNetplayEnabled(context, systemId, it)
-            version++
-        }
-        if (enabled) {
-            val hostMode = RetroDefaults.netplayHostMode(context, systemId)
-            RetroSettingSwitch(
-                stringResource(R.string.retro_gs_netplay_host_mode),
-                hostMode,
-                subtitle = stringResource(R.string.retro_gs_netplay_host_mode_subtitle),
-            ) {
-                RetroDefaults.setNetplayHostMode(context, systemId, it)
-                version++
-            }
-            if (!hostMode) {
-                RetroSettingTextField(
-                    stringResource(R.string.retro_gs_netplay_host),
-                    host,
-                    stringResource(R.string.retro_gs_netplay_host_hint),
-                ) {
-                    RetroDefaults.setNetplayHost(context, systemId, it)
-                    version++
-                }
-            }
-            RetroSettingTextField(
-                stringResource(R.string.retro_gs_netplay_port),
-                port.toString(),
-                "55435",
-            ) {
-                it.toIntOrNull()?.let { p ->
-                    RetroDefaults.setNetplayPort(context, systemId, p)
-                    version++
-                }
-            }
-        }
-    }
+    RetroNetplaySettingsSection(
+        systemId = systemId,
+        version = version,
+        onChanged = { version++ },
+    )
 }
 
 @Composable

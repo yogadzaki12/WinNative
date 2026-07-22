@@ -15,9 +15,14 @@ import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.addCallback
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -124,8 +129,8 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
     private var cloudBackupLaunched = false
     private var conflictChecked = false
     private var retroCloudId = ""
-    private var netplaySession: RetroNetplaySession? = null
     private var netplayLocalPort = 0
+    private var netplayArmedThisSession = false
 
     private val isPortrait: Boolean
         get() = resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
@@ -342,9 +347,29 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
 
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_USER
 
-        val coreFile = RetroCoreManager.coreFile(this, resolvedSystem)
+        netplayArmedThisSession = RetroDefaults.netplayEnabled(this, resolvedSystem.id)
+        if (!netplayArmedThisSession && RetroNetplayLobby.isInRoomSession()) {
+            RetroNetplayLobby.leave(silent = true)
+        }
+        val wantGbaMulti =
+            resolvedSystem.id == RetroSystems.GBA.id &&
+                netplayArmedThisSession &&
+                (
+                    RetroDefaults.netplayLaunchMode(this, resolvedSystem.id) == "host" ||
+                        RetroDefaults.netplayLaunchMode(this, resolvedSystem.id) == "join" ||
+                        RetroNetplayLobby.isGameLink ||
+                        RetroNetplayLobby.isInRoomSession()
+                )
+        val coreFile =
+            if (wantGbaMulti) {
+                RetroCoreManager.multiplayerCoreFile(this, resolvedSystem)
+            } else {
+                RetroCoreManager.coreFile(this, resolvedSystem)
+            }
         if (!coreFile.isFile) {
-            Toast.makeText(this, getString(R.string.retro_lr_core_not_installed, resolvedSystem.coreFileName), Toast.LENGTH_LONG).show()
+            val name =
+                if (wantGbaMulti) RetroSystems.GBA_MULTIPLAYER_CORE else resolvedSystem.coreFileName
+            Toast.makeText(this, getString(R.string.retro_lr_core_not_installed, name), Toast.LENGTH_LONG).show()
             finish()
             return
         }
@@ -424,16 +449,49 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
 
         menu.entriesProvider = { pane -> buildEntriesFor(pane) }
         menu.bottomProvider = { buildBottomEntries() }
-        menu.tabs = RetroDrawerTabs.build(this)
+        menu.tabs =
+            RetroDrawerTabs.build(
+                this,
+                includeNetplay = RetroOnlineSupport.supportsMultiplayerUi(system?.id),
+            )
         hudVisible = intent.getBooleanExtra(EXTRA_HUD, false)
+        RetroNetplayLobby.bindLocalName(this)
         val menuView =
             ComposeView(this).apply {
                 elevation = 2000f
                 setContent {
                     WinNativeTheme {
-                        androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
+                        Box(Modifier.fillMaxSize()) {
                             syncInGameOverlayPlacement()
                             RetroAchievementOverlayBanner()
+                            val netPhase = RetroNetplayLobby.phase
+                            val netMembers = RetroNetplayLobby.members
+                            val netDiscovered = RetroNetplayLobby.discovered
+                            val netStatus = RetroNetplayLobby.statusText
+                            LaunchedEffect(netPhase, netMembers, netDiscovered, netStatus) {
+                                if (menu.visible && menu.pane == RetroPane.NETWORK) {
+                                    menu.rebuild()
+                                }
+                            }
+                            Box(
+                                Modifier
+                                    .fillMaxSize()
+                                    .padding(top = 56.dp),
+                                contentAlignment = Alignment.TopCenter,
+                            ) {
+                                RetroNetplayRoomBanner(
+                                    onLeave = { leaveNetplayRoom() },
+                                    onJoinRoom = { room -> joinDiscoveredRoom(room) },
+                                )
+                            }
+                            Box(
+                                Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.BottomCenter,
+                            ) {
+                                RetroNetplayEventToast(
+                                    Modifier.padding(bottom = 72.dp),
+                                )
+                            }
                             RetroDrawerMenu(menu)
                         }
                     }
@@ -698,8 +756,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
 
     override fun onDestroy() {
         inputManager?.unregisterInputDeviceListener(inputDeviceListener)
-        netplaySession?.stop()
-        netplaySession = null
+        shutdownNetplaySession(callNativeStop = false)
         if (achievementsSessionStarted) {
             RetroAchievementsManager.unlockListener = null
             RetroAchievementsManager.resetListener = null
@@ -707,6 +764,20 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             RetroAchievementsManager.endSession()
         }
         super.onDestroy()
+    }
+
+    private fun shutdownNetplaySession(callNativeStop: Boolean = true) {
+        val sysId = system?.id
+        val view =
+            if (callNativeStop && ::retroView.isInitialized && retroReady) retroView else null
+        runCatching {
+            RetroNetplayLobby.leave(silent = true, retroView = view)
+        }
+        netplayLocalPort = 0
+        netplayArmedThisSession = false
+        if (sysId != null) {
+            RetroDefaults.clearNetplayArm(this, sysId)
+        }
     }
 
     private fun showHud() {
@@ -851,7 +922,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 when (event) {
                     is GLRetroView.GLRetroEvents.FrameRendered -> {
                         if (hudVisible) frameRating?.recordGameFrame()
-                        netplaySession?.onFrameRendered()
+                        RetroNetplayLobby.onFrameRendered()
                     }
                     is GLRetroView.GLRetroEvents.SurfaceCreated -> {
                         if (!audioEnabledSetting) retroView.audioEnabled = false
@@ -873,32 +944,127 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
 
     private fun startNetplayIfNeeded() {
         val sysId = system?.id ?: return
-        if (!RetroOnlineSupport.supportsNetplayCore(sysId)) return
-        if (!RetroDefaults.netplayEnabled(this, sysId)) return
-        if (netplaySession?.isRunning == true) return
-        val hostMode = RetroDefaults.netplayHostMode(this, sysId)
-        netplayLocalPort = if (hostMode) 0 else 1
-        val remotePort = if (hostMode) 1 else 0
-        val session =
-            RetroNetplaySession(
-                retroView = retroView,
-                localPort = netplayLocalPort,
-                remotePort = remotePort,
-                isHost = hostMode,
-            ) { status ->
-                Toast.makeText(this, status, Toast.LENGTH_SHORT).show()
+        if (!RetroOnlineSupport.supportsMultiplayerUi(sysId)) return
+
+        if (!netplayArmedThisSession && !RetroDefaults.netplayEnabled(this, sysId)) {
+            if (RetroNetplayLobby.isInRoomSession() ||
+                RetroNetplayLobby.phase == RetroNetplayPhase.SCANNING ||
+                RetroNetplayLobby.phase == RetroNetplayPhase.SCAN_RESULTS
+            ) {
+                RetroNetplayLobby.leave(silent = true, retroView = retroView)
             }
-        netplaySession = session
-        val port = RetroDefaults.netplayPort(this, sysId)
-        if (hostMode) {
-            session.startHost(port)
-        } else {
-            val host = RetroDefaults.netplayHost(this, sysId).ifBlank { "127.0.0.1" }
-            session.startClient(host, port)
+            return
         }
+        netplayArmedThisSession = true
+
+        if (RetroNetplayLobby.attachEmulator(retroView)) {
+            if (!RetroNetplayLobby.isGameLink) {
+                RetroNetplayLobby.prepareMultiplayerPads(retroView)
+            }
+            netplayLocalPort =
+                when {
+                    RetroNetplayLobby.isGameLink -> 0
+                    RetroNetplayLobby.isHost -> 0
+                    else -> 1
+                }
+            menu.rebuild()
+            return
+        }
+
+        if (!RetroNetplayLobby.canStartSession() ||
+            RetroNetplayLobby.phase == RetroNetplayPhase.SCANNING
+        ) {
+            return
+        }
+        val mode = RetroDefaults.netplayLaunchMode(this, sysId)
+        if (mode != "host" && mode != "join") return
+
+        val port =
+            if (RetroOnlineSupport.supportsGameLink(sysId)) {
+                RetroGameLink.clampPort(RetroDefaults.netplayPort(this, sysId))
+            } else {
+                RetroDefaults.netplayPort(this, sysId)
+            }
+        val name = RetroNetplayLobby.defaultPlayerName(this)
+        if (!RetroOnlineSupport.supportsGameLink(sysId)) {
+            RetroNetplayLobby.prepareMultiplayerPads(retroView)
+        }
+        when (mode) {
+            "host" -> {
+                netplayLocalPort = 0
+                RetroNetplayLobby.host(
+                    systemId = sysId,
+                    gameName = gameName,
+                    playerName = name,
+                    port = port,
+                    context = this,
+                    retroView = retroView,
+                )
+            }
+            "join" -> {
+                val host = RetroDefaults.netplayHost(this, sysId).trim()
+                if (host.isBlank()) return
+                netplayLocalPort = if (RetroOnlineSupport.supportsGameLink(sysId)) 0 else 1
+                RetroNetplayLobby.join(
+                    host = host,
+                    port = port,
+                    playerName = name,
+                    gameName = gameName,
+                    systemId = sysId,
+                    retroView = retroView,
+                )
+            }
+        }
+        menu.rebuild()
     }
 
-    private fun localNetplayPort(): Int = netplayLocalPort
+    private fun leaveNetplayRoom() {
+        when (RetroNetplayLobby.phase) {
+            RetroNetplayPhase.SCANNING -> RetroNetplayLobby.stopScan()
+            RetroNetplayPhase.SCAN_RESULTS -> RetroNetplayLobby.dismissScanResults()
+            RetroNetplayPhase.IDLE -> {
+                if (RetroNetplayLobby.discovered.isNotEmpty() ||
+                    RetroNetplayLobby.statusText.isNotBlank()
+                ) {
+                    RetroNetplayLobby.dismissScanResults()
+                }
+            }
+            else -> {
+                RetroNetplayLobby.leave(
+                    silent = false,
+                    retroView = if (retroReady) retroView else null,
+                )
+                netplayLocalPort = 0
+            }
+        }
+        menu.rebuild()
+    }
+
+    private fun joinDiscoveredRoom(room: RetroNetplayDiscoveredRoom) {
+        if (!retroReady) return
+        val sysId = system?.id
+        val name = RetroNetplayLobby.defaultPlayerName(this)
+        netplayLocalPort = if (RetroOnlineSupport.supportsGameLink(sysId)) 0 else 1
+        RetroNetplayLobby.join(
+            host = room.hostAddress,
+            port = room.port,
+            playerName = name,
+            gameName = room.gameName.ifBlank { gameName },
+            systemId = sysId,
+            retroView = retroView,
+        )
+        menu.close()
+        menu.rebuild()
+    }
+
+    private fun localNetplayPort(): Int {
+        if (RetroNetplayLobby.isGameLink) return 0
+        return when (RetroNetplayLobby.phase) {
+            RetroNetplayPhase.HOSTING, RetroNetplayPhase.IN_ROOM, RetroNetplayPhase.CONNECTING ->
+                if (RetroNetplayLobby.isHost) 0 else 1
+            else -> netplayLocalPort
+        }
+    }
 
     private fun observeErrors() {
         retroView
@@ -1030,8 +1196,229 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             RetroPane.SAVES -> buildSaveSlotEntries()
             RetroPane.PERFORMANCE -> emptyList()
             RetroPane.MEMCARDS -> emptyList()
-            RetroPane.NETWORK -> emptyList()
+            RetroPane.NETWORK -> buildNetplayEntries()
         }
+
+    private fun buildNetplayEntries(): List<RetroMenuEntry> {
+        val sysId = system?.id ?: return emptyList()
+        if (!RetroOnlineSupport.supportsMultiplayerUi(sysId)) return emptyList()
+        val phase = RetroNetplayLobby.phase
+        val port =
+            if (RetroOnlineSupport.supportsGameLink(sysId)) {
+                RetroGameLink.clampPort(RetroDefaults.netplayPort(this, sysId))
+            } else {
+                RetroDefaults.netplayPort(this, sysId)
+            }
+        val name = RetroNetplayLobby.defaultPlayerName(this)
+        val savedHost = RetroDefaults.netplayHost(this, sysId)
+        val entries = mutableListOf<RetroMenuEntry>()
+
+        when (phase) {
+            RetroNetplayPhase.HOSTING, RetroNetplayPhase.CONNECTING, RetroNetplayPhase.IN_ROOM -> {
+                val localIp = RetroNetplayLobby.localIpv4Addresses().firstOrNull()
+                entries +=
+                    RetroMenuEntry.Action(
+                        label =
+                            when (phase) {
+                                RetroNetplayPhase.HOSTING -> getString(R.string.retro_netplay_hosting_room)
+                                RetroNetplayPhase.CONNECTING -> getString(R.string.retro_netplay_connecting)
+                                else -> getString(R.string.retro_netplay_in_room)
+                            },
+                        icon = RetroDrawerIcons.Group,
+                        active = true,
+                        subtitle =
+                            when (phase) {
+                                RetroNetplayPhase.HOSTING ->
+                                    if (localIp != null) {
+                                        "$localIp:$port"
+                                    } else {
+                                        getString(R.string.retro_netplay_waiting_players)
+                                    }
+                                else ->
+                                    RetroNetplayLobby.roomTitle.ifBlank { gameName }
+                            },
+                    ) {}
+                val members =
+                    RetroNetplayLobby.members.ifEmpty {
+                        listOf(RetroNetplayMember(name, isHost = RetroNetplayLobby.isHost, isLocal = true))
+                    }
+                members.forEach { member ->
+                    val title =
+                        buildString {
+                            append(member.name)
+                            if (member.isHost) append(" · Host")
+                            if (member.isLocal) append(" · You")
+                            if (!member.isHost && !member.isLocal) append(" · Joined")
+                        }
+                    entries +=
+                        RetroMenuEntry.Action(
+                            label = title,
+                            icon = RetroDrawerIcons.Group,
+                            active = member.isLocal,
+                        ) {}
+                }
+                entries +=
+                    RetroMenuEntry.Action(
+                        label = getString(R.string.retro_netplay_leave),
+                        icon = RetroDrawerIcons.Exit,
+                        danger = true,
+                    ) {
+                        leaveNetplayRoom()
+                    }
+            }
+
+            RetroNetplayPhase.IDLE, RetroNetplayPhase.SCANNING, RetroNetplayPhase.SCAN_RESULTS -> {
+                if (!netplayArmedThisSession) {
+                    entries +=
+                        RetroMenuEntry.Action(
+                            label = getString(R.string.retro_netplay_title),
+                            icon = RetroDrawerIcons.Group,
+                            subtitle = getString(R.string.retro_netplay_enable_before_launch),
+                        ) {}
+                    return entries
+                }
+                entries +=
+                    RetroMenuEntry.Action(
+                        label = getString(R.string.retro_netplay_title),
+                        icon = RetroDrawerIcons.Group,
+                        active = phase != RetroNetplayPhase.IDLE,
+                        subtitle =
+                            when (phase) {
+                                RetroNetplayPhase.SCANNING -> getString(R.string.retro_netplay_scanning)
+                                RetroNetplayPhase.SCAN_RESULTS ->
+                                    RetroNetplayLobby.statusText.ifBlank {
+                                        getString(R.string.retro_netplay_scan_results)
+                                    }
+                                else ->
+                                    if (RetroOnlineSupport.supportsGameLink(sysId)) {
+                                        getString(R.string.retro_netplay_game_link_hint)
+                                    } else {
+                                        getString(R.string.retro_netplay_menu_hint)
+                                    }
+                            },
+                    ) {}
+                if (phase != RetroNetplayPhase.SCANNING) {
+                    val hostIp = RetroNetplayLobby.localIpv4Addresses().firstOrNull()
+                    entries +=
+                        RetroMenuEntry.Action(
+                            label = getString(R.string.retro_netplay_host_action),
+                            icon = RetroDrawerIcons.Add,
+                            subtitle =
+                                if (hostIp != null) {
+                                    "${getString(R.string.retro_gs_netplay_port)} $port\n$hostIp"
+                                } else {
+                                    "${getString(R.string.retro_gs_netplay_port)} $port"
+                                },
+                        ) {
+                            netplayLocalPort = 0
+                            RetroNetplayLobby.host(
+                                systemId = sysId,
+                                gameName = gameName,
+                                playerName = name,
+                                port = port,
+                                context = this,
+                                retroView = retroView,
+                            )
+                            menu.rebuild()
+                        }
+                }
+                entries +=
+                    RetroMenuEntry.Action(
+                        label =
+                            when (phase) {
+                                RetroNetplayPhase.SCANNING -> getString(R.string.retro_netplay_stop_scan)
+                                RetroNetplayPhase.SCAN_RESULTS -> getString(R.string.retro_netplay_scan_again)
+                                else -> getString(R.string.retro_netplay_scan_action)
+                            },
+                        icon = RetroDrawerIcons.Search,
+                        active = phase == RetroNetplayPhase.SCANNING || phase == RetroNetplayPhase.SCAN_RESULTS,
+                        subtitle =
+                            when (phase) {
+                                RetroNetplayPhase.SCANNING ->
+                                    RetroNetplayLobby.statusText.ifBlank {
+                                        getString(R.string.retro_netplay_scanning)
+                                    }
+                                RetroNetplayPhase.SCAN_RESULTS ->
+                                    RetroNetplayLobby.statusText.ifBlank {
+                                        getString(R.string.retro_netplay_scan_results)
+                                    }
+                                else -> getString(R.string.retro_netplay_scan_hint)
+                            },
+                    ) {
+                        if (phase == RetroNetplayPhase.SCANNING) {
+                            RetroNetplayLobby.stopScan()
+                            menu.rebuild()
+                        } else {
+                            menu.close()
+                            RetroNetplayLobby.scan(this, sysId)
+                        }
+                    }
+                if (phase == RetroNetplayPhase.SCAN_RESULTS) {
+                    entries +=
+                        RetroMenuEntry.Action(
+                            label = getString(R.string.retro_netplay_dismiss),
+                            icon = RetroDrawerIcons.Exit,
+                        ) {
+                            RetroNetplayLobby.dismissScanResults()
+                            menu.rebuild()
+                        }
+                }
+                RetroNetplayLobby.discovered.forEach { room ->
+                    entries +=
+                        RetroMenuEntry.Action(
+                            label = "${room.gameName} · ${room.hostPlayerName}",
+                            icon = RetroDrawerIcons.Play,
+                            subtitle = "${room.hostAddress}:${room.port} · ${getString(R.string.retro_netplay_join_room)}",
+                        ) {
+                            joinDiscoveredRoom(room)
+                        }
+                }
+                if (phase != RetroNetplayPhase.SCANNING) {
+                    entries +=
+                        RetroMenuEntry.Action(
+                            label = getString(R.string.retro_netplay_join_action),
+                            icon = RetroDrawerIcons.Link,
+                            subtitle =
+                                if (savedHost.isNotBlank()) {
+                                    "$savedHost:$port"
+                                } else {
+                                    getString(R.string.retro_gs_netplay_host_hint)
+                                },
+                        ) {
+                            promptJoinByAddress(sysId, port, name, savedHost)
+                        }
+                }
+            }
+        }
+        return entries
+    }
+
+    private fun promptJoinByAddress(
+        sysId: String,
+        port: Int,
+        playerName: String,
+        initialHost: String,
+    ) {
+        menu.renamePrompt =
+            RetroRenamePrompt(
+                title = getString(R.string.retro_gs_netplay_host),
+                initial = initialHost,
+            ) { entered ->
+                val host = entered?.trim().orEmpty()
+                if (host.isBlank()) return@RetroRenamePrompt
+                netplayLocalPort = 1
+                RetroNetplayLobby.join(
+                    host = host,
+                    port = port,
+                    playerName = playerName,
+                    gameName = gameName,
+                    systemId = sysId,
+                    retroView = retroView,
+                )
+                menu.close()
+                menu.rebuild()
+            }
+    }
 
     private fun persistColors() {
         RetroControlLayouts.saveColors(this, system?.id, customColors)
@@ -1350,7 +1737,9 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 val mapped = mapPhysicalKey(keyCode)
                 val port = localNetplayPort()
                 retroView.sendKeyEvent(event.action, mapped, port)
-                netplaySession?.sendLocalKey(mapped, event.action)
+                if (RetroNetplayLobby.activeSession()?.isRunning == true) {
+                    RetroNetplayLobby.sendLocalKey(mapped, event.action)
+                }
                 return true
             }
         }
@@ -1373,9 +1762,14 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             val stickX = event.getAxisValue(MotionEvent.AXIS_X)
             val stickY = event.getAxisValue(MotionEvent.AXIS_Y)
             val port = localNetplayPort()
+            val netActive = RetroNetplayLobby.activeSession()?.isRunning == true
             if (stickIsAnalog) {
                 retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_DPAD, hatX, hatY, port)
                 retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_ANALOG_LEFT, stickX, stickY, port)
+                if (netActive) {
+                    RetroNetplayLobby.sendLocalMotion(GLRetroView.MOTION_SOURCE_DPAD, hatX, hatY)
+                    RetroNetplayLobby.sendLocalMotion(GLRetroView.MOTION_SOURCE_ANALOG_LEFT, stickX, stickY)
+                }
             } else {
                 val deadzone = 0.45f
                 val dpadX =
@@ -1394,13 +1788,17 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                     }
                 retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_DPAD, dpadX, dpadY, port)
                 retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_ANALOG_LEFT, stickX, stickY, port)
+                if (netActive) {
+                    RetroNetplayLobby.sendLocalMotion(GLRetroView.MOTION_SOURCE_DPAD, dpadX, dpadY)
+                    RetroNetplayLobby.sendLocalMotion(GLRetroView.MOTION_SOURCE_ANALOG_LEFT, stickX, stickY)
+                }
             }
-            retroView.sendMotionEvent(
-                GLRetroView.MOTION_SOURCE_ANALOG_RIGHT,
-                event.getAxisValue(MotionEvent.AXIS_Z),
-                event.getAxisValue(MotionEvent.AXIS_RZ),
-                port,
-            )
+            val rx = event.getAxisValue(MotionEvent.AXIS_Z)
+            val ry = event.getAxisValue(MotionEvent.AXIS_RZ)
+            retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_ANALOG_RIGHT, rx, ry, port)
+            if (netActive) {
+                RetroNetplayLobby.sendLocalMotion(GLRetroView.MOTION_SOURCE_ANALOG_RIGHT, rx, ry)
+            }
             return true
         }
         return super.dispatchGenericMotionEvent(event)
@@ -1414,7 +1812,9 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         val action = if (down) KeyEvent.ACTION_DOWN else KeyEvent.ACTION_UP
         val port = localNetplayPort()
         retroView.sendKeyEvent(action, keyCode, port)
-        netplaySession?.sendLocalKey(keyCode, action)
+        if (RetroNetplayLobby.activeSession()?.isRunning == true) {
+            RetroNetplayLobby.sendLocalKey(keyCode, action)
+        }
     }
 
     override fun onDpad(
@@ -1422,7 +1822,11 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         y: Float,
     ) {
         if (!retroReady || menu.visible) return
-        retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_DPAD, x, y, localNetplayPort())
+        val port = localNetplayPort()
+        retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_DPAD, x, y, port)
+        if (RetroNetplayLobby.activeSession()?.isRunning == true) {
+            RetroNetplayLobby.sendLocalMotion(GLRetroView.MOTION_SOURCE_DPAD, x, y)
+        }
     }
 
     override fun onStick(
@@ -1430,7 +1834,11 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         y: Float,
     ) {
         if (!retroReady || menu.visible) return
-        retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_ANALOG_LEFT, x, y, localNetplayPort())
+        val port = localNetplayPort()
+        retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_ANALOG_LEFT, x, y, port)
+        if (RetroNetplayLobby.activeSession()?.isRunning == true) {
+            RetroNetplayLobby.sendLocalMotion(GLRetroView.MOTION_SOURCE_ANALOG_LEFT, x, y)
+        }
     }
 
     override fun onRightStick(
@@ -1438,7 +1846,11 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         y: Float,
     ) {
         if (!retroReady || menu.visible) return
-        retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_ANALOG_RIGHT, x, y, localNetplayPort())
+        val port = localNetplayPort()
+        retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_ANALOG_RIGHT, x, y, port)
+        if (RetroNetplayLobby.activeSession()?.isRunning == true) {
+            RetroNetplayLobby.sendLocalMotion(GLRetroView.MOTION_SOURCE_ANALOG_RIGHT, x, y)
+        }
     }
 
     override fun onMenu() {

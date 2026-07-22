@@ -52,8 +52,6 @@ object RetroDefaults {
     fun setTouchControls(context: Context, systemId: String, value: Boolean) =
         prefs(context).edit().putBoolean(key("touch", systemId), value).apply()
 
-    /** Adaptive (floating) analog sticks: hidden until the user touches the
-     *  stick's home area, where the stick then appears. Default off. */
     fun adaptiveSticks(context: Context, systemId: String): Boolean =
         prefs(context).getBoolean(key("adaptive", systemId), false)
 
@@ -72,14 +70,33 @@ object RetroDefaults {
     fun setNetplayEnabled(context: Context, systemId: String, value: Boolean) =
         prefs(context).edit().putBoolean(key("netplay", systemId), value).apply()
 
+    fun clearNetplayArm(
+        context: Context,
+        systemId: String,
+    ) {
+        prefs(context)
+            .edit()
+            .putBoolean(key("netplay", systemId), false)
+            .putString(key("netplay_mode", systemId), "off")
+            .putBoolean(key("netplay_host_mode", systemId), false)
+            .apply()
+    }
+
     fun netplayHost(context: Context, systemId: String): String =
         prefs(context).getString(key("netplay_host", systemId), "") ?: ""
 
     fun setNetplayHost(context: Context, systemId: String, value: String) =
         prefs(context).edit().putString(key("netplay_host", systemId), value).apply()
 
-    fun netplayPort(context: Context, systemId: String): Int =
-        prefs(context).getInt(key("netplay_port", systemId), 55435)
+    fun netplayPort(context: Context, systemId: String): Int {
+        val fallback =
+            if (RetroOnlineSupport.supportsGameLink(systemId)) {
+                RetroGameLink.DEFAULT_PORT
+            } else {
+                55435
+            }
+        return prefs(context).getInt(key("netplay_port", systemId), fallback)
+    }
 
     fun setNetplayPort(context: Context, systemId: String, value: Int) =
         prefs(context).edit().putInt(key("netplay_port", systemId), value.coerceIn(1, 65535)).apply()
@@ -89,6 +106,36 @@ object RetroDefaults {
 
     fun setNetplayHostMode(context: Context, systemId: String, value: Boolean) =
         prefs(context).edit().putBoolean(key("netplay_host_mode", systemId), value).apply()
+
+    fun netplayPlayerName(context: Context): String =
+        prefs(context).getString("retro_netplay_player_name", "") ?: ""
+
+    fun setNetplayPlayerName(context: Context, value: String) =
+        prefs(context).edit().putString("retro_netplay_player_name", value.trim().take(24)).apply()
+
+    fun netplayLaunchMode(context: Context, systemId: String): String {
+        val raw = prefs(context).getString(key("netplay_mode", systemId), null)
+        return when (raw?.lowercase()) {
+            "join" -> "join"
+            "host" -> "host"
+            "off", "manual", null -> "off"
+            else -> "off"
+        }
+    }
+
+    fun setNetplayLaunchMode(context: Context, systemId: String, value: String) {
+        val mode =
+            when (value.lowercase()) {
+                "join" -> "join"
+                "host" -> "host"
+                else -> "off"
+            }
+        prefs(context)
+            .edit()
+            .putString(key("netplay_mode", systemId), mode)
+            .putBoolean(key("netplay_host_mode", systemId), mode == "host")
+            .apply()
+    }
 
     fun coreOption(
         context: Context,

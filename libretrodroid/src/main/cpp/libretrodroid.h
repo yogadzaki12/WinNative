@@ -122,6 +122,14 @@ public:
     std::vector<std::vector<struct Controller>> getControllers();
     void setControllerType(unsigned int port, unsigned int type);
 
+    /** Libretro netpacket (gpSP RFU / multi-device link). */
+    bool netpacketHasCore();
+    bool netpacketStartHost(int listenPort);
+    bool netpacketStartClient(const std::string& host, int port);
+    void netpacketStop();
+    bool netpacketIsActive();
+    int netpacketPeerCount();
+
     int availableDisks();
     int currentDisk();
     void changeDisk(unsigned int index);

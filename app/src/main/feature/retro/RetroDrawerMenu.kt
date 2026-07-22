@@ -48,11 +48,15 @@ import androidx.compose.material.icons.outlined.FastForward
 import androidx.compose.material.icons.outlined.Monitor
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Group
+import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -143,6 +147,7 @@ sealed class RetroMenuEntry {
         val icon: ImageVector,
         val active: Boolean = false,
         val danger: Boolean = false,
+        val subtitle: String? = null,
         val onClick: () -> Unit,
     ) : RetroMenuEntry()
 
@@ -733,44 +738,85 @@ private fun RetroActionCard(
             blue = (bgColor.blue + (1f - bgColor.blue) * DrawerGradientLift).coerceIn(0f, 1f),
             alpha = bgColor.alpha,
         )
-    Column(
-        modifier =
-            modifier
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                }
-                .clip(shape)
-                .background(Brush.verticalGradient(listOf(topColor, bgColor)))
-                .border(1.dp, borderColor, shape)
-                .then(
-                    if (highlighted) {
-                        Modifier.chasingBorder(cornerRadius = cornerRadius, borderWidth = 1.5.dp, animationDurationMs = 8200)
-                    } else {
-                        Modifier
-                    },
+    val shell =
+        modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(shape)
+            .background(Brush.verticalGradient(listOf(topColor, bgColor)))
+            .border(1.dp, borderColor, shape)
+            .then(
+                if (highlighted) {
+                    Modifier.chasingBorder(cornerRadius = cornerRadius, borderWidth = 1.5.dp, animationDurationMs = 8200)
+                } else {
+                    Modifier
+                },
+            )
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+    if (entry.subtitle != null) {
+        Row(
+            modifier =
+                shell
+                    .defaultMinSize(minHeight = (72f * paneScale).dp)
+                    .padding(horizontal = (12f * paneScale).dp, vertical = (10f * paneScale).dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = entry.icon,
+                contentDescription = entry.label,
+                tint = tint,
+                modifier = Modifier.size((22f * paneScale).dp),
+            )
+            Spacer(Modifier.width((10f * paneScale).dp))
+            Column(Modifier.weight(1f, fill = true)) {
+                Text(
+                    text = entry.label,
+                    color = DrawerTextPrimary,
+                    fontSize = (13f * paneScale).sp,
+                    fontWeight = if (entry.active) FontWeight.SemiBold else FontWeight.Medium,
+                    maxLines = 3,
+                    softWrap = true,
+                    overflow = TextOverflow.Clip,
+                    lineHeight = (16f * paneScale).sp,
                 )
-                .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Icon(
-            imageVector = entry.icon,
-            contentDescription = entry.label,
-            tint = tint,
-            modifier = Modifier.size((24f * paneScale).dp),
-        )
-        Spacer(Modifier.height((4f * paneScale).dp))
-        Text(
-            text = entry.label,
-            color = DrawerTextPrimary,
-            fontSize = (12f * paneScale).sp,
-            fontWeight = if (entry.active) FontWeight.SemiBold else FontWeight.Medium,
-            letterSpacing = 0.2.sp,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = entry.subtitle,
+                    color = DrawerTextSecondary,
+                    fontSize = (11f * paneScale).sp,
+                    maxLines = 3,
+                    softWrap = true,
+                    overflow = TextOverflow.Clip,
+                    lineHeight = (14f * paneScale).sp,
+                )
+            }
+        }
+    } else {
+        Column(
+            modifier = shell,
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Icon(
+                imageVector = entry.icon,
+                contentDescription = entry.label,
+                tint = tint,
+                modifier = Modifier.size((24f * paneScale).dp),
+            )
+            Spacer(Modifier.height((4f * paneScale).dp))
+            Text(
+                text = entry.label,
+                color = DrawerTextPrimary,
+                fontSize = (12f * paneScale).sp,
+                fontWeight = if (entry.active) FontWeight.SemiBold else FontWeight.Medium,
+                letterSpacing = 0.2.sp,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
@@ -835,7 +881,17 @@ private fun RetroPaneList(
                                     entry = entry,
                                     highlighted = highlighted,
                                     paneScale = paneScale,
-                                    modifier = Modifier.fillMaxWidth().height((56f * paneScale).dp),
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .defaultMinSize(
+                                                minHeight =
+                                                    if (entry.subtitle != null) {
+                                                        (68f * paneScale).dp
+                                                    } else {
+                                                        (56f * paneScale).dp
+                                                    },
+                                            ),
                                     onClick = {
                                         controller.contentIndex = index
                                         entry.onClick()
@@ -1700,6 +1756,7 @@ object RetroDrawerTabs {
     fun build(
         context: android.content.Context,
         includePerformance: Boolean = false,
+        includeNetplay: Boolean = false,
     ): List<RetroTabSpec> {
         val tabs = mutableListOf<RetroTabSpec>()
         tabs += RetroTabSpec(null, Icons.Outlined.Apps, context.getString(R.string.retro_tab_menu))
@@ -1710,6 +1767,9 @@ object RetroDrawerTabs {
         tabs += RetroTabSpec(RetroPane.HUD, Icons.Outlined.Speed, context.getString(R.string.retro_tab_hud))
         tabs += RetroTabSpec(RetroPane.SOUND, Icons.AutoMirrored.Outlined.VolumeUp, context.getString(R.string.retro_tab_sound))
         tabs += RetroTabSpec(RetroPane.CONTROLS, Icons.Outlined.SportsEsports, context.getString(R.string.retro_tab_controls))
+        if (includeNetplay) {
+            tabs += RetroTabSpec(RetroPane.NETWORK, Icons.Outlined.Wifi, context.getString(R.string.retro_tab_netplay))
+        }
         return tabs
     }
 }
@@ -1727,5 +1787,9 @@ object RetroDrawerIcons {
     val Achievements = Icons.Outlined.EmojiEvents
     val Cheats = Icons.Outlined.Bolt
     val Add = Icons.Outlined.Add
+    val Play = Icons.Outlined.PlayArrow
+    val Group = Icons.Outlined.Group
+    val Link = Icons.Outlined.Link
+    val Search = Icons.Outlined.Search
     val Exit = Icons.AutoMirrored.Outlined.ExitToApp
 }

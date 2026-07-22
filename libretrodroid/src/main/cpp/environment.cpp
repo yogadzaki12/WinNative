@@ -25,11 +25,12 @@
 #include <EGL/egl.h>
 #include <unordered_map>
 
-#include "../../libretro-common/include/libretro.h"
+#include "retro_netpacket_api.h"
 #include "log.h"
 #include "environment.h"
 #include "vfs/vfs.h"
 #include "microphone/microphoneinterface.h"
+#include "netpacket.h"
 
 void Environment::initialize(
     const std::string &requiredSystemDirectory,
@@ -347,6 +348,13 @@ bool Environment::handle_callback_environment(unsigned cmd, void *data) {
         case RETRO_ENVIRONMENT_GET_MICROPHONE_INTERFACE:
             LOGD("Called RETRO_ENVIRONMENT_GET_MICROPHONE_INTERFACE");
             return environment_handle_get_microphone_interface(static_cast<struct retro_microphone_interface*>(data));
+
+        case RETRO_ENVIRONMENT_SET_NETPACKET_INTERFACE:
+            LOGI("Called RETRO_ENVIRONMENT_SET_NETPACKET_INTERFACE");
+            libretrodroid::NetpacketBridge::getInstance().setCoreInterface(
+                static_cast<const wn_netpacket_callback*>(data)
+            );
+            return true;
 
         default:
             LOGD("callback environment has been called: %u", cmd);

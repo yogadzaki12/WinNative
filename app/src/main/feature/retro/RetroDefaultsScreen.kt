@@ -809,45 +809,12 @@ fun RetroDefaultsScreen(bridge: SettingsNavBridge? = null) {
                         stringResource(R.string.retro_scr_performance_hud),
                         RetroDefaults.hud(context, sys),
                     ) { RetroDefaults.setHud(context, sys, it); refresh++ }
-                    if (RetroOnlineSupport.supportsNetplayCore(sys)) {
-                        RetroSettingSwitch(
-                            stringResource(R.string.retro_gs_netplay_enable),
-                            RetroDefaults.netplayEnabled(context, sys),
-                            subtitle = stringResource(R.string.retro_gs_netplay_enable_subtitle),
-                        ) {
-                            RetroDefaults.setNetplayEnabled(context, sys, it)
-                            refresh++
-                        }
-                        if (RetroDefaults.netplayEnabled(context, sys)) {
-                            RetroSettingSwitch(
-                                stringResource(R.string.retro_gs_netplay_host_mode),
-                                RetroDefaults.netplayHostMode(context, sys),
-                                subtitle = stringResource(R.string.retro_gs_netplay_host_mode_subtitle),
-                            ) {
-                                RetroDefaults.setNetplayHostMode(context, sys, it)
-                                refresh++
-                            }
-                            if (!RetroDefaults.netplayHostMode(context, sys)) {
-                                RetroSettingTextField(
-                                    stringResource(R.string.retro_gs_netplay_host),
-                                    RetroDefaults.netplayHost(context, sys),
-                                    stringResource(R.string.retro_gs_netplay_host_hint),
-                                ) {
-                                    RetroDefaults.setNetplayHost(context, sys, it)
-                                    refresh++
-                                }
-                            }
-                            RetroSettingTextField(
-                                stringResource(R.string.retro_gs_netplay_port),
-                                RetroDefaults.netplayPort(context, sys).toString(),
-                                "55435",
-                            ) {
-                                it.toIntOrNull()?.let { p ->
-                                    RetroDefaults.setNetplayPort(context, sys, p)
-                                    refresh++
-                                }
-                            }
-                        }
+                    if (RetroOnlineSupport.supportsMultiplayerUi(sys)) {
+                        RetroNetplaySettingsSection(
+                            systemId = sys,
+                            version = refresh,
+                            onChanged = { refresh++ },
+                        )
                     }
                 }
             }

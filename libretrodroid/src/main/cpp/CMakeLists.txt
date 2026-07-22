@@ -96,6 +96,8 @@ add_library(libretrodroid SHARED
         fpssync.cpp
         environment.h
         environment.cpp
+        netpacket.h
+        netpacket.cpp
         input.h
         input.cpp
         shadermanager.h
