@@ -6,9 +6,84 @@
 #include <mutex>
 #include <cstring>
 #include <cstdio>
+#include <cstring>
+#include <strings.h>
 
 #include "rc_client.h"
 #include "rc_libretro.h"
+#include "rc_hash.h"
+#include <formats/cdfs.h>
+
+// Custom rc_hash CD reader. For .chd images we drive libretro's cdfs layer
+// (chd_stream + libchdr), which cooks 2048-byte user sectors and handles the
+// pregap/sector-size detection the default reader cannot do on a raw chd. Every
+// other format (.iso/.cue/.bin/.gdi) is delegated to rcheevos' default reader.
+namespace {
+rc_hash_cdreader_t g_defaultCdReader;
+
+bool ra_is_chd(const char *path) {
+    if (!path) return false;
+    const size_t n = std::strlen(path);
+    return n >= 4 && strcasecmp(path + n - 4, ".chd") == 0;
+}
+
+struct RaTrack {
+    bool isChd;
+    cdfs_track_t *track;  // chd only
+    cdfs_file_t file;     // chd only
+    void *inner;          // default-reader handle otherwise
+};
+
+void *ra_cd_open_track(const char *path, uint32_t track) {
+    auto *h = new RaTrack{};
+    if (ra_is_chd(path)) {
+        h->isChd = true;
+        if (track == RC_HASH_CDTRACK_FIRST_DATA || track == RC_HASH_CDTRACK_LARGEST) {
+            h->track = cdfs_open_data_track(path);
+        } else {
+            h->track = cdfs_open_track(path, track);
+        }
+        if (!h->track || !cdfs_open_file(&h->file, h->track, nullptr)) {
+            if (h->track) cdfs_close_track(h->track);
+            delete h;
+            return nullptr;
+        }
+        return h;
+    }
+    h->isChd = false;
+    h->inner = g_defaultCdReader.open_track ? g_defaultCdReader.open_track(path, track) : nullptr;
+    if (!h->inner) { delete h; return nullptr; }
+    return h;
+}
+
+size_t ra_cd_read_sector(void *handle, uint32_t sector, void *buffer, size_t bytes) {
+    auto *h = static_cast<RaTrack *>(handle);
+    if (h->isChd) {
+        cdfs_seek_sector(&h->file, sector);
+        int64_t r = cdfs_read_file(&h->file, buffer, bytes);
+        return r < 0 ? 0 : static_cast<size_t>(r);
+    }
+    return g_defaultCdReader.read_sector(h->inner, sector, buffer, bytes);
+}
+
+uint32_t ra_cd_first_track_sector(void *handle) {
+    auto *h = static_cast<RaTrack *>(handle);
+    if (h->isChd) return cdfs_get_first_sector(&h->file);
+    return g_defaultCdReader.first_track_sector(h->inner);
+}
+
+void ra_cd_close_track(void *handle) {
+    auto *h = static_cast<RaTrack *>(handle);
+    if (!h) return;
+    if (h->isChd) {
+        cdfs_close_file(&h->file);
+        if (h->track) cdfs_close_track(h->track);
+    } else if (h->inner) {
+        g_defaultCdReader.close_track(h->inner);
+    }
+    delete h;
+}
+}
 #include "rc_hash.h"
 #include "libretrodroid.h"
 #include "environment.h"
@@ -168,6 +243,15 @@ Java_com_swordfish_libretrodroid_RetroAchievements_nativeInit(JNIEnv *env, jobje
     g_client = rc_client_create(read_memory_callback, server_call_callback);
     rc_client_set_event_handler(g_client, event_handler);
     rc_client_set_hardcore_enabled(g_client, hardcore ? 1 : 0);
+    // Register the default CD reader so pre-launch identify/hash can read disc
+    // images (PS2/PSX/GC .iso/.cue/.bin/.gdi) and resolve the same game the
+    // running core does — without it, disc-based systems fail to hash by path.
+    rc_hash_init_default_cdreader();
+    rc_hash_get_default_cdreader(&g_defaultCdReader);
+    static rc_hash_cdreader_t ra_cdreader = {
+        ra_cd_open_track, ra_cd_read_sector, ra_cd_close_track, ra_cd_first_track_sector, nullptr,
+    };
+    rc_hash_init_custom_cdreader(&ra_cdreader);
     g_gameLoaded = false;
 }
 

@@ -1,0 +1,129 @@
+diff --git a/Source/Android/app/src/main/java/org/dolphinemu/dolphinemu/features/settings/model/AchievementModel.kt b/Source/Android/app/src/main/java/org/dolphinemu/dolphinemu/features/settings/model/AchievementModel.kt
+index 1ea53dd..f62b2f1 100644
+--- a/Source/Android/app/src/main/java/org/dolphinemu/dolphinemu/features/settings/model/AchievementModel.kt
++++ b/Source/Android/app/src/main/java/org/dolphinemu/dolphinemu/features/settings/model/AchievementModel.kt
+@@ -26,4 +26,7 @@ object AchievementModel {
+ 
+     @JvmStatic
+     external fun shutdown()
++
++    @JvmStatic
++    external fun getAchievementsJSON(): String
+ }
+diff --git a/Source/Android/jni/AchievementAdapter.cpp b/Source/Android/jni/AchievementAdapter.cpp
+index d5df74c..a3012ed 100644
+--- a/Source/Android/jni/AchievementAdapter.cpp
++++ b/Source/Android/jni/AchievementAdapter.cpp
+@@ -3,7 +3,12 @@
+ 
+ #include <jni.h>
+ 
++#include <cstdint>
++#include <cstdio>
+ #include <latch>
++#include <mutex>
++#include <string>
++#include <rc_client.h>
+ #include "Common/Event.h"
+ #include "Common/HookableEvent.h"
+ #include "Core/AchievementManager.h"
+@@ -55,4 +60,99 @@ Java_org_dolphinemu_dolphinemu_features_settings_model_AchievementModel_shutdown
+   AchievementManager::GetInstance().Shutdown();
+ }
+ 
++// Snapshot of the active game's achievements as JSON for the WinNative in-game
++// Achievements panel. Schema matches the libretro/PS2 producers that the Kotlin
++// parseAchievementItems() reads: {"items":[{id,title,description,points,unlocked,
++// subsetId,measuredProgress,iconUrl}]}. Empty items when no client / no game.
++JNIEXPORT jstring JNICALL
++Java_org_dolphinemu_dolphinemu_features_settings_model_AchievementModel_getAchievementsJSON(
++    JNIEnv* env, jclass)
++{
++  auto append_json_string = [](std::string& dst, const char* src) {
++    dst += '"';
++    if (src)
++    {
++      for (const char* p = src; *p; ++p)
++      {
++        const unsigned char c = static_cast<unsigned char>(*p);
++        switch (c)
++        {
++        case '"': dst += "\\\""; break;
++        case '\\': dst += "\\\\"; break;
++        case '\n': dst += "\\n"; break;
++        case '\r': dst += "\\r"; break;
++        case '\t': dst += "\\t"; break;
++        default:
++          if (c < 0x20)
++          {
++            char esc[8];
++            std::snprintf(esc, sizeof(esc), "\\u%04x", c);
++            dst += esc;
++          }
++          else
++          {
++            dst += static_cast<char>(c);
++          }
++          break;
++        }
++      }
++    }
++    dst += '"';
++  };
++
++  auto& instance = AchievementManager::GetInstance();
++  std::lock_guard<std::recursive_mutex> lock(instance.GetLock());
++  rc_client_t* client = instance.GetClient();
++
++  std::string out;
++  out.reserve(4096);
++  out += "{\"items\":[";
++  if (client)
++  {
++    rc_client_achievement_list_t* list = rc_client_create_achievement_list(
++        client, RC_CLIENT_ACHIEVEMENT_CATEGORY_CORE_AND_UNOFFICIAL,
++        RC_CLIENT_ACHIEVEMENT_LIST_GROUPING_LOCK_STATE);
++    if (list)
++    {
++      bool first = true;
++      for (uint32_t b = 0; b < list->num_buckets; b++)
++      {
++        const rc_client_achievement_bucket_t& bucket = list->buckets[b];
++        for (uint32_t a = 0; a < bucket.num_achievements; a++)
++        {
++          const rc_client_achievement_t* ach = bucket.achievements[a];
++          if (!ach)
++            continue;
++          if (!first)
++            out += ',';
++          first = false;
++          out += "{\"id\":";
++          out += std::to_string(ach->id);
++          out += ",\"title\":";
++          append_json_string(out, ach->title);
++          out += ",\"description\":";
++          append_json_string(out, ach->description);
++          out += ",\"points\":";
++          out += std::to_string(ach->points);
++          out += ",\"unlocked\":";
++          out += (ach->state == RC_CLIENT_ACHIEVEMENT_STATE_UNLOCKED) ? "true" : "false";
++          out += ",\"subsetId\":";
++          out += std::to_string(bucket.subset_id);
++          out += ",\"measuredProgress\":";
++          append_json_string(out, ach->measured_progress);
++          char url_buf[256];
++          const int rc =
++              rc_client_achievement_get_image_url(ach, ach->state, url_buf, sizeof(url_buf));
++          out += ",\"iconUrl\":";
++          append_json_string(out, rc == RC_OK ? url_buf : "");
++          out += '}';
++        }
++      }
++      rc_client_destroy_achievement_list(list);
++    }
++  }
++  out += "]}";
++  return ToJString(env, out);
++}
++
+ }  // extern "C"

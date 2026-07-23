@@ -126,8 +126,8 @@ fun BoxScope.RetroAchievementOverlayBanner() {
     }
 
     val align = if (displayArea) Alignment.TopCenter else Alignment.TopStart
-    val hPad = if (displayArea) 80.dp else 12.dp
-    val tPad = if (displayArea) 24.dp else 12.dp
+    val hPad = if (displayArea) 60.dp else 10.dp
+    val tPad = if (displayArea) 18.dp else 10.dp
 
     Column(
         modifier =
@@ -135,8 +135,8 @@ fun BoxScope.RetroAchievementOverlayBanner() {
                 .align(align)
                 .zIndex(1000f)
                 .padding(start = hPad, end = hPad, top = tPad)
-                .fillMaxWidth(if (displayArea) 0.62f else 0.55f)
-                .widthIn(max = 380.dp),
+                .widthIn(max = 285.dp),
+        horizontalAlignment = if (displayArea) Alignment.CenterHorizontally else Alignment.Start,
     ) {
         AnimatedVisibility(
             visible = banner != null,
@@ -145,25 +145,26 @@ fun BoxScope.RetroAchievementOverlayBanner() {
         ) {
             val b = banner
             if (b != null) {
+                // Wrap to the text (barely wider than the longest line), capped by the
+                // parent's widthIn; ~25% smaller than before.
                 Column(
                     modifier =
                         Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xF0121824), RoundedCornerShape(12.dp))
-                            .border(1.dp, Color(0xFF1A9FFF).copy(alpha = 0.55f), RoundedCornerShape(12.dp))
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                            .background(Color(0xF0121824), RoundedCornerShape(9.dp))
+                            .border(1.dp, Color(0xFF1A9FFF).copy(alpha = 0.55f), RoundedCornerShape(9.dp))
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
                 ) {
                     Text(
                         "ACHIEVEMENT UNLOCKED",
                         color = Color(0xFF1A9FFF),
-                        fontSize = 10.sp,
+                        fontSize = 8.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp,
                     )
                     Text(
                         b.title,
                         color = Color(0xFFF0F4FF),
-                        fontSize = 15.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(top = 2.dp),
                     )
@@ -171,16 +172,16 @@ fun BoxScope.RetroAchievementOverlayBanner() {
                         Text(
                             b.description,
                             color = Color(0xFF93A6BC),
-                            fontSize = 12.sp,
+                            fontSize = 9.sp,
                             modifier = Modifier.padding(top = 2.dp),
                         )
                     }
                     Text(
                         "+${b.points}",
                         color = Color(0xFF35D0BA),
-                        fontSize = 12.sp,
+                        fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(top = 4.dp),
+                        modifier = Modifier.padding(top = 3.dp),
                     )
                 }
             }

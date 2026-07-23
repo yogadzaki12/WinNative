@@ -149,9 +149,15 @@ internal fun RetroAchievementsScreen(
     useNativePs2: Boolean = false,
     /** Match in-game cheats / shortcut-settings floating card (game visible around edges). */
     floatingOverGame: Boolean = false,
+    /** Console-agnostic native achievements-JSON source (e.g. Dolphin); when set,
+     *  the screen reads the live list from it instead of the RA web manager. */
+    nativeJson: (() -> String)? = null,
 ) {
     val context = LocalContext.current
     val refreshScope = rememberCoroutineScope()
+    val nativeMode = useNativePs2 || nativeJson != null
+    fun nativeAchievementsJson(): String =
+        nativeJson?.invoke() ?: kr.co.iefriends.pcsx2.NativeApp.getAchievementsJSON().orEmpty()
     var loggedIn by remember {
         mutableStateOf(
             RetroAchievementsManager.isLoggedIn(context) ||
@@ -183,7 +189,7 @@ internal fun RetroAchievementsScreen(
             val pair =
                 withContext(Dispatchers.IO) {
                     runCatching {
-                        val raw = kr.co.iefriends.pcsx2.NativeApp.getAchievementsJSON().orEmpty()
+                        val raw = nativeAchievementsJson()
                         if (raw.isBlank()) return@runCatching null
                         val root = org.json.JSONObject(raw)
                         val items =
@@ -232,11 +238,11 @@ internal fun RetroAchievementsScreen(
     }
 
     fun refresh() {
-        if (useNativePs2) refreshFromPs2Native() else refreshFromManager()
+        if (nativeMode) refreshFromPs2Native() else refreshFromManager()
     }
 
     DisposableEffect(Unit) {
-        if (!useNativePs2) {
+        if (!nativeMode) {
             RetroAchievementsManager.stateListener = { refresh() }
         }
         onDispose { RetroAchievementsManager.stateListener = null }
@@ -245,9 +251,10 @@ internal fun RetroAchievementsScreen(
     LaunchedEffect(Unit) {
         if (useNativePs2 && RetroAchievementsManager.isLoggedIn(context)) {
             loggedIn = true
-            withContext(Dispatchers.IO) {
-                Ps2RaBridge.pushSharedLogin(context)
-            }
+            // In-session the running core is already logged in with the game loaded;
+            // pushSharedLogin() calls commitSettings() which aborts the live VM, so only
+            // push login pre-launch.
+            if (!inSession) withContext(Dispatchers.IO) { Ps2RaBridge.pushSharedLogin(context) }
         }
     }
 
@@ -256,16 +263,16 @@ internal fun RetroAchievementsScreen(
             loading = false
             return@LaunchedEffect
         }
-        if (useNativePs2) {
+        if (nativeMode) {
             loading = true
-            withContext(Dispatchers.IO) { Ps2RaBridge.pushSharedLogin(context) }
+            if (useNativePs2 && !inSession) withContext(Dispatchers.IO) { Ps2RaBridge.pushSharedLogin(context) }
             var attempts = 0
             var last: List<RetroAchievement> = emptyList()
             while (attempts < 24) {
                 last =
                     withContext(Dispatchers.IO) {
                         runCatching {
-                            val raw = kr.co.iefriends.pcsx2.NativeApp.getAchievementsJSON().orEmpty()
+                            val raw = nativeAchievementsJson()
                             com.armsx2.ui.achievements.parseAchievementItems(raw).map { a ->
                                 RetroAchievement(
                                     id = a.id.toLong(),

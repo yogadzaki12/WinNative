@@ -33,6 +33,10 @@ class DolphinEmulationActivity :
         const val EXTRA_VARIABLES_STRING = "dolphin_vars"
         const val EXTRA_SHORTCUT_PATH = "dolphin_shortcut_path"
         const val EXTRA_CONTAINER_ID = "dolphin_container_id"
+        const val EXTRA_RA_ENABLED = "dolphin_ra_enabled"
+        const val EXTRA_RA_USER = "dolphin_ra_user"
+        const val EXTRA_RA_TOKEN = "dolphin_ra_token"
+        const val EXTRA_RA_HARDCORE = "dolphin_ra_hardcore"
 
         @Volatile
         var currentVariables: Map<String, String> = emptyMap()
@@ -170,6 +174,36 @@ class DolphinEmulationActivity :
             if (eq > 0) map[pair.substring(0, eq).trim()] = pair.substring(eq + 1).trim()
         }
         return map
+    }
+
+    // RetroAchievements: seed Dolphin's config with the shared RA credentials and
+    // token-login in the background so the core tracks achievements for this game.
+    private fun initAchievements() {
+        if (!intent.getBooleanExtra(EXTRA_RA_ENABLED, false)) return
+        val user = intent.getStringExtra(EXTRA_RA_USER).orEmpty()
+        val token = intent.getStringExtra(EXTRA_RA_TOKEN).orEmpty()
+        if (user.isBlank() || token.isBlank()) return
+        runCatching {
+            val base = org.dolphinemu.dolphinemu.features.settings.model.NativeConfig.LAYER_BASE
+            org.dolphinemu.dolphinemu.features.settings.model.NativeConfig
+                .setBoolean(base, "RetroAchievements", "Achievements", "Enabled", true)
+            org.dolphinemu.dolphinemu.features.settings.model.NativeConfig
+                .setString(base, "RetroAchievements", "Achievements", "Username", user)
+            org.dolphinemu.dolphinemu.features.settings.model.NativeConfig
+                .setString(base, "RetroAchievements", "Achievements", "ApiToken", token)
+            org.dolphinemu.dolphinemu.features.settings.model.NativeConfig.setBoolean(
+                base, "RetroAchievements", "Achievements", "HardcoreEnabled",
+                intent.getBooleanExtra(EXTRA_RA_HARDCORE, false),
+            )
+            org.dolphinemu.dolphinemu.features.settings.model.AchievementModel.init()
+            thread(name = "WnDolphinRaLogin") {
+                runCatching {
+                    kotlinx.coroutines.runBlocking {
+                        org.dolphinemu.dolphinemu.features.settings.model.AchievementModel.asyncLogin("")
+                    }
+                }.onFailure { Log.w(TAG, "RA login failed", it) }
+            }
+        }.onFailure { Log.w(TAG, "RA init failed", it) }
     }
 
     private fun applySysconf(vars: Map<String, String>) {
@@ -376,6 +410,7 @@ class DolphinEmulationActivity :
                     NativeLibrary.Initialize()
                     NativeLibrary.ReloadConfig()
                     applySysconf(vars)
+                    initAchievements()
                     runCatching { File(filesDir, "dolphin-embed/.running_rom").writeText(romPath) }
                     val netplay = DolphinNetplay.fromIntent(intent)
                     if (netplay != null) {

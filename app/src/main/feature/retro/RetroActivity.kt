@@ -143,17 +143,9 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 else -> 4f / 3f
             }
 
-    private fun overlayPush(): Float {
-        val rating = frameRating
-        val rootHeight = rootLayout?.height ?: 0
-        return if (isPortrait && hudVisible && rating != null &&
-            rating.visibility == View.VISIBLE && rating.height > 0 && rootHeight > 0
-        ) {
-            ((rating.y + rating.height + rating.height * 0.15f) / rootHeight).coerceIn(0f, 0.3f)
-        } else {
-            0f
-        }
-    }
+    // The display area is fixed; the performance HUD floats over it and is freely
+    // draggable, so the display never reserves/reflows space around the HUD.
+    private fun overlayPush(): Float = 0f
 
     private fun updateOverlayArea() {
         val rootWidth = rootLayout?.width ?: 0

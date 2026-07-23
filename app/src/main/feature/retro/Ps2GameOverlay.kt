@@ -1145,37 +1145,34 @@ object Ps2GameOverlay {
             object : Runnable {
                 override fun run() {
                     if (activity.isFinishing || activity.isDestroyed) return
-                    // JNI fetch + JSON parse off the UI thread; diff/state/UI on main.
-                    Thread {
-                        val items =
-                            runCatching {
-                                NativeApp.getAchievementsJSON()
-                                    ?.let { com.armsx2.ui.achievements.parseAchievementItems(it) }
-                            }.getOrNull()
-                        activity.runOnUiThread {
-                            if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
-                            if (items != null) {
-                                val unlocked = items.filter { it.unlocked }.map { it.id }.toSet()
-                                if (!achievementsSeeded) {
+                    // Native RA (rc_client) is not thread-safe: keep every
+                    // getAchievementsJSON() call on the main thread, and pause while the
+                    // achievements/cheats screen is open (it reads the same state) so the
+                    // two never race and crash the VM.
+                    if (ps2Screen.value == null) {
+                        runCatching {
+                            val json = NativeApp.getAchievementsJSON() ?: return@runCatching
+                            val items = com.armsx2.ui.achievements.parseAchievementItems(json)
+                            val unlocked = items.filter { it.unlocked }.map { it.id }.toSet()
+                            if (!achievementsSeeded) {
+                                knownUnlocked = unlocked
+                                achievementsSeeded = true
+                            } else {
+                                val newly = unlocked - knownUnlocked
+                                if (newly.isNotEmpty()) {
                                     knownUnlocked = unlocked
-                                    achievementsSeeded = true
-                                } else {
-                                    val newly = unlocked - knownUnlocked
-                                    if (newly.isNotEmpty()) {
-                                        knownUnlocked = unlocked
-                                        items.filter { it.id in newly }.forEach { item ->
-                                            val showPad =
-                                                touchVisible.value &&
-                                                    (pad?.editMode == true || (!controllerConnected.value || manualTouchOverride.value))
-                                            RetroAchievementOverlayState.syncPlacement(showPad, controllerConnected.value)
-                                            RetroAchievementOverlayState.show(item.title, item.points, item.description)
-                                        }
+                                    items.filter { it.id in newly }.forEach { item ->
+                                        val showPad =
+                                            touchVisible.value &&
+                                                (pad?.editMode == true || (!controllerConnected.value || manualTouchOverride.value))
+                                        RetroAchievementOverlayState.syncPlacement(showPad, controllerConnected.value)
+                                        RetroAchievementOverlayState.show(item.title, item.points, item.description)
                                     }
                                 }
                             }
-                            achievementPollHandler.postDelayed(this, 1500L)
                         }
-                    }.start()
+                    }
+                    achievementPollHandler.postDelayed(this, 1500L)
                 }
             }
         achievementPollHandler.postDelayed(achievementPoll, 3000L)

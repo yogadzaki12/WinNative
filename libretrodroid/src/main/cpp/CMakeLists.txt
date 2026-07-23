@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.13.2)
 # now build app's shared lib
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -Wall")
 
-add_definitions("-DVFS_FRONTEND -DHAVE_STRL")
+add_definitions("-DVFS_FRONTEND -DHAVE_STRL -DHAVE_CHD")
 
 # Let's include oboe
 set (OBOE_DIR oboe)
@@ -19,6 +19,33 @@ set (LIBRETRO_COMMON
         libretro/libretro-common/encodings/encoding_utf.c
         libretro/libretro-common/file/file_path.c
         libretro/libretro-common/time/rtime.c
+        libretro/libretro-common/streams/chd_stream.c
+        libretro/libretro-common/streams/file_stream.c
+        libretro/libretro-common/streams/interface_stream.c
+        libretro/libretro-common/streams/memory_stream.c
+        libretro/libretro-common/encodings/encoding_crc32.c
+        libretro/libretro-common/formats/cdfs/cdfs.c
+)
+
+# Vendored libchdr (from beetle-psx) so RetroAchievements can hash .chd discs.
+include_directories("libchdr/include")
+set (LIBCHDR
+        libchdr/deps/lzma-25.01/src/LzmaDec.c
+        libchdr/deps/zstd-1.5.7/zstddeclib.c
+        libchdr/src/libchdr_bitstream.c
+        libchdr/src/libchdr_cdrom.c
+        libchdr/src/libchdr_chd.c
+        libchdr/src/libchdr_codec_cdfl.c
+        libchdr/src/libchdr_codec_cdlz.c
+        libchdr/src/libchdr_codec_cdzl.c
+        libchdr/src/libchdr_codec_cdzs.c
+        libchdr/src/libchdr_codec_flac.c
+        libchdr/src/libchdr_codec_huff.c
+        libchdr/src/libchdr_codec_lzma.c
+        libchdr/src/libchdr_codec_zlib.c
+        libchdr/src/libchdr_codec_zstd.c
+        libchdr/src/libchdr_flac.c
+        libchdr/src/libchdr_huffman.c
 )
 
 add_definitions("-DRC_CLIENT_SUPPORTS_HASH")
@@ -130,6 +157,7 @@ add_library(libretrodroid SHARED
         microphone/microphoneinterface.cpp
         retroachievements.cpp
         ${LIBRETRO_COMMON}
+        ${LIBCHDR}
         ${RCHEEVOS}
 )
 
@@ -139,8 +167,9 @@ target_link_options(libretrodroid PRIVATE "-Wl,-z,max-page-size=16384")
 # add lib dependencies
 target_link_libraries(libretrodroid
                       android
-                      log 
+                      log
                       EGL
                       oboe
                       GLESv3
+                      z
 )

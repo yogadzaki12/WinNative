@@ -161,6 +161,7 @@ object DolphinGameOverlay {
         var shortcut: Shortcut? = null
         val pendingExtras = linkedMapOf<String, String>()
         val menu = RetroMenuController()
+        val dolphinScreen = mutableStateOf<String?>(null)
         lateinit var input: RetroInputView
         val vars = DolphinEmulationActivity.currentVariables
         var touchControls = vars["wn_touch"] != "0"
@@ -348,7 +349,17 @@ object DolphinGameOverlay {
         menu.entriesProvider = { pane ->
             when (pane) {
                 null ->
-                    buildMain(activity, menu, hudOn, system.id == RetroSystems.WII.id, ::setHudVisible) { load ->
+                    buildMain(
+                        activity,
+                        menu,
+                        hudOn,
+                        system.id == RetroSystems.WII.id,
+                        onAchievements = {
+                            dolphinScreen.value = "achievements"
+                            menu.close()
+                        },
+                        onHud = ::setHudVisible,
+                    ) { load ->
                         savesLoadMode = load
                         menu.showPane(RetroPane.SAVES)
                     }
@@ -420,14 +431,34 @@ object DolphinGameOverlay {
                 setContent {
                     WinNativeTheme {
                         Box(Modifier.fillMaxSize()) {
-                            val hosting = DolphinNetplayHud.hosting
-                            val code = DolphinNetplayHud.hostCode
-                            val members = DolphinNetplayHud.members
-                            LaunchedEffect(hosting, code, members) {
-                                if (menu.visible && menu.pane == RetroPane.NETWORK) menu.rebuild()
+                            val screen by dolphinScreen
+                            if (screen == "achievements") {
+                                val dismiss = { dolphinScreen.value = null }
+                                androidx.activity.compose.BackHandler(enabled = true) { dismiss() }
+                                RetroAchievementsScreen(
+                                    systemId = system.id,
+                                    gameName = activity.intent.getStringExtra(
+                                        DolphinEmulationActivity.EXTRA_GAME_NAME,
+                                    ) ?: system.displayName,
+                                    romPath = "",
+                                    inSession = true,
+                                    onClose = dismiss,
+                                    floatingOverGame = true,
+                                    nativeJson = {
+                                        org.dolphinemu.dolphinemu.features.settings.model.AchievementModel
+                                            .getAchievementsJSON()
+                                    },
+                                )
+                            } else {
+                                val hosting = DolphinNetplayHud.hosting
+                                val code = DolphinNetplayHud.hostCode
+                                val members = DolphinNetplayHud.members
+                                LaunchedEffect(hosting, code, members) {
+                                    if (menu.visible && menu.pane == RetroPane.NETWORK) menu.rebuild()
+                                }
+                                DolphinNetplayBanner(hosting, code, members)
+                                RetroDrawerMenu(menu)
                             }
-                            DolphinNetplayBanner(hosting, code, members)
-                            RetroDrawerMenu(menu)
                         }
                     }
                 }
@@ -457,6 +488,7 @@ object DolphinGameOverlay {
         menu: RetroMenuController,
         hudOn: Boolean,
         isWii: Boolean,
+        onAchievements: () -> Unit,
         onHud: (Boolean) -> Unit,
         openMemoryCards: (load: Boolean) -> Unit,
     ): List<RetroMenuEntry> =
@@ -469,6 +501,11 @@ object DolphinGameOverlay {
                     },
                 )
             }
+            add(
+                RetroMenuEntry.Action(activity.getString(R.string.retro_ps2_achievements), RetroDrawerIcons.Achievements) {
+                    onAchievements()
+                },
+            )
             add(
                 RetroMenuEntry.Action(activity.getString(R.string.retro_lr_save_state), RetroDrawerIcons.Save) {
                     openMemoryCards(false)

@@ -26,4 +26,7 @@ object AchievementModel {
 
     @JvmStatic
     external fun shutdown()
+
+    @JvmStatic
+    external fun getAchievementsJSON(): String
 }

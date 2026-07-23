@@ -114,6 +114,10 @@ object RetroAchievementsManager {
     fun displayName(context: Context): String? = prefs(context).getString(KEY_DISPLAY, null)
         ?: prefs(context).getString(KEY_USERNAME, null)
 
+    fun username(context: Context): String? = prefs(context).getString(KEY_USERNAME, null)
+
+    fun apiToken(context: Context): String? = prefs(context).getString(KEY_TOKEN, null)
+
     fun consoleId(systemId: String?): Int =
         when (systemId) {
             RetroSystems.NES.id -> 7

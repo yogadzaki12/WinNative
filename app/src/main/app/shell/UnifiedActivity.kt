@@ -920,6 +920,11 @@ class UnifiedActivity :
         val hasLegacy = prefs.getString("retro_pending_backup_id", null) != null
         val hasDolphin = com.winlator.cmod.feature.retro.DolphinCloudSync.peekPending(this) != null
         if (!hasLegacy && !hasDolphin) return
+        // Only touch the Play Games API if the user has actually connected Google
+        // Saved Games; otherwise a never-signed-in user would still trigger a
+        // sign-in attempt and upload here. Pending saves stay queued for whenever
+        // they do connect.
+        if (!com.winlator.cmod.feature.sync.google.GameSaveBackupManager.isDriveConnected(this)) return
         // Warm the Play Games session before the (silent) upload; the auto path
         // otherwise races the async sign-in and fails with "Not signed in".
         runCatching {

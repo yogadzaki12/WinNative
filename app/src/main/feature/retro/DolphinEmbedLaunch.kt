@@ -175,6 +175,12 @@ object DolphinEmbedLaunch {
                 putExtra(DolphinNetplay.EXTRA_PORT, netplayPort)
                 putExtra(DolphinNetplay.EXTRA_NICKNAME, netplayNick)
             }
+            if (RetroAchievementsManager.isEnabled(context) && RetroAchievementsManager.isLoggedIn(context)) {
+                putExtra(DolphinEmulationActivity.EXTRA_RA_ENABLED, true)
+                putExtra(DolphinEmulationActivity.EXTRA_RA_USER, RetroAchievementsManager.username(context) ?: "")
+                putExtra(DolphinEmulationActivity.EXTRA_RA_TOKEN, RetroAchievementsManager.apiToken(context) ?: "")
+                putExtra(DolphinEmulationActivity.EXTRA_RA_HARDCORE, RetroAchievementsManager.isHardcorePreferred(context))
+            }
         }
     }
 
