@@ -25,6 +25,15 @@ object RetroControlsMenu {
     fun build(host: Host): List<RetroMenuEntry> =
         buildList {
             val context = host.context
+            add(
+                RetroMenuEntry.Toggle(
+                    context.getString(R.string.retro_lr_on_screen_controls),
+                    checked = host.touchControls(),
+                ) { value ->
+                    host.onTouchControls(value)
+                    host.menu.rebuild()
+                },
+            )
             if (host.showStickInversion) {
                 val invPrefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
                 val sys = host.systemId ?: "default"
@@ -39,15 +48,6 @@ object RetroControlsMenu {
                 add(invToggle(context.getString(R.string.retro_lr_right_stick_invert_x), "retro_inv_rx_$sys"))
                 add(invToggle(context.getString(R.string.retro_lr_right_stick_invert_y), "retro_inv_ry_$sys"))
             }
-            add(
-                RetroMenuEntry.Toggle(
-                    context.getString(R.string.retro_lr_on_screen_controls),
-                    checked = host.touchControls(),
-                ) { value ->
-                    host.onTouchControls(value)
-                    host.menu.rebuild()
-                },
-            )
             add(
                 RetroMenuEntry.Toggle(
                     context.getString(R.string.retro_lr_adaptive_sticks),

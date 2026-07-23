@@ -275,12 +275,17 @@ object Ps2GameOverlay {
                 com.winlator.cmod.runtime.input.controls.ExternalController.isGameController(android.view.InputDevice.getDevice(it))
             }
         val controllerConnected = mutableStateOf(anyGameController())
+        // Manual re-show of touch controls while a controller is connected; cleared
+        // whenever controller presence changes so auto behaviour resumes.
+        val manualTouchOverride = mutableStateOf(false)
         val inputManager = activity.getSystemService(android.hardware.input.InputManager::class.java)
         inputManager?.registerInputDeviceListener(
             object : android.hardware.input.InputManager.InputDeviceListener {
                 private fun refreshPadPresence() {
+                    val was = controllerConnected.value
                     controllerConnected.value = anyGameController()
-                    val showPad = touchVisible.value && !controllerConnected.value
+                    if (controllerConnected.value != was) manualTouchOverride.value = false
+                    val showPad = touchVisible.value && (!controllerConnected.value || manualTouchOverride.value)
                     RetroAchievementOverlayState.syncPlacement(showPad, controllerConnected.value)
                     Thread {
                         runCatching { RetroPs2OsdPlacement.apply(showPad, controllerConnected.value) }
@@ -602,11 +607,12 @@ object Ps2GameOverlay {
                 add(
                     RetroMenuEntry.Toggle(activity.getString(R.string.retro_ps2_onscreen_controls), checked = touchVisible.value) { value ->
                         touchVisible.value = value
+                        if (controllerConnected.value) manualTouchOverride.value = true
                         // Persist to the SAME wn.ps2.touchcontrols pref that Shortcut
                         // Settings reads/writes — single source of truth.
                         ps2Prefs(activity).edit().putBoolean("wn.ps2.touchcontrols", value).apply()
                         RetroDefaults.setTouchControls(activity, RetroSystems.PS2.id, value)
-                        val showPad = value && !controllerConnected.value
+                        val showPad = value && (!controllerConnected.value || manualTouchOverride.value)
                         RetroAchievementOverlayState.syncPlacement(showPad, controllerConnected.value)
                         bg {
                             RetroPs2OsdPlacement.apply(showPad, controllerConnected.value)
@@ -1139,28 +1145,37 @@ object Ps2GameOverlay {
             object : Runnable {
                 override fun run() {
                     if (activity.isFinishing || activity.isDestroyed) return
-                    runCatching {
-                        val json = NativeApp.getAchievementsJSON() ?: return@runCatching
-                        val items = com.armsx2.ui.achievements.parseAchievementItems(json)
-                        val unlocked = items.filter { it.unlocked }.map { it.id }.toSet()
-                        if (!achievementsSeeded) {
-                            knownUnlocked = unlocked
-                            achievementsSeeded = true
-                        } else {
-                            val newly = unlocked - knownUnlocked
-                            if (newly.isNotEmpty()) {
-                                knownUnlocked = unlocked
-                                items.filter { it.id in newly }.forEach { item ->
-                                    val showPad =
-                                        touchVisible.value &&
-                                            (pad?.editMode == true || !controllerConnected.value)
-                                    RetroAchievementOverlayState.syncPlacement(showPad, controllerConnected.value)
-                                    RetroAchievementOverlayState.show(item.title, item.points, item.description)
+                    // JNI fetch + JSON parse off the UI thread; diff/state/UI on main.
+                    Thread {
+                        val items =
+                            runCatching {
+                                NativeApp.getAchievementsJSON()
+                                    ?.let { com.armsx2.ui.achievements.parseAchievementItems(it) }
+                            }.getOrNull()
+                        activity.runOnUiThread {
+                            if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                            if (items != null) {
+                                val unlocked = items.filter { it.unlocked }.map { it.id }.toSet()
+                                if (!achievementsSeeded) {
+                                    knownUnlocked = unlocked
+                                    achievementsSeeded = true
+                                } else {
+                                    val newly = unlocked - knownUnlocked
+                                    if (newly.isNotEmpty()) {
+                                        knownUnlocked = unlocked
+                                        items.filter { it.id in newly }.forEach { item ->
+                                            val showPad =
+                                                touchVisible.value &&
+                                                    (pad?.editMode == true || (!controllerConnected.value || manualTouchOverride.value))
+                                            RetroAchievementOverlayState.syncPlacement(showPad, controllerConnected.value)
+                                            RetroAchievementOverlayState.show(item.title, item.points, item.description)
+                                        }
+                                    }
                                 }
                             }
+                            achievementPollHandler.postDelayed(this, 1500L)
                         }
-                    }
-                    achievementPollHandler.postDelayed(this, 1500L)
+                    }.start()
                 }
             }
         achievementPollHandler.postDelayed(achievementPoll, 3000L)
@@ -1237,7 +1252,7 @@ object Ps2GameOverlay {
                         val covered = WindowImpl.frontendCovers
                         // Hide the on-screen pad when a physical controller is
                         // connected (unless the user is editing the layout).
-                        val showPad = touchVisible.value && (pad?.editMode == true || !controllerConnected.value)
+                        val showPad = touchVisible.value && (pad?.editMode == true || (!controllerConnected.value || manualTouchOverride.value))
                         if (!covered && showPad) {
                             AndroidView(
                                 modifier = Modifier.fillMaxSize(),
@@ -1269,7 +1284,7 @@ object Ps2GameOverlay {
                             )
                         }
                         if (!covered) {
-                            val showPadForHud = touchVisible.value && (pad?.editMode == true || !controllerConnected.value)
+                            val showPadForHud = touchVisible.value && (pad?.editMode == true || (!controllerConnected.value || manualTouchOverride.value))
                             RetroAchievementOverlayState.syncPlacement(showPadForHud, controllerConnected.value)
                             RetroAchievementOverlayBanner()
                             RetroDrawerMenu(menu)

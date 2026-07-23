@@ -9,4 +9,8 @@ object DolphinHost {
 
     @Volatile
     var onStageSaves: ((Activity) -> Unit)? = null
+
+    /** NetPlay status for the in-game Online tab/banner: hosting, host code, members. */
+    @Volatile
+    var onNetplayStatus: ((hosting: Boolean, hostCode: String?, members: List<String>) -> Unit)? = null
 }

@@ -86,6 +86,12 @@ class DolphinEmulationActivity :
     private var isWii = false
     private var overridesRegistered = false
 
+    // Shared default prefs (same file the WinNative controls menu writes stick-invert
+    // toggles to); read live so in-game invert changes take effect immediately.
+    private val invertPrefs by lazy {
+        getSharedPreferences("${packageName}_preferences", android.content.Context.MODE_PRIVATE)
+    }
+
     @Volatile
     private var surfaceLive = false
 
@@ -248,8 +254,18 @@ class DolphinEmulationActivity :
             else -> null
         }
 
+    // Set by the overlay: toggles the WinNative in-game drawer.
+    @Volatile
+    var menuButtonHandler: (() -> Unit)? = null
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         registerInputOverrides()
+        if (event.keyCode == KeyEvent.KEYCODE_BUTTON_MODE &&
+            intent.getStringExtra(EXTRA_SYSTEM_ID) != "wii"
+        ) {
+            if (event.action == KeyEvent.ACTION_DOWN) menuButtonHandler?.invoke()
+            return true
+        }
         val gc = gcButtonFor(event.keyCode)
         val wii = wiiButtonFor(event.keyCode)
         if ((gc != null || wii != null) && overridesRegistered) {
@@ -275,10 +291,15 @@ class DolphinEmulationActivity :
         ) {
             return super.dispatchGenericMotionEvent(event)
         }
-        val lx = event.getAxisValue(MotionEvent.AXIS_X).toDouble()
-        val ly = -event.getAxisValue(MotionEvent.AXIS_Y).toDouble()
-        val rx = event.getAxisValue(MotionEvent.AXIS_Z).toDouble()
-        val ry = -event.getAxisValue(MotionEvent.AXIS_RZ).toDouble()
+        val invSys = intent.getStringExtra(EXTRA_SYSTEM_ID) ?: "gc"
+        val invLX = invertPrefs.getBoolean("retro_inv_lx_$invSys", false)
+        val invLY = invertPrefs.getBoolean("retro_inv_ly_$invSys", false)
+        val invRX = invertPrefs.getBoolean("retro_inv_rx_$invSys", false)
+        val invRY = invertPrefs.getBoolean("retro_inv_ry_$invSys", false)
+        val lx = event.getAxisValue(MotionEvent.AXIS_X).toDouble().let { if (invLX) -it else it }
+        val ly = (-event.getAxisValue(MotionEvent.AXIS_Y).toDouble()).let { if (invLY) -it else it }
+        val rx = event.getAxisValue(MotionEvent.AXIS_Z).toDouble().let { if (invRX) -it else it }
+        val ry = (-event.getAxisValue(MotionEvent.AXIS_RZ).toDouble()).let { if (invRY) -it else it }
         val lt = maxOf(event.getAxisValue(MotionEvent.AXIS_LTRIGGER), event.getAxisValue(MotionEvent.AXIS_BRAKE)).toDouble()
         val rt = maxOf(event.getAxisValue(MotionEvent.AXIS_RTRIGGER), event.getAxisValue(MotionEvent.AXIS_GAS)).toDouble()
         val hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X)
@@ -462,6 +483,14 @@ class DolphinEmulationActivity :
 
     fun stopGame() {
         teardown()
+    }
+
+    // Guide button now opens the WinNative menu, so expose the Wii Home press here.
+    fun pressWiiHome() {
+        registerInputOverrides()
+        if (!overridesRegistered) return
+        set(ControlId.WIIMOTE_HOME_BUTTON, 1.0)
+        window.decorView.postDelayed({ set(ControlId.WIIMOTE_HOME_BUTTON, 0.0) }, 120)
     }
 
     // Live-apply: graphics settings act immediately, core/CPU next boot.

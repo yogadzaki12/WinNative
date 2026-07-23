@@ -183,53 +183,60 @@ object RetroShortcuts {
             Toast.makeText(context, context.getString(com.winlator.cmod.R.string.retro_rom_missing), Toast.LENGTH_LONG).show()
             return
         }
-        val biosPath = ensurePs2Bios(context)
-        val prefs = context.getSharedPreferences("ARMSX2", Context.MODE_PRIVATE)
-        // On-screen controls / adaptive sticks are GLOBAL wn.ps2.* prefs — the single
-        // source of truth shared by the shortcut settings Input section AND the
-        // in-game Retro Server Menu (Controls tab). Read that pref so a change made in
-        // EITHER surface sticks; seed from the console default only when never set.
-        val touchControls = prefs.getBoolean("wn.ps2.touchcontrols", RetroDefaults.touchControls(context, RetroSystems.PS2.id))
-        val adaptiveSticks = prefs.getBoolean("wn.ps2.adaptivesticks", RetroDefaults.adaptiveSticks(context, RetroSystems.PS2.id))
-        // Resolve the chosen GPU driver (global "wn.ps2.driver": "" / "system" =
-        // stock Vulkan, otherwise an installed driver id) and hand it to ARMSX2's
-        // existing customDriverId boot path, which pins it before the first
-        // MTGS::Open (see MainActivityRuntime.applyRendererPrefs / CustomDriver).
-        val driverPref = (prefs.getString("wn.ps2.driver", "") ?: "").trim()
-        val customDriverId =
-            if (driverPref.isEmpty() || driverPref.equals("system", ignoreCase = true)) "" else driverPref
-        // commit() not apply(): the emulator runs in a separate :ps2 process and
-        // must see these flags on cold start (touch / aspect / HDD / driver).
-        prefs.edit().apply {
-            putBoolean("setupComplete", true)
-            putBoolean("wn.controls", true)
-            putBoolean("wn.ps2.touchcontrols", touchControls)
-            putBoolean("wn.ps2.adaptivesticks", adaptiveSticks)
-            // Per-game HDD: the image (name of a file imported via RetroHddImport, or
-            // empty for none) and the self-format blank-HDD enable — both belong to
-            // THIS shortcut, so the virtual HDD never leaks across games or into the
-            // global console defaults.
-            putString("wn.ps2.hddimage", shortcut.getExtra(KEY_HDD_IMAGE))
-            putBoolean("wn.ps2.hdd", shortcut.getExtra(KEY_HDD_ENABLE) == "1")
-            putString("romsDirs", org.json.JSONArray().put(rom.parent ?: "").toString())
-            if (biosPath != null) putString("bios", biosPath)
-            putString("customDriverId", customDriverId)
-            commit()
-        }
-        val uri =
-            try {
-                androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.tileprovider", rom)
-            } catch (e: IllegalArgumentException) {
-                android.net.Uri.fromFile(rom)
-            }
         Ps2GameOverlay.install()
-        val intent =
-            Intent(Intent.ACTION_VIEW).apply {
-                setClassName(context, "com.armsx2.Main")
-                setDataAndType(uri, "application/octet-stream")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        // BIOS discovery/copy and the cross-process prefs commit are disk I/O — keep
+        // them off the UI thread, then start the :ps2 activity once the flags are
+        // durably written (the emulator's cold start reads them).
+        kotlin.concurrent.thread(name = "WnPs2Launch") {
+            val biosPath = ensurePs2Bios(context)
+            val prefs = context.getSharedPreferences("ARMSX2", Context.MODE_PRIVATE)
+            // On-screen controls / adaptive sticks are GLOBAL wn.ps2.* prefs — the single
+            // source of truth shared by the shortcut settings Input section AND the
+            // in-game Retro Server Menu (Controls tab). Read that pref so a change made in
+            // EITHER surface sticks; seed from the console default only when never set.
+            val touchControls = prefs.getBoolean("wn.ps2.touchcontrols", RetroDefaults.touchControls(context, RetroSystems.PS2.id))
+            val adaptiveSticks = prefs.getBoolean("wn.ps2.adaptivesticks", RetroDefaults.adaptiveSticks(context, RetroSystems.PS2.id))
+            // Resolve the chosen GPU driver (global "wn.ps2.driver": "" / "system" =
+            // stock Vulkan, otherwise an installed driver id) and hand it to ARMSX2's
+            // existing customDriverId boot path, which pins it before the first
+            // MTGS::Open (see MainActivityRuntime.applyRendererPrefs / CustomDriver).
+            val driverPref = (prefs.getString("wn.ps2.driver", "") ?: "").trim()
+            val customDriverId =
+                if (driverPref.isEmpty() || driverPref.equals("system", ignoreCase = true)) "" else driverPref
+            // commit() not apply(): the emulator runs in a separate :ps2 process and
+            // must see these flags on cold start (touch / aspect / HDD / driver).
+            prefs.edit().apply {
+                putBoolean("setupComplete", true)
+                putBoolean("wn.controls", true)
+                putBoolean("wn.ps2.touchcontrols", touchControls)
+                putBoolean("wn.ps2.adaptivesticks", adaptiveSticks)
+                // Per-game HDD: the image (name of a file imported via RetroHddImport, or
+                // empty for none) and the self-format blank-HDD enable — both belong to
+                // THIS shortcut, so the virtual HDD never leaks across games or into the
+                // global console defaults.
+                putString("wn.ps2.hddimage", shortcut.getExtra(KEY_HDD_IMAGE))
+                putBoolean("wn.ps2.hdd", shortcut.getExtra(KEY_HDD_ENABLE) == "1")
+                putString("romsDirs", org.json.JSONArray().put(rom.parent ?: "").toString())
+                if (biosPath != null) putString("bios", biosPath)
+                putString("customDriverId", customDriverId)
+                commit()
             }
-        context.startActivity(intent)
+            val uri =
+                try {
+                    androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.tileprovider", rom)
+                } catch (e: IllegalArgumentException) {
+                    android.net.Uri.fromFile(rom)
+                }
+            val intent =
+                Intent(Intent.ACTION_VIEW).apply {
+                    setClassName(context, "com.armsx2.Main")
+                    setDataAndType(uri, "application/octet-stream")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                runCatching { context.startActivity(intent) }
+            }
+        }
     }
 
     private fun ensurePs2Bios(context: Context): String? {

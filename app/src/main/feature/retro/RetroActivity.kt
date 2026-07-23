@@ -93,6 +93,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
     private var sessionStart = 0L
     private var emulationPaused = false
     private var controllerConnected = false
+    private var manualTouchOverride = false
     private var inputManager: InputManager? = null
     private var hudVisible = false
     private var currentUpscaleKey = "native"
@@ -209,18 +210,20 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         }
 
     private fun refreshControllerPresence() {
+        val wasConnected = controllerConnected
         controllerConnected = anyGameControllerConnected()
+        // Controller presence changed: drop any manual re-show so auto behaviour resumes.
+        if (controllerConnected != wasConnected) manualTouchOverride = false
         updateOverlayVisibility()
         syncInGameOverlayPlacement()
     }
 
+    private val touchControlsEffective: Boolean
+        get() = touchControlsSetting && (!controllerConnected || manualTouchOverride)
+
     private fun updateOverlayVisibility() {
         overlay?.visibility =
-            if (overlay?.editMode == true || (touchControlsSetting && !controllerConnected)) {
-                View.VISIBLE
-            } else {
-                View.GONE
-            }
+            if (overlay?.editMode == true || touchControlsEffective) View.VISIBLE else View.GONE
     }
 
     private fun pauseEmulation() {
@@ -262,7 +265,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
 
     private fun syncInGameOverlayPlacement() {
         RetroAchievementOverlayState.syncPlacement(
-            touchControlsVisible = touchControlsSetting && !controllerConnected,
+            touchControlsVisible = touchControlsEffective,
             controllerConnected = controllerConnected,
         )
     }
@@ -1396,7 +1399,9 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 touchControls = { touchControlsSetting },
                 onTouchControls = { value ->
                     touchControlsSetting = value
+                    if (controllerConnected) manualTouchOverride = true
                     updateOverlayVisibility()
+                    syncInGameOverlayPlacement()
                     persistExtra(RetroShortcuts.KEY_TOUCH_CONTROLS, if (value) "1" else "0")
                 },
                 adaptiveSticks = { adaptiveSticksSetting },
@@ -1645,8 +1650,8 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         ) {
             val hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X)
             val hatY = event.getAxisValue(MotionEvent.AXIS_HAT_Y)
-            val stickX = event.getAxisValue(MotionEvent.AXIS_X)
-            val stickY = event.getAxisValue(MotionEvent.AXIS_Y)
+            val stickX = if (overlay?.invertLX == true) -event.getAxisValue(MotionEvent.AXIS_X) else event.getAxisValue(MotionEvent.AXIS_X)
+            val stickY = if (overlay?.invertLY == true) -event.getAxisValue(MotionEvent.AXIS_Y) else event.getAxisValue(MotionEvent.AXIS_Y)
             val port = localNetplayPort()
             val netActive = RetroNetplayLobby.activeSession()?.isRunning == true
             if (stickIsAnalog) {
@@ -1679,8 +1684,8 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                     RetroNetplayLobby.sendLocalMotion(GLRetroView.MOTION_SOURCE_ANALOG_LEFT, stickX, stickY)
                 }
             }
-            val rx = event.getAxisValue(MotionEvent.AXIS_Z)
-            val ry = event.getAxisValue(MotionEvent.AXIS_RZ)
+            val rx = if (overlay?.invertRX == true) -event.getAxisValue(MotionEvent.AXIS_Z) else event.getAxisValue(MotionEvent.AXIS_Z)
+            val ry = if (overlay?.invertRY == true) -event.getAxisValue(MotionEvent.AXIS_RZ) else event.getAxisValue(MotionEvent.AXIS_RZ)
             retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_ANALOG_RIGHT, rx, ry, port)
             if (netActive) {
                 RetroNetplayLobby.sendLocalMotion(GLRetroView.MOTION_SOURCE_ANALOG_RIGHT, rx, ry)

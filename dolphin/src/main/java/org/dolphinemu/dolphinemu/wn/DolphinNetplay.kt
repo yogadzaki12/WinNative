@@ -64,8 +64,18 @@ object DolphinNetplay {
     @Volatile
     private var scope: CoroutineScope? = null
 
+    @Volatile
+    private var hostCode: String? = null
+
+    @Volatile
+    private var members: List<String> = emptyList()
+
     val active: Boolean
         get() = session != null
+
+    private fun pushStatus() {
+        DolphinHost.onNetplayStatus?.invoke(session != null, hostCode, members)
+    }
 
     private fun applyConfig(cfg: Config) {
         val base = NativeConfig.LAYER_BASE
@@ -100,8 +110,18 @@ object DolphinNetplay {
         session = s
         val sc = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         scope = sc
+        hostCode = null
+        members = emptyList()
+        pushStatus()
 
         val bootData = CompletableDeferred<Long>()
+
+        s.players
+            .onEach { players ->
+                members = players.map { it.name }
+                pushStatus()
+            }
+            .launchIn(sc)
 
         s.launchGame
             .onEach {
@@ -129,7 +149,8 @@ object DolphinNetplay {
                 .onEach { state ->
                     if (state is TraversalState.Connected) {
                         Log.i(TAG, "traversal host code: ${state.hostCode}")
-                        host?.onToast("Host code: ${state.hostCode}", true)
+                        hostCode = state.hostCode
+                        pushStatus()
                     }
                 }
                 .launchIn(sc)
@@ -187,5 +208,8 @@ object DolphinNetplay {
         runCatching { runBlocking { s?.close() } }
         scope?.cancel()
         scope = null
+        hostCode = null
+        members = emptyList()
+        pushStatus()
     }
 }

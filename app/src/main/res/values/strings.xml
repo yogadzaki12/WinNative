@@ -1892,6 +1892,9 @@ Installed path:
     <string name="retro_gs_label_name">Name</string>
     <string name="retro_gs_label_system">System</string>
     <string name="retro_gs_label_emulator_core">Emulator Core</string>
+    <string name="retro_gs_change_console">Change console</string>
+    <string name="retro_gs_identify_as">Identify as console</string>
+    <string name="retro_gs_console_changed">Now identified as %1$s</string>
     <string name="retro_gs_label_rom_path">ROM Path</string>
     <string name="retro_gs_group_bios">%1$s BIOS</string>
     <string name="retro_gs_label_installed">Installed</string>
@@ -2054,6 +2057,7 @@ Installed path:
     <string name="retro_netplay_room_players">Players</string>
     <string name="retro_netplay_players_count">%1$d connected</string>
     <string name="retro_netplay_joined">Joined</string>
+    <string name="retro_dolphin_wii_home">Wii Home</string>
     <string name="retro_netplay_dolphin_help">GameCube/Wii NetPlay uses Dolphin\'s own engine. Host = Player 1, Join = Player 2. Pick Host or Join and a connection type before launch; both devices boot the same game together.</string>
     <string name="retro_netplay_connection">Connection</string>
     <string name="retro_netplay_conn_direct">LAN (direct IP)</string>

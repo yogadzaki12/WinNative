@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Bolt
@@ -781,6 +782,71 @@ internal fun RetroSettingTextField(
     }
 }
 
+private fun coreDisplayName(system: RetroSystem?): String =
+    when {
+        system == null -> ""
+        system.id == RetroSystems.PS2.id -> "ARMSX2"
+        RetroCoreManager.usesDolphinCore(system) -> "Dolphin"
+        else -> system.coreFileName
+    }
+
+@Composable
+private fun RetroConsoleEditPen(onClick: () -> Unit) {
+    val green = Color(0xFF3FB950)
+    Box(
+        modifier =
+            Modifier
+                .clip(RoundedCornerShape(9.dp))
+                .background(green.copy(alpha = 0.12f))
+                .border(1.dp, green.copy(alpha = 0.55f), RoundedCornerShape(9.dp))
+                .clickable { onClick() }
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            Icons.Outlined.Edit,
+            contentDescription = stringResource(R.string.retro_gs_change_console),
+            tint = green,
+            modifier = Modifier.size(16.dp),
+        )
+    }
+}
+
+@Composable
+private fun RetroConsolePickerDialog(
+    current: RetroSystem?,
+    onDismiss: () -> Unit,
+    onPick: (RetroSystem) -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.retro_gs_identify_as)) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                RetroSystems.ALL.sortedBy { it.displayName }.forEach { sys ->
+                    val selected = sys.id == current?.id
+                    Text(
+                        sys.displayName,
+                        color = if (selected) GameSettingsStyle.AccentBlue else GameSettingsStyle.TextPrimary,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable { onPick(sys) }
+                                .padding(vertical = 12.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.retro_gs_cancel))
+            }
+        },
+    )
+}
+
 @Composable
 private fun RetroGeneralSection(
     state: RetroSettingsState,
@@ -788,13 +854,21 @@ private fun RetroGeneralSection(
     onRemoveArtwork: ((LibraryShortcutArtwork.LibraryArtworkSlot) -> Unit)? = null,
     onImportBios: (() -> Unit)? = null,
 ) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var currentSystem by remember { mutableStateOf(state.system) }
+    var showConsolePicker by remember { mutableStateOf(false) }
     SharedSettingGroup {
         SharedGroupTitle(stringResource(R.string.retro_gs_group_game))
         SharedInfoRow(stringResource(R.string.retro_gs_label_name), state.name)
-        SharedInfoRow(stringResource(R.string.retro_gs_label_system), state.system?.displayName ?: "")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) {
+                SharedInfoRow(stringResource(R.string.retro_gs_label_system), currentSystem?.displayName ?: "")
+            }
+            RetroConsoleEditPen { showConsolePicker = true }
+        }
         SharedInfoRow(
             stringResource(R.string.retro_gs_label_emulator_core),
-            state.system?.coreFileName ?: "",
+            coreDisplayName(currentSystem),
             singleLineValue = true,
         )
         SharedInfoRow(
@@ -802,9 +876,8 @@ private fun RetroGeneralSection(
             state.romPath,
             singleLineValue = true,
         )
-        if (state.system?.isExternal == true) {
-            val context = androidx.compose.ui.platform.LocalContext.current
-            val ps2Prefs = remember(context) { context.getSharedPreferences("ARMSX2", android.content.Context.MODE_PRIVATE) }
+        if (currentSystem?.isExternal == true) {
+            val ps2Prefs = remember(ctx) { ctx.getSharedPreferences("ARMSX2", android.content.Context.MODE_PRIVATE) }
             var version by remember { androidx.compose.runtime.mutableIntStateOf(0) }
             @Suppress("UNUSED_EXPRESSION") version
             SharedSettingSwitch(stringResource(R.string.retro_gs_fast_boot), ps2Prefs.getBoolean("wn.ps2.fastboot", true)) {
@@ -812,17 +885,40 @@ private fun RetroGeneralSection(
             }
         }
     }
-    if (state.system?.needsBios == true && onImportBios != null) {
-        val context = androidx.compose.ui.platform.LocalContext.current
+    if (showConsolePicker) {
+        RetroConsolePickerDialog(
+            current = currentSystem,
+            onDismiss = { showConsolePicker = false },
+        ) { picked ->
+            showConsolePicker = false
+            if (picked.id != currentSystem?.id) {
+                currentSystem = picked
+                kotlin.concurrent.thread {
+                    runCatching {
+                        state.shortcut.putExtra(RetroShortcuts.KEY_SYSTEM, picked.id)
+                        state.shortcut.saveData()
+                    }
+                }
+                android.widget.Toast.makeText(
+                    ctx,
+                    ctx.getString(R.string.retro_gs_console_changed, picked.displayName),
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
+    }
+    val biosSystem = currentSystem
+    if (biosSystem?.needsBios == true && onImportBios != null) {
+        val context = ctx
         Spacer(Modifier.height(ItemGap))
         RetroSettingGroup {
-            RetroGroupTitle(stringResource(R.string.retro_gs_group_bios, state.system.shortName.uppercase()))
+            RetroGroupTitle(stringResource(R.string.retro_gs_group_bios, biosSystem.shortName.uppercase()))
             state.biosRefresh
             val dir = RetroCoreManager.systemDir(context)
-            val installed = state.system.biosFiles.filter { java.io.File(dir, it).isFile }
+            val installed = biosSystem.biosFiles.filter { java.io.File(dir, it).isFile }
             RetroInfoRow(
                 stringResource(R.string.retro_gs_label_installed),
-                if (installed.isEmpty()) stringResource(R.string.retro_gs_bios_none, state.system.shortName) else installed.joinToString(", "),
+                if (installed.isEmpty()) stringResource(R.string.retro_gs_bios_none, biosSystem.shortName) else installed.joinToString(", "),
             )
             androidx.compose.material3.Button(
                 onClick = { onImportBios() },

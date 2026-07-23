@@ -3,8 +3,33 @@ package com.winlator.cmod.feature.retro
 import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.addCallback
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Wifi
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.winlator.cmod.R
+import com.winlator.cmod.shared.theme.GameSettingsStyle
 import com.winlator.cmod.runtime.container.ContainerManager
 import com.winlator.cmod.runtime.container.Shortcut
 import com.winlator.cmod.runtime.display.ui.FrameRating
@@ -14,6 +39,7 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import org.dolphinemu.dolphinemu.wn.DolphinEmulationActivity
 import org.dolphinemu.dolphinemu.wn.DolphinHost
+import org.dolphinemu.dolphinemu.wn.DolphinNetplay
 import java.io.File
 
 /** WinNative in-game overlay for embedded Dolphin, built from the shared
@@ -21,11 +47,96 @@ import java.io.File
 object DolphinGameOverlay {
     private const val SLOT_COUNT = 4
 
+    private fun dolphinAnyController(): Boolean =
+        android.view.InputDevice.getDeviceIds().any {
+            com.winlator.cmod.runtime.input.controls.ExternalController.isGameController(
+                android.view.InputDevice.getDevice(it),
+            )
+        }
+
+    private fun buildDolphinNetplay(activity: DolphinEmulationActivity): List<RetroMenuEntry> =
+        buildList {
+            add(
+                RetroMenuEntry.Action(
+                    label =
+                        activity.getString(
+                            if (DolphinNetplayHud.hosting) {
+                                R.string.retro_netplay_hosting_room
+                            } else {
+                                R.string.retro_netplay_in_room
+                            },
+                        ),
+                    icon = Icons.Outlined.Wifi,
+                    active = true,
+                    onClick = {},
+                ),
+            )
+            DolphinNetplayHud.hostCode?.let { code ->
+                add(
+                    RetroMenuEntry.Action(
+                        label = "${activity.getString(R.string.retro_netplay_host_code)}: $code",
+                        icon = Icons.Outlined.Wifi,
+                        onClick = {},
+                    ),
+                )
+            }
+            val members = DolphinNetplayHud.members
+            if (members.isEmpty()) {
+                add(
+                    RetroMenuEntry.Action(
+                        label = activity.getString(R.string.retro_netplay_waiting_players),
+                        icon = Icons.Outlined.Person,
+                        onClick = {},
+                    ),
+                )
+            } else {
+                members.forEach { name ->
+                    add(RetroMenuEntry.Action(label = name, icon = Icons.Outlined.Person, onClick = {}))
+                }
+            }
+        }
+
+    @Composable
+    private fun DolphinNetplayBanner(hosting: Boolean, hostCode: String?, members: List<String>) {
+        AnimatedVisibility(
+            visible = hosting && members.size < 2,
+            enter = fadeIn(),
+            exit = fadeOut(),
+        ) {
+            Box(
+                Modifier.fillMaxSize().padding(top = 56.dp),
+                contentAlignment = Alignment.TopCenter,
+            ) {
+                val parts =
+                    buildList {
+                        add(stringResource(R.string.retro_netplay_hosting_room))
+                        if (hostCode != null) {
+                            add("${stringResource(R.string.retro_netplay_host_code)}: $hostCode")
+                        }
+                        add(stringResource(R.string.retro_netplay_waiting_players))
+                    }
+                Text(
+                    parts.joinToString("  ·  "),
+                    color = GameSettingsStyle.TextPrimary,
+                    fontSize = 13.sp,
+                    modifier =
+                        Modifier
+                            .background(Color(0xF0121824), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                )
+            }
+        }
+    }
+
     fun install() {
         DolphinHost.attachOverlay = { activity ->
             if (activity is DolphinEmulationActivity) attach(activity)
         }
         DolphinHost.onStageSaves = { activity -> DolphinCloudSync.stageAndQueue(activity) }
+        val main = android.os.Handler(android.os.Looper.getMainLooper())
+        DolphinHost.onNetplayStatus = { hosting, code, members ->
+            main.post { DolphinNetplayHud.update(hosting, code, members) }
+        }
     }
 
     private fun loadShortcut(activity: DolphinEmulationActivity): Shortcut? {
@@ -189,7 +300,10 @@ object DolphinGameOverlay {
                 .getBoolean(RetroControlsMenu.l3r3PrefKey(system.id), true)
         input.setCustomColors(RetroControlLayouts.loadColors(activity, system.id))
         input.loadStickInversion()
-        input.visibility = if (touchControls) android.view.View.VISIBLE else android.view.View.GONE
+        var controllerConnected = dolphinAnyController()
+        var manualTouchOverride = false
+        fun touchEffective() = touchControls && (!controllerConnected || manualTouchOverride)
+        input.visibility = if (touchEffective()) android.view.View.VISIBLE else android.view.View.GONE
         fun updateGameArea() {
             val w = root.width.toFloat()
             val h = root.height.toFloat()
@@ -198,10 +312,30 @@ object DolphinGameOverlay {
             val left = (w - gameWidth) * 0.5f
             val box = android.graphics.RectF(left, 0f, left + gameWidth, h)
             input.setGameArea(box)
-            activity.setSurfaceBounds(if (touchControls) box else null)
+            activity.setSurfaceBounds(if (touchEffective()) box else null)
         }
         root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateGameArea() }
         root.post { updateGameArea() }
+        fun refreshDolphinController() {
+            val was = controllerConnected
+            controllerConnected = dolphinAnyController()
+            if (controllerConnected != was) manualTouchOverride = false
+            val show = touchEffective()
+            input.visibility = if (show) android.view.View.VISIBLE else android.view.View.GONE
+            updateGameArea()
+            if (show) input.post { updateGameArea(); input.relayout() }
+        }
+        activity.getSystemService(android.hardware.input.InputManager::class.java)
+            ?.registerInputDeviceListener(
+                object : android.hardware.input.InputManager.InputDeviceListener {
+                    override fun onInputDeviceAdded(deviceId: Int) = refreshDolphinController()
+
+                    override fun onInputDeviceRemoved(deviceId: Int) = refreshDolphinController()
+
+                    override fun onInputDeviceChanged(deviceId: Int) = refreshDolphinController()
+                },
+                null,
+            )
         root.addView(
             input,
             FrameLayout.LayoutParams(
@@ -210,15 +344,16 @@ object DolphinGameOverlay {
             ),
         )
 
-        menu.tabs = RetroDrawerTabs.build(activity, includeNetplay = false)
+        menu.tabs = RetroDrawerTabs.build(activity, includeNetplay = DolphinNetplay.active)
         menu.entriesProvider = { pane ->
             when (pane) {
                 null ->
-                    buildMain(activity, menu, hudOn, ::setHudVisible) { load ->
+                    buildMain(activity, menu, hudOn, system.id == RetroSystems.WII.id, ::setHudVisible) { load ->
                         savesLoadMode = load
                         menu.showPane(RetroPane.SAVES)
                     }
                 RetroPane.SAVES -> buildMemoryCards(activity, menu, savesLoadMode) { stageCloudBackup() }
+                RetroPane.NETWORK -> buildDolphinNetplay(activity)
                 RetroPane.DISPLAY -> buildDisplay(activity, menu, system, ::applyVar)
                 RetroPane.HUD ->
                     RetroHudSupport.buildHudEntries(
@@ -258,8 +393,9 @@ object DolphinGameOverlay {
                             touchControls = { touchControls },
                             onTouchControls = { value ->
                                 touchControls = value
+                                if (controllerConnected) manualTouchOverride = true
                                 input.visibility =
-                                    if (value) android.view.View.VISIBLE else android.view.View.GONE
+                                    if (touchEffective()) android.view.View.VISIBLE else android.view.View.GONE
                                 updateGameArea()
                                 persistExtra(RetroShortcuts.KEY_TOUCH_CONTROLS, if (value) "1" else "0")
                             },
@@ -281,7 +417,20 @@ object DolphinGameOverlay {
         val compose =
             ComposeView(activity).apply {
                 elevation = 2000f
-                setContent { WinNativeTheme { RetroDrawerMenu(menu) } }
+                setContent {
+                    WinNativeTheme {
+                        Box(Modifier.fillMaxSize()) {
+                            val hosting = DolphinNetplayHud.hosting
+                            val code = DolphinNetplayHud.hostCode
+                            val members = DolphinNetplayHud.members
+                            LaunchedEffect(hosting, code, members) {
+                                if (menu.visible && menu.pane == RetroPane.NETWORK) menu.rebuild()
+                            }
+                            DolphinNetplayBanner(hosting, code, members)
+                            RetroDrawerMenu(menu)
+                        }
+                    }
+                }
             }
         root.addView(
             compose,
@@ -300,16 +449,26 @@ object DolphinGameOverlay {
                 else -> menu.open()
             }
         }
+        activity.menuButtonHandler = { if (menu.visible) menu.close() else menu.open() }
     }
 
     private fun buildMain(
         activity: DolphinEmulationActivity,
         menu: RetroMenuController,
         hudOn: Boolean,
+        isWii: Boolean,
         onHud: (Boolean) -> Unit,
         openMemoryCards: (load: Boolean) -> Unit,
     ): List<RetroMenuEntry> =
         buildList {
+            if (isWii) {
+                add(
+                    RetroMenuEntry.Action(activity.getString(R.string.retro_dolphin_wii_home), Icons.Outlined.Home) {
+                        activity.pressWiiHome()
+                        menu.close()
+                    },
+                )
+            }
             add(
                 RetroMenuEntry.Action(activity.getString(R.string.retro_lr_save_state), RetroDrawerIcons.Save) {
                     openMemoryCards(false)
@@ -415,4 +574,20 @@ object DolphinGameOverlay {
                 onExit()
             },
         )
+}
+
+/** Live Dolphin NetPlay status for the in-game Online tab and host-code banner. */
+object DolphinNetplayHud {
+    var hosting by mutableStateOf(false)
+        private set
+    var hostCode by mutableStateOf<String?>(null)
+        private set
+    var members by mutableStateOf<List<String>>(emptyList())
+        private set
+
+    fun update(hosting: Boolean, hostCode: String?, members: List<String>) {
+        this.hosting = hosting
+        this.hostCode = hostCode
+        this.members = members
+    }
 }
