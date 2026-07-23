@@ -201,7 +201,9 @@ android {
         prefab true   // native Steam/runtime components link OpenSSL + curl via NDK Prefab AARs
     }
 
-    def sourceBuildLibretroCores = !project.hasProperty('buildLibretroCores') ||
+    // Prebuilt libretro cores (committed LFS) by default; build from source with
+    // -PbuildLibretroCores=true (needs the NDK + cores/ sources).
+    def sourceBuildLibretroCores = project.hasProperty('buildLibretroCores') &&
             project.property('buildLibretroCores').toString() == 'true'
 
     sourceSets {

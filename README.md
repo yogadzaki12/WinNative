@@ -30,16 +30,31 @@ Designed for enthusiasts and power users, WinNative delivers the full Winlator e
 
 ### How to Build
 
-**Requirements:** Android Studio, JDK 17, NDK `27.3.13750724`, and CMake.
+**Requirements:** Android Studio, JDK 17, and [Git LFS](https://git-lfs.com). The NDK
+(`27.3.13750724`) and CMake are only needed if you build native cores from source (see below).
 
-1. **Clone the repository and update submodules** (Required):
+1. **Clone with submodules and pull LFS objects** (Required):
    ```bash
-   git clone https://github.com/MaxsTechReview/WinNative.git
+   git clone --recursive https://github.com/MaxsTechReview/WinNative.git
    cd WinNative
+   git lfs pull                          # fetches prebuilt cores + imagefs
    git submodule update --init --recursive
    ```
 2. **Build via Android Studio:** Open the `WinNative` directory, let Gradle sync, then select **Build > Build APK(s)**.
-3. **Build via CLI:** Run `.\gradlew.bat assembleDebug` (Windows).
+3. **Build via CLI:** Run `./gradlew assembleStandardDebug` (or `.\gradlew.bat` on Windows).
+
+By default the build uses the **committed prebuilt cores** (ARMSX2/Dolphin emucore and the
+libretro cores, all tracked via Git LFS), so it needs no NDK and builds quickly. To rebuild a
+native core from source, pass the matching opt-in flag (needs the NDK + CMake):
+
+| Core | Flag | Source |
+| --- | --- | --- |
+| libretro cores | `-PbuildLibretroCores=true` | `cores/` (pinned SHAs + patches) |
+| PS2 (ARMSX2) | `-Parmsx2.buildNative=true` | `armsx2/build-emucore.sh` |
+| GameCube/Wii (Dolphin) | `-Pdolphin.buildNative=true` | `dolphin/build-emucore.sh` |
+
+After a from-source rebuild, commit the regenerated `*/prebuilt/emucore/**` (and libretro)
+`.so` files so CI and other clones use them without recompiling.
 
 ---
 
@@ -60,10 +75,11 @@ Supported systems (bundled cores):
 | PlayStation | Beetle PSX | `.cue` `.chd` `.pbp` `.m3u` `.iso` |
 | PlayStation 2 | ARMSX2 (PCSX2 fork) | `.iso` `.chd` `.cso` `.bin` |
 
-Cores are compiled **from source** as part of `assembleDebug` (see `cores/` for the
-libretro cores and `armsx2/build-emucore.sh` for the PS2 core); the Mupen64Plus-Next N64
-core ships prebuilt for now. PlayStation 2 online play is supported through the
-emulated DEV9 network adapter (see the in-game **Online** tab).
+Cores ship **prebuilt** (committed via Git LFS) and are used by default; they are built from
+source with the opt-in flags above (see `cores/` for the libretro cores and
+`armsx2/build-emucore.sh` / `dolphin/build-emucore.sh` for the PS2 and GameCube/Wii cores).
+PlayStation 2 online play is supported through the emulated DEV9 network adapter (see the
+in-game **Online** tab).
 
 **How to use:** In the Library, tap **Add Custom Game** and select a ROM instead of an `.exe`. WinNative detects the console and adds the game to your Library. Tap **Play** to launch it with on-screen touch controls and physical gamepad support; the in-game menu (Back button or on-screen **MENU**) offers save/load state, reset, and fast-forward. PlayStation and PlayStation 2 BIOS files can be imported from **Settings → Retro**.
 

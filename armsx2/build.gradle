@@ -37,7 +37,8 @@ android {
         }
     }
 
-    def armsx2BuildNative = !project.hasProperty('armsx2.buildNative') ||
+    // Prebuilt emucore by default; build from source with -Parmsx2.buildNative=true.
+    def armsx2BuildNative = project.hasProperty('armsx2.buildNative') &&
             project.property('armsx2.buildNative').toString() == 'true'
     def emucoreOut = layout.buildDirectory.dir("generated/emucore/arm64-v8a")
 
