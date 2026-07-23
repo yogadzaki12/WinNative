@@ -22,6 +22,21 @@ import androidx.compose.ui.unit.sp
  */
 internal val retroLibrarySystemIds = mutableStateOf<Map<Int, String>>(emptyMap())
 
+/** Ribbon text for library cards: retro console name, or PC for Wine/custom non-retro. */
+internal fun libraryBadgeLabel(
+    appId: Int,
+    isCustom: Boolean,
+): String? {
+    val systemId = retroLibrarySystemIds.value[appId]
+    if (systemId != null) {
+        return com.winlator.cmod.feature.retro.RetroSystems
+            .fromId(systemId)
+            ?.badgeLabel
+            ?: systemId
+    }
+    return if (isCustom) "PC" else null
+}
+
 @Composable
 internal fun RetroConsoleRibbon(
     label: String,

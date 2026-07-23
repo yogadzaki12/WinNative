@@ -127,6 +127,8 @@ object RetroAchievementsManager {
             RetroSystems.N64.id -> 2
             RetroSystems.PSX.id -> 12
             RetroSystems.PS2.id -> 21
+            RetroSystems.GAMECUBE.id -> 16
+            RetroSystems.WII.id -> 19
             else -> 0
         }
 

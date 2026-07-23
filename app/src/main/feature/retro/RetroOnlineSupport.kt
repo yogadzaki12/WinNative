@@ -26,6 +26,9 @@ object RetroOnlineSupport {
             RetroSystems.GAMEBOY_COLOR.id,
             RetroSystems.GBA.id,
             -> RetroOnlineMode.GAME_LINK
+            RetroSystems.GAMECUBE.id,
+            RetroSystems.WII.id,
+            -> RetroOnlineMode.NONE
             else -> RetroOnlineMode.NONE
         }
 

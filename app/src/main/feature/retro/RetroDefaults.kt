@@ -59,10 +59,10 @@ object RetroDefaults {
         prefs(context).edit().putBoolean(key("adaptive", systemId), value).apply()
 
     fun hud(context: Context, systemId: String): Boolean =
-        prefs(context).getBoolean(key("hud", systemId), false)
+        prefs(context).getBoolean("retro_def_hud_global", false)
 
     fun setHud(context: Context, systemId: String, value: Boolean) =
-        prefs(context).edit().putBoolean(key("hud", systemId), value).apply()
+        prefs(context).edit().putBoolean("retro_def_hud_global", value).apply()
 
     fun netplayEnabled(context: Context, systemId: String): Boolean =
         prefs(context).getBoolean(key("netplay", systemId), false)

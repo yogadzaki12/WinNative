@@ -134,6 +134,122 @@ object RetroHudSupport {
     }
 
     /** Libretro cores render via GLES in libretrodroid — match PS2 HUD style. */
+
+    fun loadGlobalHudElements(context: Context): BooleanArray {
+        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+        val csv = prefs.getString("retro_hud_elements", null) ?: return defaultElements()
+        val parts = csv.split(',')
+        val defaults = defaultElements()
+        return BooleanArray(defaults.size) { i -> parts.getOrNull(i)?.toBoolean() ?: defaults[i] }
+    }
+
+    fun saveGlobalHudElements(context: Context, elements: BooleanArray) {
+        androidx.preference.PreferenceManager
+            .getDefaultSharedPreferences(context)
+            .edit()
+            .putString("retro_hud_elements", elements.joinToString(","))
+            .apply()
+    }
+
+    fun loadGlobalHudStyle(context: Context): HudStyle {
+        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+        return HudStyle(
+            alpha = prefs.getFloat("retro_hud_alpha", 1f),
+            bgDecoupled = prefs.getBoolean("retro_hud_bg_decoupled", false),
+            bgAlpha = prefs.getFloat("retro_hud_bg_alpha", FrameRating.BACKDROP_BASE_ALPHA),
+            scale = prefs.getFloat("retro_hud_scale", 1f),
+            frametimeNumeric = prefs.getBoolean(FrameRating.PREF_HUD_FRAMETIME_NUMERIC, false),
+            dualBattery = prefs.getBoolean(FrameRating.PREF_HUD_DUAL_SERIES_BATTERY, false),
+        )
+    }
+
+    fun saveGlobalHudStyle(context: Context, style: HudStyle) {
+        androidx.preference.PreferenceManager
+            .getDefaultSharedPreferences(context)
+            .edit()
+            .putFloat("retro_hud_alpha", style.alpha)
+            .putBoolean("retro_hud_bg_decoupled", style.bgDecoupled)
+            .putFloat("retro_hud_bg_alpha", style.bgAlpha)
+            .putFloat("retro_hud_scale", style.scale)
+            .putBoolean(FrameRating.PREF_HUD_FRAMETIME_NUMERIC, style.frametimeNumeric)
+            .putBoolean(FrameRating.PREF_HUD_DUAL_SERIES_BATTERY, style.dualBattery)
+            .apply()
+    }
+
+    // Legacy per-container HUD persistence.
+    fun loadContainerHudSettings(
+        context: Context,
+        containerId: Int,
+    ): Pair<HudStyle, BooleanArray>? {
+        if (containerId <= 0) return null
+        return runCatching {
+            val json =
+                com.winlator.cmod.runtime.container.ContainerManager(context)
+                    .getContainerById(containerId)
+                    ?.getExtra("hudSettings")
+            if (json.isNullOrEmpty()) return null
+            val obj = org.json.JSONObject(json)
+            val transparency = obj.optDouble("transparency", 1.0).toFloat()
+            val style =
+                HudStyle(
+                    alpha = transparency,
+                    bgDecoupled = obj.optBoolean("backgroundAlphaDecoupled", false),
+                    bgAlpha =
+                        obj
+                            .optDouble(
+                                "backgroundTransparency",
+                                (transparency * FrameRating.BACKDROP_BASE_ALPHA).toDouble(),
+                            ).toFloat(),
+                    scale = obj.optDouble("scale", 1.0).toFloat(),
+                )
+            val legacyCpuRam = obj.optBoolean("showCpuRam", true)
+            val legacyBattTemp = obj.optBoolean("showBattTemp", true)
+            val elements =
+                booleanArrayOf(
+                    obj.optBoolean("showFPS", true),
+                    obj.optBoolean("showRenderer", true),
+                    obj.optBoolean("showGPU", true),
+                    obj.optBoolean("showCPU", legacyCpuRam),
+                    obj.optBoolean("showRAM", legacyCpuRam),
+                    obj.optBoolean("showBattery", legacyBattTemp),
+                    obj.optBoolean("showTemp", legacyBattTemp),
+                    obj.optBoolean("showGraph", true),
+                    obj.optBoolean("showCpuTemp", false),
+                )
+            style to elements
+        }.getOrNull()
+    }
+
+    fun saveContainerHudSettings(
+        context: Context,
+        containerId: Int,
+        style: HudStyle,
+        elements: BooleanArray,
+    ) {
+        if (containerId <= 0) return
+        runCatching {
+            val container =
+                com.winlator.cmod.runtime.container.ContainerManager(context)
+                    .getContainerById(containerId) ?: return
+            val obj = org.json.JSONObject()
+            obj.put("transparency", style.alpha.toDouble())
+            obj.put("backgroundAlphaDecoupled", style.bgDecoupled)
+            obj.put("backgroundTransparency", style.bgAlpha.toDouble())
+            obj.put("scale", style.scale.toDouble())
+            obj.put("showFPS", elements.getOrElse(0) { true })
+            obj.put("showRenderer", elements.getOrElse(1) { true })
+            obj.put("showGPU", elements.getOrElse(2) { true })
+            obj.put("showCPU", elements.getOrElse(3) { true })
+            obj.put("showRAM", elements.getOrElse(4) { true })
+            obj.put("showBattery", elements.getOrElse(5) { true })
+            obj.put("showTemp", elements.getOrElse(6) { true })
+            obj.put("showGraph", elements.getOrElse(7) { true })
+            obj.put("showCpuTemp", elements.getOrElse(8) { false })
+            container.putExtra("hudSettings", obj.toString())
+            container.saveData()
+        }
+    }
+
     fun libretroRendererLabel(): String = "OpenGL"
 
     fun createFrameRating(

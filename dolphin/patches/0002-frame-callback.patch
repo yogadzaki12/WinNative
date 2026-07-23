@@ -1,0 +1,48 @@
+diff --git a/Source/Android/jni/MainAndroid.cpp b/Source/Android/jni/MainAndroid.cpp
+index bbf6523..c59cfae 100644
+--- a/Source/Android/jni/MainAndroid.cpp
++++ b/Source/Android/jni/MainAndroid.cpp
+@@ -108,6 +108,23 @@ void Host_PPCBreakpointsChanged()
+ {
+ }
+ 
++extern "C" void WnOnGameFrame()
++{
++  static jmethodID s_on_game_frame = nullptr;
++  JNIEnv* env = IDCache::GetEnvForThread();
++  if (!s_on_game_frame)
++  {
++    s_on_game_frame =
++        env->GetStaticMethodID(IDCache::GetNativeLibraryClass(), "onGameFrame", "()V");
++    if (!s_on_game_frame)
++    {
++      env->ExceptionClear();
++      return;
++    }
++  }
++  env->CallStaticVoidMethod(IDCache::GetNativeLibraryClass(), s_on_game_frame);
++}
++
+ bool Host_UIBlocksControllerState()
+ {
+   return false;
+diff --git a/Source/Core/VideoCommon/PerformanceMetrics.cpp b/Source/Core/VideoCommon/PerformanceMetrics.cpp
+index 98efa64..0754c60 100644
+--- a/Source/Core/VideoCommon/PerformanceMetrics.cpp
++++ b/Source/Core/VideoCommon/PerformanceMetrics.cpp
+@@ -36,8 +36,15 @@ void PerformanceMetrics::Reset()
+   m_frame_presentation_offset = DT{};
+ }
+ 
++#ifdef ANDROID
++extern "C" void WnOnGameFrame();
++#endif
++
+ void PerformanceMetrics::CountFrame()
+ {
++#ifdef ANDROID
++  WnOnGameFrame();
++#endif
+   m_fps_counter.Count();
+ }
+ 

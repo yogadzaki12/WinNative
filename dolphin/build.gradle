@@ -1,0 +1,120 @@
+plugins {
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'org.dolphinemu.dolphinemu'
+    compileSdk 35
+    ndkVersion '27.3.13750724'
+
+    defaultConfig {
+        minSdk 26
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+        buildConfigField 'String', 'APPLICATION_ID', '"org.dolphinemu.dolphinemu.wn"'
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging true
+        }
+    }
+
+    // Native emucore build is opt-in until the pipeline is proven
+    // (-Pdolphin.buildNative=true); otherwise packages whatever is in
+    // prebuilt/emucore (may be empty during scaffolding).
+    def dolphinBuildNative = project.hasProperty('dolphin.buildNative') &&
+            project.property('dolphin.buildNative').toString() == 'true'
+    def emucoreOut = layout.buildDirectory.dir("generated/emucore/arm64-v8a")
+
+    // Vendored upstream Java surface: the model/util classes Dolphin's JNI
+    // (IDCache) requires, copied verbatim from the pinned emucore-src clone.
+    // NativeLibrary/Analytics/PermissionsHandler are WinNative replacements in
+    // src/main and excluded here.
+    def dolphinVendorSrc = "$projectDir/emucore-src/Source/Android/app/src/main/java"
+    def dolphinVendorSrcDir = new File(dolphinVendorSrc)
+    def dolphinVendorOut = layout.buildDirectory.dir("generated/dolphinJava")
+    tasks.register('vendorDolphinJava', Sync) {
+        onlyIf { dolphinVendorSrcDir.isDirectory() }
+        from(dolphinVendorSrc) {
+            include 'org/dolphinemu/dolphinemu/features/cheats/model/**'
+            include 'org/dolphinemu/dolphinemu/features/input/model/**'
+            exclude 'org/dolphinemu/dolphinemu/features/input/model/view/**'
+            include 'org/dolphinemu/dolphinemu/features/netplay/NetplaySession.kt'
+            include 'org/dolphinemu/dolphinemu/features/netplay/model/Player.kt'
+            include 'org/dolphinemu/dolphinemu/features/netplay/model/GameDigestProgress.kt'
+            include 'org/dolphinemu/dolphinemu/features/netplay/model/NetplayMessage.kt'
+            include 'org/dolphinemu/dolphinemu/features/netplay/model/SaveTransferProgress.kt'
+            include 'org/dolphinemu/dolphinemu/features/netplay/model/TraversalState.kt'
+            include 'org/dolphinemu/dolphinemu/features/riivolution/model/**'
+            include 'org/dolphinemu/dolphinemu/features/skylanders/model/**'
+            include 'org/dolphinemu/dolphinemu/features/skylanders/SkylanderConfig.kt'
+            include 'org/dolphinemu/dolphinemu/features/infinitybase/model/**'
+            include 'org/dolphinemu/dolphinemu/features/infinitybase/InfinityConfig.kt'
+            include 'org/dolphinemu/dolphinemu/features/settings/model/**'
+            exclude 'org/dolphinemu/dolphinemu/features/settings/model/view/**'
+            include 'org/dolphinemu/dolphinemu/model/GameFile.kt'
+            include 'org/dolphinemu/dolphinemu/model/GameFileCache.kt'
+            include 'org/dolphinemu/dolphinemu/utils/AudioUtils.kt'
+            include 'org/dolphinemu/dolphinemu/utils/BooleanSupplier.kt'
+            include 'org/dolphinemu/dolphinemu/utils/CompressCallback.kt'
+            include 'org/dolphinemu/dolphinemu/utils/ContentHandler.kt'
+            include 'org/dolphinemu/dolphinemu/utils/NetworkHelper.kt'
+            include 'org/dolphinemu/dolphinemu/utils/WiiUpdateCallback.kt'
+            include 'org/dolphinemu/dolphinemu/utils/Log.kt'
+            include 'org/dolphinemu/dolphinemu/utils/WiimoteAdapter.kt'
+            include 'org/dolphinemu/dolphinemu/utils/GCAdapter.kt'
+            include 'org/dolphinemu/dolphinemu/services/USBPermService.kt'
+            include 'org/dolphinemu/dolphinemu/utils/RateLimiter.kt'
+        }
+        into dolphinVendorOut
+    }
+    tasks.matching { it.name == 'preBuild' }.configureEach { dependsOn 'vendorDolphinJava' }
+
+    sourceSets {
+        main {
+            java.srcDirs += dolphinVendorOut.get().asFile
+            // Version-matched Sys files straight from the pinned clone (asset path "Sys/...").
+            if (new File("$projectDir/emucore-src/Data/Sys").isDirectory()) {
+                assets.srcDirs += "$projectDir/emucore-src/Data"
+            }
+            jniLibs.srcDirs += dolphinBuildNative ?
+                    "${layout.buildDirectory.get().asFile}/generated/emucore" :
+                    "prebuilt/emucore"
+        }
+    }
+
+    if (dolphinBuildNative) {
+        tasks.register('buildEmucore', Exec) {
+            inputs.file("$projectDir/build-emucore.sh")
+            inputs.dir("$projectDir/patches")
+            outputs.dir(emucoreOut)
+            doFirst { emucoreOut.get().asFile.mkdirs() }
+            commandLine 'bash', "$projectDir/build-emucore.sh",
+                    android.ndkDirectory.absolutePath,
+                    "${android.sdkDirectory}/cmake/3.22.1/bin",
+                    emucoreOut.get().asFile.absolutePath
+        }
+        tasks.matching { it.name == 'preBuild' }.configureEach { dependsOn 'buildEmucore' }
+    }
+}
+
+dependencies {
+    implementation libs.coreKtx
+    implementation libs.activityKtx
+    implementation libs.appcompat
+}

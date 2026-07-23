@@ -73,6 +73,9 @@ class RetroInputView(
         val hasStick: Boolean,
         val leftTriggerLabel: String = "L2",
         val rightTriggerLabel: String = "R2",
+        val leftShoulderLabel: String = "L",
+        val rightShoulderLabel: String = "R",
+        val showLeftShoulder: Boolean = true,
         val showRightTrigger: Boolean = true,
         val flatFaces: Boolean = false,
         val hasDualSticks: Boolean = false,
@@ -103,6 +106,39 @@ class RetroInputView(
                     hasStick = true,
                     leftTriggerLabel = "Z",
                     showRightTrigger = false,
+                )
+            RetroSystems.GAMECUBE.id ->
+                OverlayConfig(
+                    hasXY = true,
+                    hasShoulders = true,
+                    hasTriggers = true,
+                    hasStick = false,
+                    hasDualSticks = true,
+                    leftTriggerLabel = "L",
+                    rightTriggerLabel = "R",
+                    leftShoulderLabel = "Z",
+                    rightShoulderLabel = "Z",
+                    showLeftShoulder = false,
+                    faceTop = "X",
+                    faceBottom = "B",
+                    faceLeft = "Y",
+                    faceRight = "A",
+                )
+            RetroSystems.WII.id ->
+                OverlayConfig(
+                    hasXY = true,
+                    hasShoulders = true,
+                    hasTriggers = true,
+                    hasStick = false,
+                    hasDualSticks = true,
+                    leftTriggerLabel = "ZL",
+                    rightTriggerLabel = "ZR",
+                    leftShoulderLabel = "L",
+                    rightShoulderLabel = "R",
+                    faceTop = "X",
+                    faceBottom = "B",
+                    faceLeft = "Y",
+                    faceRight = "A",
                 )
             RetroSystems.PS2.id ->
                 OverlayConfig(
@@ -237,6 +273,54 @@ class RetroInputView(
                         ),
                     stickCap = 0xFF9EA0A6.toInt(),
                 )
+            RetroSystems.GAMECUBE.id ->
+                RetroTheme(
+                    body = 0xFF6B6F78.toInt(),
+                    dpad = 0xFF3A3D44.toInt(),
+                    pill = 0xFF555861.toInt(),
+                    pillText = 0xFFEDEFF4.toInt(),
+                    button = 0xFF555861.toInt(),
+                    buttonText = 0xFFEDEFF4.toInt(),
+                    buttonColors =
+                        mapOf(
+                            "A" to 0xFF2F8F4E.toInt(),
+                            "B" to 0xFFC8362E.toInt(),
+                            "X" to 0xFFE8E8EC.toInt(),
+                            "Y" to 0xFFE8E8EC.toInt(),
+                            "START" to 0xFF3A3D44.toInt(),
+                            "Z" to 0xFF5B3FA0.toInt(),
+                        ),
+                    buttonTextColors =
+                        mapOf(
+                            "X" to 0xFF3A3D44.toInt(),
+                            "Y" to 0xFF3A3D44.toInt(),
+                        ),
+                    stickCap = 0xFF8A8E98.toInt(),
+                )
+            RetroSystems.WII.id ->
+                RetroTheme(
+                    body = 0xFFE4E6EA.toInt(),
+                    dpad = 0xFF2C2E34.toInt(),
+                    pill = 0xFFB8BCC4.toInt(),
+                    pillText = 0xFF2C2E34.toInt(),
+                    button = 0xFF2C2E34.toInt(),
+                    buttonText = 0xFFF2F4F8.toInt(),
+                    buttonColors =
+                        mapOf(
+                            "A" to 0xFF1BA0D8.toInt(),
+                            "B" to 0xFF2C2E34.toInt(),
+                            "X" to 0xFFD8DCE4.toInt(),
+                            "Y" to 0xFFD8DCE4.toInt(),
+                            "+" to 0xFF1BA0D8.toInt(),
+                            "START" to 0xFF1BA0D8.toInt(),
+                        ),
+                    buttonTextColors =
+                        mapOf(
+                            "X" to 0xFF2C2E34.toInt(),
+                            "Y" to 0xFF2C2E34.toInt(),
+                        ),
+                    stickCap = 0xFFC8CCD4.toInt(),
+                )
             RetroSystems.GENESIS.id, RetroSystems.MASTER_SYSTEM.id, RetroSystems.GAME_GEAR.id ->
                 RetroTheme(
                     body = 0xFF1D1D21.toInt(),
@@ -276,8 +360,16 @@ class RetroInputView(
     private var gameArea: RectF? = null
     var hapticStrength = 0f
     var adaptiveSticks: Boolean = false
-    // Show the L3/R3 on-screen buttons (PS2). When hidden, double-tapping a stick
-    // clicks L3/R3 instead. Toggling re-runs the layout to add/remove the buttons.
+        set(value) {
+            if (field != value) {
+                field = value
+                stickActive = false
+                stick2Active = false
+                invalidate()
+            }
+        }
+    val supportsStickButtons: Boolean get() = config.hasDualSticks
+    // When L3/R3 buttons are hidden, double-tapping a stick clicks them instead.
     var showL3R3: Boolean = true
         set(value) {
             if (field != value) {
@@ -753,10 +845,24 @@ class RetroInputView(
         if (config.hasShoulders) {
             val leftShape = if (config.hasTriggers) GlassShape.TRIGGER_LB else GlassShape.TRIGGER_LT
             val rightShape = if (config.hasTriggers) GlassShape.TRIGGER_RB else GlassShape.TRIGGER_RT
-            val lb = GlassButton(KeyEvent.KEYCODE_BUTTON_L1, "L", leftShape, textScale = 1.3f)
-            lb.bounds.set(margin, leftCursor, margin + trigW, leftCursor + trigH)
-            buttons += lb
-            val rb = GlassButton(KeyEvent.KEYCODE_BUTTON_R1, "R", rightShape, textScale = 1.3f)
+            if (config.showLeftShoulder) {
+                val lb =
+                    GlassButton(
+                        KeyEvent.KEYCODE_BUTTON_L1,
+                        config.leftShoulderLabel,
+                        leftShape,
+                        textScale = 1.3f,
+                    )
+                lb.bounds.set(margin, leftCursor, margin + trigW, leftCursor + trigH)
+                buttons += lb
+            }
+            val rb =
+                GlassButton(
+                    KeyEvent.KEYCODE_BUTTON_R1,
+                    config.rightShoulderLabel,
+                    rightShape,
+                    textScale = 1.3f,
+                )
             rb.bounds.set(width - margin - trigW, rightCursor, width - margin, rightCursor + trigH)
             buttons += rb
             leftCursor += trigH + trigGap
@@ -1036,10 +1142,24 @@ class RetroInputView(
         if (config.hasShoulders) {
             val leftShape = if (config.hasTriggers) GlassShape.TRIGGER_LB else GlassShape.TRIGGER_LT
             val rightShape = if (config.hasTriggers) GlassShape.TRIGGER_RB else GlassShape.TRIGGER_RT
-            val lb = GlassButton(KeyEvent.KEYCODE_BUTTON_L1, "L", leftShape, textScale = 1.3f)
-            lb.bounds.set(margin, sideCursor, margin + trigW, sideCursor + trigH)
-            buttons += lb
-            val rb = GlassButton(KeyEvent.KEYCODE_BUTTON_R1, "R", rightShape, textScale = 1.3f)
+            if (config.showLeftShoulder) {
+                val lb =
+                    GlassButton(
+                        KeyEvent.KEYCODE_BUTTON_L1,
+                        config.leftShoulderLabel,
+                        leftShape,
+                        textScale = 1.3f,
+                    )
+                lb.bounds.set(margin, sideCursor, margin + trigW, sideCursor + trigH)
+                buttons += lb
+            }
+            val rb =
+                GlassButton(
+                    KeyEvent.KEYCODE_BUTTON_R1,
+                    config.rightShoulderLabel,
+                    rightShape,
+                    textScale = 1.3f,
+                )
             rb.bounds.set(width - margin - trigW, sideCursor, width - margin, sideCursor + trigH)
             buttons += rb
             sideCursor += trigH + trigGap

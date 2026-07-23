@@ -429,6 +429,8 @@ fun RetroDefaultsScreen(bridge: SettingsNavBridge? = null) {
             }
         }
 
+        RetroLibretroHudSection()
+
         Text(
             stringResource(R.string.retro_scr_console_defaults),
             color = PageSub,
@@ -762,27 +764,45 @@ fun RetroDefaultsScreen(bridge: SettingsNavBridge? = null) {
                     }
                 }
                 if (expanded && !console.isExternal) {
-                    RetroSettingDropdown(
-                        label = stringResource(R.string.retro_scr_shader),
-                        entries = listOf(
-                            stringResource(R.string.retro_scr_shader_default),
-                            stringResource(R.string.retro_scr_shader_crt),
-                            stringResource(R.string.retro_scr_shader_lcd),
-                            stringResource(R.string.retro_scr_shader_sharp),
-                        ),
-                        selectedIndex = SHADER_KEYS.indexOf(RetroDefaults.shader(context, sys)).coerceAtLeast(0),
-                        onSelected = { RetroDefaults.setShader(context, sys, SHADER_KEYS[it]); refresh++ },
-                    )
-                    RetroSettingSwitch(
-                        stringResource(R.string.retro_scr_sgsr_upscaling),
-                        RetroDefaults.sgsr(context, sys),
-                    ) { RetroDefaults.setSgsr(context, sys, it); refresh++ }
-                    RetroSettingDropdown(
-                        label = stringResource(R.string.retro_scr_upscale_resolution),
-                        entries = listOf("2x", "4x", stringResource(R.string.retro_scr_upscale_native)),
-                        selectedIndex = UPSCALE_KEYS.indexOf(RetroDefaults.upscale(context, sys)).coerceAtLeast(0),
-                        onSelected = { RetroDefaults.setUpscale(context, sys, UPSCALE_KEYS[it]); refresh++ },
-                    )
+                    if (RetroCoreManager.usesDolphinCore(console)) {
+                        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+                        val gcDrivers = remember { com.armsx2.CustomDriver.listInstalled(context) }
+                        val gcDriverIds = remember(gcDrivers) { listOf("") + gcDrivers.map { it.id } }
+                        val gcDriverLabels = listOf(stringResource(R.string.retro_gpu_driver_system)) + gcDrivers.map { it.name }
+                        val curGcDriver = (prefs.getString(DolphinEmbedLaunch.DRIVER_PREF, "") ?: "").let { if (it.equals("system", true)) "" else it }
+                        RetroSettingDropdown(
+                            label = stringResource(R.string.retro_gpu_driver),
+                            entries = gcDriverLabels,
+                            selectedIndex = gcDriverIds.indexOf(curGcDriver).coerceAtLeast(0),
+                            onSelected = { prefs.edit().putString(DolphinEmbedLaunch.DRIVER_PREF, gcDriverIds[it]).apply(); refresh++ },
+                        )
+                    }
+                    val embeddedDolphin =
+                        RetroCoreManager.usesDolphinCore(console) &&
+                            RetroShortcuts.embeddedDolphinEnabled(context)
+                    if (!embeddedDolphin) {
+                        RetroSettingDropdown(
+                            label = stringResource(R.string.retro_scr_shader),
+                            entries = listOf(
+                                stringResource(R.string.retro_scr_shader_default),
+                                stringResource(R.string.retro_scr_shader_crt),
+                                stringResource(R.string.retro_scr_shader_lcd),
+                                stringResource(R.string.retro_scr_shader_sharp),
+                            ),
+                            selectedIndex = SHADER_KEYS.indexOf(RetroDefaults.shader(context, sys)).coerceAtLeast(0),
+                            onSelected = { RetroDefaults.setShader(context, sys, SHADER_KEYS[it]); refresh++ },
+                        )
+                        RetroSettingSwitch(
+                            stringResource(R.string.retro_scr_sgsr_upscaling),
+                            RetroDefaults.sgsr(context, sys),
+                        ) { RetroDefaults.setSgsr(context, sys, it); refresh++ }
+                        RetroSettingDropdown(
+                            label = stringResource(R.string.retro_scr_upscale_resolution),
+                            entries = listOf("2x", "4x", stringResource(R.string.retro_scr_upscale_native)),
+                            selectedIndex = UPSCALE_KEYS.indexOf(RetroDefaults.upscale(context, sys)).coerceAtLeast(0),
+                            onSelected = { RetroDefaults.setUpscale(context, sys, UPSCALE_KEYS[it]); refresh++ },
+                        )
+                    }
                     RetroCoreOptions.forSystem(console).forEach { option ->
                         val current = RetroDefaults.coreOption(context, sys, option.key, option.defaultValue)
                         RetroSettingDropdown(
@@ -792,6 +812,7 @@ fun RetroDefaultsScreen(bridge: SettingsNavBridge? = null) {
                             onSelected = { RetroDefaults.setCoreOption(context, sys, option.key, option.values[it]); refresh++ },
                         )
                     }
+
                     RetroSettingSwitch(
                         stringResource(R.string.retro_scr_touch_controls),
                         RetroDefaults.touchControls(context, sys),
@@ -805,10 +826,6 @@ fun RetroDefaultsScreen(bridge: SettingsNavBridge? = null) {
                         stringResource(R.string.retro_scr_sound),
                         RetroDefaults.audio(context, sys),
                     ) { RetroDefaults.setAudio(context, sys, it); refresh++ }
-                    RetroSettingSwitch(
-                        stringResource(R.string.retro_scr_performance_hud),
-                        RetroDefaults.hud(context, sys),
-                    ) { RetroDefaults.setHud(context, sys, it); refresh++ }
                     if (RetroOnlineSupport.supportsMultiplayerUi(sys)) {
                         RetroNetplaySettingsSection(
                             systemId = sys,

@@ -61,6 +61,121 @@ object RetroCoreManager {
         }
     }
 
+    fun ensureDolphinSys(context: Context) {
+        val marker = File(systemDir(context), "dolphin-emu/.wn_sys_ready")
+        if (marker.isFile) return
+        val destRoot = File(systemDir(context), "dolphin-emu").also { it.mkdirs() }
+        runCatching {
+            copyAssetDir(context, "retro/dolphin-emu", destRoot)
+            marker.parentFile?.mkdirs()
+            marker.writeText("1")
+        }
+    }
+
+    fun ensureDolphinUser(context: Context) {
+        val userRoot = File(savesDir(context), "User")
+        val gcRoot = File(userRoot, "GC").also { it.mkdirs() }
+        for (region in listOf("USA", "EUR", "JAP")) {
+            File(gcRoot, "$region/Card A").mkdirs()
+            File(gcRoot, "$region/Card B").mkdirs()
+        }
+        File(userRoot, "Config").mkdirs()
+        File(userRoot, "Wii").mkdirs()
+        File(userRoot, "GBA/Saves").mkdirs()
+        ensureDolphinIni(File(userRoot, "Config/Dolphin.ini"))
+    }
+
+    private fun ensureDolphinIni(ini: File) {
+        runCatching {
+            val existing = if (ini.isFile) ini.readText() else ""
+            val desired =
+                mapOf(
+                    "SlotA" to "8",
+                    "SlotB" to "255",
+                    "MemcardAPath" to "",
+                    "MemcardBPath" to "",
+                    "GCIFolderAPath" to "",
+                    "GCIFolderBPath" to "",
+                    "MemoryCardSize" to "-1",
+                    "CPUThread" to "False",
+                    "Fastmem" to "False",
+                    "FastmemArena" to "False",
+                )
+            val merged = mergeIniSection(existing, "Core", desired)
+            if (merged != existing) {
+                ini.parentFile?.mkdirs()
+                ini.writeText(merged)
+            }
+        }
+    }
+
+    /** Upsert keys under [section]; preserves other sections and unknown keys in-section. */
+    private fun mergeIniSection(
+        source: String,
+        section: String,
+        keys: Map<String, String>,
+    ): String {
+        if (keys.isEmpty()) return source
+        val lines = source.replace("\r\n", "\n").split('\n').toMutableList()
+        val header = "[$section]"
+        var sectionStart = lines.indexOfFirst { it.trim().equals(header, ignoreCase = true) }
+        if (sectionStart < 0) {
+            val builder = StringBuilder(source.trimEnd())
+            if (builder.isNotEmpty()) builder.append("\n\n")
+            builder.append(header).append('\n')
+            for ((k, v) in keys) builder.append(k).append(" = ").append(v).append('\n')
+            return builder.toString()
+        }
+        var sectionEnd = lines.size
+        for (i in (sectionStart + 1) until lines.size) {
+            val t = lines[i].trim()
+            if (t.startsWith("[") && t.endsWith("]")) {
+                sectionEnd = i
+                break
+            }
+        }
+        val remaining = keys.toMutableMap()
+        for (i in (sectionStart + 1) until sectionEnd) {
+            val raw = lines[i]
+            val trimmed = raw.trim()
+            if (trimmed.isEmpty() || trimmed.startsWith("#") || trimmed.startsWith(";")) continue
+            val eq = trimmed.indexOf('=')
+            if (eq <= 0) continue
+            val key = trimmed.substring(0, eq).trim()
+            val wanted = remaining.remove(key) ?: continue
+            lines[i] = "$key = $wanted"
+        }
+        if (remaining.isNotEmpty()) {
+            val insertAt = sectionEnd
+            val block = remaining.map { (k, v) -> "$k = $v" }
+            lines.addAll(insertAt, block)
+        }
+        return lines.joinToString("\n").let { if (it.endsWith("\n")) it else "$it\n" }
+    }
+
+    private fun copyAssetDir(
+        context: Context,
+        assetPath: String,
+        destDir: File,
+    ) {
+        val am = context.assets
+        val kids = am.list(assetPath) ?: return
+        if (kids.isEmpty()) {
+            destDir.parentFile?.mkdirs()
+            am.open(assetPath).use { input ->
+                destDir.outputStream().use { output -> input.copyTo(output) }
+            }
+            return
+        }
+        destDir.mkdirs()
+        for (name in kids) {
+            copyAssetDir(context, "$assetPath/$name", File(destDir, name))
+        }
+    }
+
+    fun usesDolphinCore(system: RetroSystem?): Boolean =
+        system?.id == RetroSystems.GAMECUBE.id || system?.id == RetroSystems.WII.id
+
     fun missingBios(
         context: Context,
         system: RetroSystem,

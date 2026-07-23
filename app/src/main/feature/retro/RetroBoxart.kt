@@ -37,6 +37,8 @@ object RetroBoxart {
             "n64" to "Nintendo - Nintendo 64",
             "psx" to "Sony - PlayStation",
             "ps2" to "Sony - PlayStation 2",
+            "gc" to "Nintendo - GameCube",
+            "wii" to "Nintendo - Wii",
         )
 
     private data class CaseStyle(
@@ -60,6 +62,8 @@ object RetroBoxart {
             "n64" to CaseStyle(0xFF515158.toInt(), 0xFFCF3B3B.toInt(), 1.28f, false, false),
             "psx" to CaseStyle(0xFFE8E8EC.toInt(), 0xFF2F2F36.toInt(), 1.0f, true, false),
             "ps2" to CaseStyle(0xFF1E2C6E.toInt(), 0xFF0E1436.toInt(), 0.74f, true, true),
+            "gc" to CaseStyle(0xFF4A4E57.toInt(), 0xFF6B3FA0.toInt(), 0.74f, true, true),
+            "wii" to CaseStyle(0xFFE8E8EC.toInt(), 0xFF1BA0D8.toInt(), 0.74f, true, true),
         )
 
     val artVersion = androidx.compose.runtime.mutableStateOf(0)

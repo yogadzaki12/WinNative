@@ -308,6 +308,7 @@ dependencies {
 
     implementation project(':libretrodroid')
     implementation project(':armsx2')
+    implementation project(':dolphin')
 }
 
 spotless {

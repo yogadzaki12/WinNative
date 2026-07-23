@@ -751,13 +751,21 @@ object GameSaveBackupManager {
         val system = shortcut
             ?.getExtra(com.winlator.cmod.feature.retro.RetroShortcuts.KEY_SYSTEM)
             ?.takeIf { it.isNotBlank() } ?: return null
-        return if (system == com.winlator.cmod.feature.retro.RetroSystems.PS2.id) {
-            File(com.armsx2.runtime.MainActivityRuntime.assetCopyRoot(context), "memcards")
-        } else {
-            com.winlator.cmod.feature.retro.RetroSaveStates
-                .cloudDir(context, shortcut.getExtra("custom_name", shortcut.name))
+        val gameName = shortcut.getExtra("custom_name", shortcut.name)
+        return when {
+            system == com.winlator.cmod.feature.retro.RetroSystems.PS2.id ->
+                File(com.armsx2.runtime.MainActivityRuntime.assetCopyRoot(context), "memcards")
+            com.winlator.cmod.feature.retro.RetroCoreManager
+                .usesDolphinCore(com.winlator.cmod.feature.retro.RetroSystems.fromId(system)) ->
+                com.winlator.cmod.feature.retro.DolphinCloudSync.stagingDir(
+                    context,
+                    com.winlator.cmod.feature.retro.RetroSaveStates.cloudGameId(system, gameName),
+                )
+            else -> com.winlator.cmod.feature.retro.RetroSaveStates.gameDir(context, gameName)
         }
     }
+
+    fun customGameId(containerId: Int, shortcutFileName: String): String = "$containerId:$shortcutFileName"
 
     /** Custom-game save sources in priority order: explicit customSaveDir, then the customSaveWindowsPath extra, then the legacy custom_game_folder extra, then the prefix's users/xuser/{Documents,Saved Games,AppData}. */
     private fun getCustomSaveSources(
@@ -769,6 +777,16 @@ object GameSaveBackupManager {
         val retroShortcut =
             parseCustomGameId(gameId)?.let { (cid, f) -> findCustomShortcutByContainerAndFile(context, cid, f) }
                 ?: findCustomShortcutByGameId(context, gameId)
+        if (!forRestore && retroShortcut != null) {
+            val sys = retroShortcut.getExtra(com.winlator.cmod.feature.retro.RetroShortcuts.KEY_SYSTEM)
+            if (sys.isNotBlank()) {
+                com.winlator.cmod.feature.retro.DolphinCloudSync.refreshForBackup(
+                    context,
+                    sys,
+                    retroShortcut.getExtra("custom_name", retroShortcut.name),
+                )
+            }
+        }
         val dir = retroSaveDir(context, retroShortcut)
         if (dir != null) {
             return if (forRestore || (dir.exists() && !dir.listFiles().isNullOrEmpty())) {

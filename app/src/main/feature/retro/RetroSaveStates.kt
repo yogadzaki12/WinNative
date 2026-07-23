@@ -51,6 +51,19 @@ object RetroSaveStates {
         gameName: String,
     ): File = File(cloudDir(context, gameName), "${safeName(gameName)}.srm")
 
+    fun migrateLegacyCloudLayout(context: Context, gameName: String) {
+        runCatching {
+            val game = gameDir(context, gameName)
+            val sram = cloudDir(context, gameName)
+            game.listFiles()?.forEach { f ->
+                if (f.isFile && f.name.endsWith(".srm")) {
+                    f.copyTo(File(sram, f.name), overwrite = true)
+                    f.delete()
+                }
+            }
+        }
+    }
+
     private fun metaFile(dir: File): File = File(dir, "slots.json")
 
     private fun readMeta(dir: File): JSONObject =

@@ -49,6 +49,9 @@ object RetroShortcuts {
                 vars[option.key] = RetroDefaults.coreOption(context, system.id, option.key, option.defaultValue)
             }
         }
+        if (RetroCoreManager.usesDolphinCore(system)) {
+            RetroCoreOptions.sanitizeDolphinVariables(vars)
+        }
         return vars
     }
 
@@ -146,8 +149,19 @@ object RetroShortcuts {
             launchEmbeddedPs2(context, shortcut)
             return
         }
+        if (RetroCoreManager.usesDolphinCore(system) && embeddedDolphinEnabled(context)) {
+            recordLaunchStats(context, shortcut.getExtra("custom_name", shortcut.name))
+            DolphinEmbedLaunch.launch(context, shortcut)
+            return
+        }
         context.startActivity(launchIntent(context, shortcut))
     }
+
+    /** Embedded standalone Dolphin (Vulkan/Turnip) vs the legacy libretro GLES core. */
+    fun embeddedDolphinEnabled(context: Context): Boolean =
+        androidx.preference.PreferenceManager
+            .getDefaultSharedPreferences(context)
+            .getBoolean("wn.gc.embedded", true)
 
     private fun recordLaunchStats(
         context: Context,
@@ -278,10 +292,7 @@ object RetroShortcuts {
                 RetroActivity.EXTRA_AUDIO,
                 shortcut.getExtra(KEY_AUDIO).ifEmpty { if (RetroDefaults.audio(context, sysId)) "1" else "0" } != "0",
             )
-            putExtra(
-                RetroActivity.EXTRA_HUD,
-                shortcut.getExtra(KEY_HUD).ifEmpty { if (RetroDefaults.hud(context, sysId)) "1" else "0" } == "1",
-            )
+            putExtra(RetroActivity.EXTRA_HUD, RetroDefaults.hud(context, sysId))
             putExtra(RetroActivity.EXTRA_VARIABLES, resolvedCoreVariables(context, shortcut))
         }
 }

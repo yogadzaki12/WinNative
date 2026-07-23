@@ -925,7 +925,10 @@ internal fun UnifiedActivity.launchCustomGame(
 
         if (com.winlator.cmod.feature.retro.RetroShortcuts.isRetroShortcut(shortcut)) {
             val retroSystem = com.winlator.cmod.feature.retro.RetroShortcuts.systemForShortcut(shortcut)
-            if (retroSystem != null && retroSystem.isExternal) {
+            val embeddedDolphin =
+                com.winlator.cmod.feature.retro.RetroCoreManager.usesDolphinCore(retroSystem) &&
+                    com.winlator.cmod.feature.retro.RetroShortcuts.embeddedDolphinEnabled(context)
+            if ((retroSystem != null && retroSystem.isExternal) || embeddedDolphin) {
                 withContext(Dispatchers.Main) {
                     com.winlator.cmod.feature.retro.RetroShortcuts.launch(context, shortcut)
                 }

@@ -144,10 +144,7 @@ class RetroSettingsState(
         shortcut.getExtra(RetroShortcuts.KEY_AUDIO)
             .ifEmpty { if (context != null && sysId != null) (if (RetroDefaults.audio(context, sysId)) "1" else "0") else "1" } != "0",
     )
-    var hud by mutableStateOf(
-        shortcut.getExtra(RetroShortcuts.KEY_HUD)
-            .ifEmpty { if (context != null && sysId != null) (if (RetroDefaults.hud(context, sysId)) "1" else "0") else "0" } == "1",
-    )
+
     val optionValues =
         mutableStateMapOf<String, String>().apply {
             coreOptions.forEach { option ->
@@ -206,7 +203,6 @@ class RetroSettingsState(
         shortcut.putExtra(RetroShortcuts.KEY_HDD_IMAGE, hddImage)
         shortcut.putExtra(RetroShortcuts.KEY_HDD_ENABLE, if (hddEnable) "1" else "0")
         shortcut.putExtra(RetroShortcuts.KEY_AUDIO, if (audio) "1" else "0")
-        shortcut.putExtra(RetroShortcuts.KEY_HUD, if (hud) "1" else "0")
         coreOptions.forEach { option ->
             shortcut.putExtra(
                 RetroShortcuts.VAR_PREFIX + option.key,
@@ -241,8 +237,8 @@ private fun buildRetroSections(state: RetroSettingsState): List<RetroSection> {
     sections += RetroSection(RetroSectionId.GRAPHICS, Icons.Outlined.Monitor, R.string.retro_gs_section_graphics)
     if (state.system?.isExternal == true) {
         sections += RetroSection(RetroSectionId.PERFORMANCE, Icons.Outlined.Bolt, R.string.retro_gs_section_performance)
-        sections += RetroSection(RetroSectionId.HUD, Icons.Outlined.Speed, R.string.retro_gs_section_hud)
     }
+    sections += RetroSection(RetroSectionId.HUD, Icons.Outlined.Speed, R.string.retro_gs_section_hud)
     sections += RetroSection(RetroSectionId.INPUT, Icons.Outlined.SportsEsports, R.string.retro_gs_section_input)
     sections += RetroSection(RetroSectionId.AUDIO, Icons.AutoMirrored.Outlined.VolumeUp, R.string.retro_gs_section_audio)
     if (RetroOnlineSupport.supportsDev9(systemId) || RetroOnlineSupport.supportsMultiplayerUi(systemId)) {
@@ -363,7 +359,8 @@ private fun RetroSectionContent(
                     RetroSectionId.GENERAL -> RetroGeneralSection(state, onPickArtwork, onRemoveArtwork, onImportBios)
                     RetroSectionId.GRAPHICS -> RetroGraphicsSection(state)
                     RetroSectionId.PERFORMANCE -> RetroPs2PerformanceSection()
-                    RetroSectionId.HUD -> RetroPs2HudSection()
+                    RetroSectionId.HUD ->
+                        if (state.system?.isExternal == true) RetroPs2HudSection() else RetroLibretroHudSection()
                     RetroSectionId.INPUT -> RetroInputSection(state)
                     RetroSectionId.AUDIO -> RetroAudioSection(state)
                     RetroSectionId.ONLINE -> {
@@ -977,32 +974,36 @@ private fun RetroGraphicsSection(state: RetroSettingsState) {
         stringResource(R.string.retro_gs_upscale_4x),
         stringResource(R.string.retro_gs_upscale_native),
     )
+    val embeddedDolphinContext = androidx.compose.ui.platform.LocalContext.current
+    val embeddedDolphin =
+        RetroCoreManager.usesDolphinCore(state.system) &&
+            RetroShortcuts.embeddedDolphinEnabled(embeddedDolphinContext)
     RetroSettingGroup {
         RetroGroupTitle(stringResource(R.string.retro_gs_group_video))
-        RetroSettingDropdown(
-            label = stringResource(R.string.retro_gs_video_filter),
-            entries = shaderLabels,
-            selectedIndex = SHADER_KEYS.indexOf(state.shader).coerceAtLeast(0),
-            onSelected = { state.shader = SHADER_KEYS[it] },
-        )
-        RetroSettingSwitch(
-            label = stringResource(R.string.retro_gs_sgsr),
-            checked = state.sgsr,
-            onCheckedChange = { state.sgsr = it },
-        )
-        if (state.sgsr) {
-            RetroSettingDropdown(
-                label = stringResource(R.string.retro_gs_sgsr_upscale),
-                entries = upscaleLabels,
-                selectedIndex = UPSCALE_KEYS.indexOf(state.upscale).coerceAtLeast(0),
-                onSelected = { state.upscale = UPSCALE_KEYS[it] },
-            )
+        if (embeddedDolphin) {
+            DolphinGpuDriverDropdown()
         }
-        RetroSettingSwitch(
-            label = stringResource(R.string.retro_gs_performance_hud),
-            checked = state.hud,
-            onCheckedChange = { state.hud = it },
-        )
+        if (!embeddedDolphin) {
+            RetroSettingDropdown(
+                label = stringResource(R.string.retro_gs_video_filter),
+                entries = shaderLabels,
+                selectedIndex = SHADER_KEYS.indexOf(state.shader).coerceAtLeast(0),
+                onSelected = { state.shader = SHADER_KEYS[it] },
+            )
+            RetroSettingSwitch(
+                label = stringResource(R.string.retro_gs_sgsr),
+                checked = state.sgsr,
+                onCheckedChange = { state.sgsr = it },
+            )
+            if (state.sgsr) {
+                RetroSettingDropdown(
+                    label = stringResource(R.string.retro_gs_sgsr_upscale),
+                    entries = upscaleLabels,
+                    selectedIndex = UPSCALE_KEYS.indexOf(state.upscale).coerceAtLeast(0),
+                    onSelected = { state.upscale = UPSCALE_KEYS[it] },
+                )
+            }
+        }
     }
     if (state.coreOptions.isNotEmpty()) {
         Spacer(Modifier.height(12.dp))
@@ -1016,6 +1017,56 @@ private fun RetroGraphicsSection(state: RetroSettingsState) {
                     selectedIndex = option.values.indexOf(current).coerceAtLeast(0),
                     onSelected = { state.optionValues[option.key] = option.values[it] },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DolphinGpuDriverDropdown() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember(context) { androidx.preference.PreferenceManager.getDefaultSharedPreferences(context) }
+    var driverVersion by remember { mutableIntStateOf(0) }
+    @Suppress("UNUSED_EXPRESSION") driverVersion
+    val gcDrivers = remember { com.armsx2.CustomDriver.listInstalled(context) }
+    val gcDriverIds = remember(gcDrivers) { listOf("") + gcDrivers.map { it.id } }
+    val gcDriverLabels = listOf(stringResource(R.string.retro_gpu_driver_system)) + gcDrivers.map { it.name }
+    val curGcDriver = (prefs.getString(DolphinEmbedLaunch.DRIVER_PREF, "") ?: "").let { if (it.equals("system", true)) "" else it }
+    RetroSettingDropdown(
+        label = stringResource(R.string.retro_gpu_driver),
+        entries = gcDriverLabels,
+        selectedIndex = gcDriverIds.indexOf(curGcDriver).coerceAtLeast(0),
+        onSelected = {
+            prefs.edit().putString(DolphinEmbedLaunch.DRIVER_PREF, gcDriverIds[it]).apply()
+            driverVersion++
+        },
+    )
+}
+
+@Composable
+internal fun RetroLibretroHudSection() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var version by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    @Suppress("UNUSED_EXPRESSION") version
+    val hudOn = RetroDefaults.hud(context, "")
+    val elements = remember(version) { RetroHudSupport.loadGlobalHudElements(context) }
+    RetroSettingGroup {
+        RetroGroupTitle(stringResource(R.string.retro_gs_group_performance_hud))
+        RetroSettingSwitch(stringResource(R.string.retro_lr_performance_hud), hudOn) {
+            RetroDefaults.setHud(context, "", it)
+            version++
+        }
+        if (hudOn) {
+            RetroHudSupport.ELEMENT_ORDER.forEach { index ->
+                RetroSettingSwitch(
+                    stringResource(RetroHudSupport.ELEMENT_LABEL_RES[index]),
+                    elements[index],
+                ) { on ->
+                    val next = elements.copyOf()
+                    next[index] = on
+                    RetroHudSupport.saveGlobalHudElements(context, next)
+                    version++
+                }
             }
         }
     }
@@ -1676,6 +1727,23 @@ private fun RetroInputSection(state: RetroSettingsState) {
                 subtitle = stringResource(R.string.retro_gs_adaptive_sticks_subtitle),
                 onCheckedChange = { state.adaptiveSticks = it },
             )
+            val sysId = state.system?.id
+            if (sysId == RetroSystems.PSX.id || RetroCoreManager.usesDolphinCore(state.system)) {
+                var invVer by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+                @Suppress("UNUSED_EXPRESSION") invVer
+                listOf(
+                    R.string.retro_lr_left_stick_invert_x to "retro_inv_lx_$sysId",
+                    R.string.retro_lr_left_stick_invert_y to "retro_inv_ly_$sysId",
+                    R.string.retro_lr_right_stick_invert_x to "retro_inv_rx_$sysId",
+                    R.string.retro_lr_right_stick_invert_y to "retro_inv_ry_$sysId",
+                ).forEach { (labelRes, key) ->
+                    RetroSettingSwitch(
+                        label = stringResource(labelRes),
+                        checked = prefs.getBoolean(key, false),
+                        onCheckedChange = { prefs.edit().putBoolean(key, it).apply(); invVer++ },
+                    )
+                }
+            }
         }
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = TightGap),

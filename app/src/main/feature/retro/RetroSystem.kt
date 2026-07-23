@@ -116,12 +116,39 @@ object RetroSystems {
             badgeLabel = "PS2",
         )
 
+    val GAMECUBE =
+        RetroSystem(
+            id = "gc",
+            displayName = "Nintendo GameCube",
+            shortName = "GameCube",
+            coreFileName = "libdolphin_libretro_android.so",
+            extensions = setOf("gcm", "tgc", "gcz", "ciso", "dol", "elf", "rvz", "iso", "m3u"),
+            badgeLabel = "GameCube",
+        )
+
+    val WII =
+        RetroSystem(
+            id = "wii",
+            displayName = "Nintendo Wii",
+            shortName = "Wii",
+            coreFileName = "libdolphin_libretro_android.so",
+            extensions = setOf("wbfs", "wad", "rvz", "gcz", "ciso", "iso", "dol", "elf", "m3u"),
+            badgeLabel = "Wii",
+        )
+
     val ALL =
-        listOf(NES, SNES, GAMEBOY, GAMEBOY_COLOR, GBA, GENESIS, MASTER_SYSTEM, GAME_GEAR, N64, PSX, PS2)
+        listOf(
+            NES, SNES, GAMEBOY, GAMEBOY_COLOR, GBA, GENESIS, MASTER_SYSTEM, GAME_GEAR,
+            N64, PSX, PS2, GAMECUBE, WII,
+        )
 
     private val PSX_ONLY_EXTENSIONS = setOf("cue", "chd", "pbp", "m3u")
     private val PS2_ONLY_EXTENSIONS = setOf("cso", "zso", "mdf", "nrg", "img")
+    private val GC_ONLY_EXTENSIONS = setOf("gcm", "tgc")
+    private val WII_ONLY_EXTENSIONS = setOf("wbfs", "wad")
+    private val DOLPHIN_SHARED_EXTENSIONS = setOf("rvz", "gcz", "ciso", "dol", "elf")
     private const val PS2_SIZE_THRESHOLD = 900L * 1024 * 1024
+    private const val WII_SIZE_THRESHOLD = 1500L * 1024 * 1024
 
     val allExtensions: Set<String> = ALL.flatMap { it.extensions }.toSet() - "exe"
 
@@ -135,6 +162,9 @@ object RetroSystems {
         if (extension.isNullOrBlank()) return null
         val ext = extension.trim().lowercase(Locale.US).removePrefix(".")
         if (ext == "exe") return null
+        if (ext in WII_ONLY_EXTENSIONS) return WII
+        if (ext in GC_ONLY_EXTENSIONS) return GAMECUBE
+        if (ext in DOLPHIN_SHARED_EXTENSIONS) return GAMECUBE
         if (ext in PS2_ONLY_EXTENSIONS) return PS2
         if (ext in PSX_ONLY_EXTENSIONS || ext == "iso") return PSX
         return ALL.firstOrNull { ext in it.extensions }
@@ -149,11 +179,15 @@ object RetroSystems {
     fun detectForFile(path: String): RetroSystem? {
         val ext = path.substringAfterLast('.', "").lowercase(Locale.US)
         if (RetroRomArchive.isArchive(path)) return RetroRomArchive.detect(path)
+        if (ext in WII_ONLY_EXTENSIONS) return WII
+        if (ext in GC_ONLY_EXTENSIONS) return GAMECUBE
+        val size = runCatching { java.io.File(path).length() }.getOrDefault(0L)
+        if (ext in DOLPHIN_SHARED_EXTENSIONS) {
+            return if (size > WII_SIZE_THRESHOLD) WII else GAMECUBE
+        }
         val detected = fromExtension(ext) ?: return null
-        if (ext == "bin" && java.io.File(path).length() > 16L * 1024 * 1024) return PSX
-        if (detected.id == PSX.id && ext in setOf("iso", "chd", "bin") &&
-            java.io.File(path).length() > PS2_SIZE_THRESHOLD
-        ) {
+        if (ext == "bin" && size > 16L * 1024 * 1024) return PSX
+        if (detected.id == PSX.id && ext in setOf("iso", "chd", "bin") && size > PS2_SIZE_THRESHOLD) {
             return PS2
         }
         return detected

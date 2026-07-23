@@ -239,10 +239,31 @@ void LibretroDroid::onSurfaceCreated() {
 
     video = nullptr;
 
-    Video::RenderingOptions renderingOptions {
-        Environment::getInstance().isUseHwAcceleration(),
+    unsigned fbWidth = system_av_info.geometry.base_width;
+    unsigned fbHeight = system_av_info.geometry.base_height;
+    if (fbWidth == 0) fbWidth = system_av_info.geometry.max_width;
+    if (fbHeight == 0) fbHeight = system_av_info.geometry.max_height;
+    if (fbWidth == 0) fbWidth = 640;
+    if (fbHeight == 0) fbHeight = 528;
+    if (fbWidth > 4096) fbWidth = 4096;
+    if (fbHeight > 4096) fbHeight = 4096;
+    LOGI(
+        "Video init geometry base=%ux%u max=%ux%u using=%ux%u hw=%d depth=%d stencil=%d",
         system_av_info.geometry.base_width,
         system_av_info.geometry.base_height,
+        system_av_info.geometry.max_width,
+        system_av_info.geometry.max_height,
+        fbWidth,
+        fbHeight,
+        Environment::getInstance().isUseHwAcceleration() ? 1 : 0,
+        Environment::getInstance().isUseDepth() ? 1 : 0,
+        Environment::getInstance().isUseStencil() ? 1 : 0
+    );
+
+    Video::RenderingOptions renderingOptions {
+        Environment::getInstance().isUseHwAcceleration(),
+        fbWidth,
+        fbHeight,
         Environment::getInstance().isUseDepth(),
         Environment::getInstance().isUseStencil(),
         openglESVersion,
@@ -528,13 +549,12 @@ bool LibretroDroid::step() {
 
     if (video && Environment::getInstance().isGameGeometryUpdated()) {
         Environment::getInstance().clearGameGeometryUpdated();
-
-        video->updateRendererSize(
-            Environment::getInstance().getGameGeometryWidth(),
-            Environment::getInstance().getGameGeometryHeight()
-        );
-
-        dirtyVideo = true;
+        unsigned nextW = Environment::getInstance().getGameGeometryWidth();
+        unsigned nextH = Environment::getInstance().getGameGeometryHeight();
+        if (nextW > 0 && nextH > 0) {
+            video->updateRendererSize(nextW, nextH);
+            dirtyVideo = true;
+        }
     }
 
     if (video && Environment::getInstance().isScreenRotationUpdated()) {

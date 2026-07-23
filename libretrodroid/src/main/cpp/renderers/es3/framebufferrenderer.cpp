@@ -120,6 +120,13 @@ uintptr_t FramebufferRenderer::getTexture() {
 }
 
 uintptr_t FramebufferRenderer::getFramebuffer() {
+    if (isDirty) {
+        initializeBuffers();
+        isDirty = false;
+    }
+    if (!framebuffer || framebuffer->framebuffer == 0) {
+        return 0;
+    }
     return framebuffer->framebuffer;
 }
 
@@ -128,11 +135,18 @@ void FramebufferRenderer::setPixelFormat(int pixelFormat) {
 }
 
 void FramebufferRenderer::updateRenderedResolution(unsigned int width, unsigned int height) {
+    if (width == 0 || height == 0) {
+        LOGI("FramebufferRenderer ignoring 0x0 resolution (keeping %dx%d)", this->width, this->height);
+        return;
+    }
+    if (width > 4096) width = 4096;
+    if (height > 4096) height = 4096;
     if (this->width != width || this->height != height) {
         LOGI("FramebufferRenderer resolution change: %dx%d -> %dx%d", this->width, this->height, width, height);
         this->width = width;
         this->height = height;
-        isDirty = true;
+        initializeBuffers();
+        isDirty = false;
     }
 }
 

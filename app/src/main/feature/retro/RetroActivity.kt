@@ -126,7 +126,6 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
     private var savesLoadMode = false
     private var achievementsSessionStarted = false
     private var cloudSyncEnabled = false
-    private var cloudBackupLaunched = false
     private var conflictChecked = false
     private var retroCloudId = ""
     private var netplayLocalPort = 0
@@ -202,7 +201,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         }
 
     private val stickIsAnalog: Boolean
-        get() = system?.id == RetroSystems.N64.id
+        get() = system?.id == RetroSystems.N64.id || RetroCoreManager.usesDolphinCore(system)
 
     private fun anyGameControllerConnected(): Boolean =
         InputDevice.getDeviceIds().any { id ->
@@ -380,6 +379,10 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         }
 
         if (resolvedSystem.id == RetroSystems.N64.id) RetroCoreManager.ensureGlideN64Ini(this)
+        if (RetroCoreManager.usesDolphinCore(resolvedSystem)) {
+            RetroCoreManager.ensureDolphinSys(this)
+            RetroCoreManager.ensureDolphinUser(this)
+        }
         val savesDir = RetroCoreManager.savesDir(this)
         RetroSaveStates.migrateLegacy(this, gameName)
         RetroSaveStates.recordIdentity(this, gameName, resolvedSystem.id)
@@ -400,6 +403,9 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         coreVars = (intent.getSerializableExtra(EXTRA_VARIABLES) as? HashMap<String, String>) ?: HashMap()
         RetroCoreOptions.defaultVariables(resolvedSystem).forEach { (key, value) ->
             if (!coreVars.containsKey(key)) coreVars[key] = value
+        }
+        if (RetroCoreManager.usesDolphinCore(resolvedSystem)) {
+            RetroCoreOptions.sanitizeDolphinVariables(coreVars)
         }
 
         val root = FrameLayout(this)
@@ -427,6 +433,10 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 .getDefaultSharedPreferences(this)
                 .getFloat("retro_haptic_strength", 0.4f)
         inputView.adaptiveSticks = adaptiveSticksSetting
+        inputView.showL3R3 =
+            androidx.preference.PreferenceManager
+                .getDefaultSharedPreferences(this)
+                .getBoolean(RetroControlsMenu.l3r3PrefKey(resolvedSystem.id), true)
         customColors = RetroControlLayouts.loadColors(this, resolvedSystem.id)
         inputView.setCustomColors(customColors)
         inputView.onEditStateChanged = { editing ->
@@ -555,7 +565,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                         shader = effectiveShader()
                         variables = coreVars.map { Variable(it.key, it.value) }.toTypedArray()
                         rumbleEventsEnabled = true
-                        preferLowLatencyAudio = true
+                        preferLowLatencyAudio = !RetroCoreManager.usesDolphinCore(resolvedSystem)
                         skipDuplicateFrames = false
                         viewportAlignment =
                             if (resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
@@ -605,7 +615,10 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                 observeEvents()
                 scheduleCloudConflictCheck()
             }
-        retroCloudId = RetroSaveStates.cloudGameId(resolvedSystem.id, gameName)
+        retroCloudId =
+            intent.getStringExtra(EXTRA_SHORTCUT_PATH)?.let { path ->
+                GameSaveBackupManager.customGameId(intent.getIntExtra(EXTRA_CONTAINER_ID, 0), File(path).name)
+            } ?: RetroSaveStates.cloudGameId(resolvedSystem.id, gameName)
         lifecycleScope.launch(Dispatchers.IO) {
             cloudSyncEnabled =
                 runCatching { loadShortcut()?.getExtra("cloud_sync_enabled", "1") != "0" }.getOrDefault(true)
@@ -628,9 +641,10 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                                     GameSaveBackupManager.GameSource.CUSTOM,
                                     retroCloudId,
                                     GoogleAuthMode.RESUME,
-                                    customSaveDir = RetroSaveStates.cloudDir(this@RetroActivity, gameName),
+                                    customSaveDir = RetroSaveStates.gameDir(this@RetroActivity, gameName),
                                 )
                             if (result.success) {
+                                RetroSaveStates.migrateLegacyCloudLayout(this@RetroActivity, gameName)
                                 setCloudMark(latest.timestampMs)
                                 runOnUiThread {
                                     Toast
@@ -706,12 +720,13 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                         GameSaveBackupManager.GameSource.CUSTOM,
                         retroCloudId,
                         GoogleAuthMode.INTERACTIVE,
-                        customSaveDir = RetroSaveStates.cloudDir(this@RetroActivity, gameName),
+                        customSaveDir = RetroSaveStates.gameDir(this@RetroActivity, gameName),
                     )
                 }.getOrNull()
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 if (result?.success == true) {
+                    RetroSaveStates.migrateLegacyCloudLayout(this@RetroActivity, gameName)
                     setCloudMark(entry.timestampMs)
                     runCatching {
                         val sram = RetroSaveStates.sramFile(this@RetroActivity, gameName)
@@ -743,9 +758,10 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
     }
 
     private fun launchExitCloudBackup() {
-        if (!cloudSyncEnabled || cloudBackupLaunched) return
-        if (!RetroSaveStates.sramFile(this, gameName).isFile) return
-        cloudBackupLaunched = true
+        if (!cloudSyncEnabled) return
+        val hasSaves =
+            RetroSaveStates.gameDir(this, gameName).walkTopDown().any { it.isFile }
+        if (!hasSaves) return
         androidx.preference.PreferenceManager
             .getDefaultSharedPreferences(this)
             .edit()
@@ -813,82 +829,22 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
     }
 
     private fun loadHudSettings() {
-        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
-        hudFrametimeNumeric = prefs.getBoolean(FrameRating.PREF_HUD_FRAMETIME_NUMERIC, false)
-        hudDualBattery = prefs.getBoolean(FrameRating.PREF_HUD_DUAL_SERIES_BATTERY, false)
-        lifecycleScope.launch(Dispatchers.IO) {
-            val json =
-                runCatching {
-                    val containerId = intent.getIntExtra(EXTRA_CONTAINER_ID, 0)
-                    if (containerId <= 0) return@runCatching null
-                    ContainerManager(this@RetroActivity)
-                        .getContainerById(containerId)
-                        ?.getExtra("hudSettings")
-                }.getOrNull()
-            if (json.isNullOrEmpty()) return@launch
-            runCatching {
-                val obj = org.json.JSONObject(json)
-                val transparency = obj.optDouble("transparency", 1.0).toFloat()
-                val decoupled = obj.optBoolean("backgroundAlphaDecoupled", false)
-                val backgroundTransparency =
-                    obj
-                        .optDouble(
-                            "backgroundTransparency",
-                            (transparency * FrameRating.BACKDROP_BASE_ALPHA).toDouble(),
-                        ).toFloat()
-                val scale = obj.optDouble("scale", 1.0).toFloat()
-                val legacyCpuRam = obj.optBoolean("showCpuRam", true)
-                val legacyBattTemp = obj.optBoolean("showBattTemp", true)
-                val elements =
-                    booleanArrayOf(
-                        obj.optBoolean("showFPS", true),
-                        obj.optBoolean("showRenderer", true),
-                        obj.optBoolean("showGPU", true),
-                        obj.optBoolean("showCPU", legacyCpuRam),
-                        obj.optBoolean("showRAM", legacyCpuRam),
-                        obj.optBoolean("showBattery", legacyBattTemp),
-                        obj.optBoolean("showTemp", legacyBattTemp),
-                        obj.optBoolean("showGraph", true),
-                        obj.optBoolean("showCpuTemp", false),
-                    )
-                runOnUiThread {
-                    hudAlpha = transparency
-                    hudBgDecoupled = decoupled
-                    hudBgAlpha = backgroundTransparency
-                    hudScale = scale
-                    hudElements = elements
-                    frameRating?.let { applyRetroHudSettings(it) }
-                    menu.rebuild()
-                }
-            }
-        }
+        val style = RetroHudSupport.loadGlobalHudStyle(this)
+        hudAlpha = style.alpha
+        hudBgDecoupled = style.bgDecoupled
+        hudBgAlpha = style.bgAlpha
+        hudScale = style.scale
+        hudFrametimeNumeric = style.frametimeNumeric
+        hudDualBattery = style.dualBattery
+        hudElements = RetroHudSupport.loadGlobalHudElements(this)
     }
 
     private fun saveHudSettings() {
-        lifecycleScope.launch(Dispatchers.IO) {
-            runCatching {
-                val containerId = intent.getIntExtra(EXTRA_CONTAINER_ID, 0)
-                if (containerId <= 0) return@runCatching
-                val container =
-                    ContainerManager(this@RetroActivity).getContainerById(containerId) ?: return@runCatching
-                val obj = org.json.JSONObject()
-                obj.put("transparency", hudAlpha.toDouble())
-                obj.put("backgroundAlphaDecoupled", hudBgDecoupled)
-                obj.put("backgroundTransparency", hudBgAlpha.toDouble())
-                obj.put("scale", hudScale.toDouble())
-                obj.put("showFPS", hudElements[0])
-                obj.put("showRenderer", hudElements[1])
-                obj.put("showGPU", hudElements[2])
-                obj.put("showCPU", hudElements[3])
-                obj.put("showRAM", hudElements[4])
-                obj.put("showBattery", hudElements[5])
-                obj.put("showTemp", hudElements[6])
-                obj.put("showGraph", hudElements[7])
-                obj.put("showCpuTemp", hudElements[8])
-                container.putExtra("hudSettings", obj.toString())
-                container.saveData()
-            }
-        }
+        RetroHudSupport.saveGlobalHudStyle(
+            this,
+            HudStyle(hudAlpha, hudBgDecoupled, hudBgAlpha, hudScale, hudFrametimeNumeric, hudDualBattery),
+        )
+        RetroHudSupport.saveGlobalHudElements(this, hudElements)
     }
 
     private fun recordLaunchStats() {
@@ -928,6 +884,15 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
                         if (!audioEnabledSetting) retroView.audioEnabled = false
                         surfaceReady = true
                         applyDisplayGeometry()
+                        if (RetroCoreManager.usesDolphinCore(system)) {
+                            runCatching {
+                                val joypad = 1
+                                retroView.setControllerType(0, joypad)
+                                retroView.setControllerType(1, joypad)
+                                retroView.setControllerType(2, joypad)
+                                retroView.setControllerType(3, joypad)
+                            }
+                        }
                         lifecycleScope.launch(Dispatchers.Default) {
                             runCatching {
                                 diskCount = retroView.getAvailableDisks()
@@ -1105,13 +1070,14 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
         persistShortcut?.let { return it }
         val containerId = intent.getIntExtra(EXTRA_CONTAINER_ID, 0)
         val path = intent.getStringExtra(EXTRA_SHORTCUT_PATH)
-        if (containerId <= 0 || path.isNullOrBlank()) return null
+        if (containerId < 0 || path.isNullOrBlank()) return null
         val file = File(path)
         if (!file.isFile) return null
         return runCatching {
-            ContainerManager(this)
-                .getContainerById(containerId)
-                ?.let { Shortcut(it, file) }
+            val cm = ContainerManager(this)
+            val container =
+                if (containerId == ContainerManager.RETRO_CONTAINER_ID) cm.retroContainer else cm.getContainerById(containerId)
+            container?.let { Shortcut(it, file) }
         }.getOrNull()?.also { persistShortcut = it }
     }
 
@@ -1420,115 +1386,35 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             }
     }
 
-    private fun persistColors() {
-        RetroControlLayouts.saveColors(this, system?.id, customColors)
-        overlay?.setCustomColors(customColors)
-        menu.rebuild()
-    }
-
     private fun buildControlsEntries(): List<RetroMenuEntry> =
-        buildList {
-            if (system?.id == RetroSystems.PSX.id) {
-                val invPrefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this@RetroActivity)
-                fun invToggle(label: String, key: String) =
-                    RetroMenuEntry.Toggle(label, checked = invPrefs.getBoolean(key, false)) { value ->
-                        invPrefs.edit().putBoolean(key, value).apply()
-                        overlay?.loadStickInversion()
-                        menu.rebuild()
-                    }
-                add(invToggle(getString(R.string.retro_lr_left_stick_invert_x), "retro_inv_lx_psx"))
-                add(invToggle(getString(R.string.retro_lr_left_stick_invert_y), "retro_inv_ly_psx"))
-                add(invToggle(getString(R.string.retro_lr_right_stick_invert_x), "retro_inv_rx_psx"))
-                add(invToggle(getString(R.string.retro_lr_right_stick_invert_y), "retro_inv_ry_psx"))
-            }
-            add(
-                RetroMenuEntry.Toggle(getString(R.string.retro_lr_on_screen_controls), checked = touchControlsSetting) { value ->
+        RetroControlsMenu.build(
+            RetroControlsMenu.Host(
+                context = this,
+                overlay = overlay,
+                menu = menu,
+                systemId = system?.id,
+                touchControls = { touchControlsSetting },
+                onTouchControls = { value ->
                     touchControlsSetting = value
                     updateOverlayVisibility()
                     persistExtra(RetroShortcuts.KEY_TOUCH_CONTROLS, if (value) "1" else "0")
-                    menu.rebuild()
                 },
-            )
-            add(
-                RetroMenuEntry.Toggle(getString(R.string.retro_lr_adaptive_sticks), checked = adaptiveSticksSetting) { value ->
+                adaptiveSticks = { adaptiveSticksSetting },
+                onAdaptiveSticks = { value ->
                     adaptiveSticksSetting = value
-                    overlay?.adaptiveSticks = value
                     persistExtra(RetroShortcuts.KEY_ADAPTIVE_STICKS, if (value) "1" else "0")
-                    menu.rebuild()
                 },
-            )
-            add(
-                RetroMenuEntry.Slider(
-                    label = getString(R.string.retro_lr_haptic_feedback),
-                    valueText =
-                        overlay?.hapticStrength?.let { "${(it * 100).toInt()}%" } ?: "0%",
-                    value = overlay?.hapticStrength ?: 0f,
-                    min = 0f,
-                    max = 1f,
-                    step = 0.05f,
-                ) { value ->
-                    overlay?.hapticStrength = value
-                    androidx.preference.PreferenceManager
-                        .getDefaultSharedPreferences(this@RetroActivity)
-                        .edit()
-                        .putFloat("retro_haptic_strength", value)
-                        .apply()
-                    menu.rebuild()
-                },
-            )
-            val orientationLabel =
-                if ((rootLayout?.height ?: 0) > (rootLayout?.width ?: 0)) {
-                    getString(R.string.retro_lr_portrait)
-                } else {
-                    getString(R.string.retro_lr_landscape)
-                }
-            add(
-                RetroMenuEntry.Action(getString(R.string.retro_lr_edit_layout, orientationLabel), RetroDrawerIcons.EditLayout) {
-                    menu.close()
-                    overlay?.let {
-                        it.visibility = View.VISIBLE
-                        it.enterEdit()
+                orientationLabel = {
+                    if ((rootLayout?.height ?: 0) > (rootLayout?.width ?: 0)) {
+                        getString(R.string.retro_lr_portrait)
+                    } else {
+                        getString(R.string.retro_lr_landscape)
                     }
                 },
-            )
-            add(
-                RetroMenuEntry.Action(getString(R.string.retro_lr_reset_layout, orientationLabel), RetroDrawerIcons.Reset) {
-                    overlay?.resetLayout()
-                    Toast.makeText(this@RetroActivity, getString(R.string.retro_lr_layout_reset, orientationLabel), Toast.LENGTH_SHORT).show()
-                },
-            )
-            add(
-                RetroMenuEntry.ColorPick(getString(R.string.retro_lr_button_color), customColors.button) { value ->
-                    customColors.button = value
-                    persistColors()
-                },
-            )
-            add(
-                RetroMenuEntry.ColorPick(getString(R.string.retro_lr_letter_color), customColors.text) { value ->
-                    customColors.text = value
-                    persistColors()
-                },
-            )
-            add(
-                RetroMenuEntry.ColorPick(getString(R.string.retro_lr_shadow_color), customColors.shadow) { value ->
-                    customColors.shadow = value
-                    persistColors()
-                },
-            )
-            add(
-                RetroMenuEntry.ColorPick(getString(R.string.retro_lr_background_color), customColors.body) { value ->
-                    customColors.body = value
-                    persistColors()
-                },
-            )
-            add(
-                RetroMenuEntry.Action(getString(R.string.retro_lr_reset_colors), RetroDrawerIcons.Reset) {
-                    customColors = RetroCustomColors()
-                    persistColors()
-                    Toast.makeText(this@RetroActivity, getString(R.string.retro_lr_colors_reset), Toast.LENGTH_SHORT).show()
-                },
-            )
-        }
+                onCloseMenu = { menu.close() },
+                showStickInversion = system?.id == RetroSystems.PSX.id || RetroCoreManager.usesDolphinCore(system),
+            ),
+        )
 
     private fun setHudVisible(value: Boolean) {
         hudVisible = value
@@ -1538,7 +1424,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             frameRating?.visibility = View.GONE
             applyDisplayGeometry()
         }
-        persistExtra(RetroShortcuts.KEY_HUD, if (value) "1" else "0")
+        RetroDefaults.setHud(this, system?.id ?: "", value)
         menu.rebuild()
     }
 
@@ -1863,6 +1749,7 @@ class RetroActivity : FixedFontScaleAppCompatActivity(), RetroInputView.Listener
             check(RetroSaveStates.writeSlot(this, gameName, slot, bytes))
         }.onSuccess {
             showInGameMessage(getString(R.string.retro_lr_saved_to_slot, slot))
+            launchExitCloudBackup()
         }.onFailure {
             showInGameMessage(getString(R.string.retro_lr_could_not_save_state))
         }

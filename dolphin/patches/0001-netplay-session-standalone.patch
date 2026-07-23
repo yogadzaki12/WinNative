@@ -1,0 +1,21 @@
+diff --git a/Source/Android/app/src/main/java/org/dolphinemu/dolphinemu/features/netplay/NetplaySession.kt b/Source/Android/app/src/main/java/org/dolphinemu/dolphinemu/features/netplay/NetplaySession.kt
+index 56676c4..380e0f4 100644
+--- a/Source/Android/app/src/main/java/org/dolphinemu/dolphinemu/features/netplay/NetplaySession.kt
++++ b/Source/Android/app/src/main/java/org/dolphinemu/dolphinemu/features/netplay/NetplaySession.kt
+@@ -30,7 +30,6 @@ import org.dolphinemu.dolphinemu.features.netplay.model.SaveTransferProgress
+ import org.dolphinemu.dolphinemu.features.netplay.model.TraversalState
+ import org.dolphinemu.dolphinemu.features.settings.model.StringSetting
+ import org.dolphinemu.dolphinemu.model.GameFile
+-import org.dolphinemu.dolphinemu.services.GameFileCacheManager
+ 
+ class NetplaySession(
+     private val onClosed: (NetplaySession) -> Unit,
+@@ -38,7 +37,7 @@ class NetplaySession(
+ 
+     @Keep
+     private var netPlayUICallbacksPointer: Long =
+-        nativeCreateUICallbacks(GameFileCacheManager.getGameFiles().value ?: emptyArray())
++        nativeCreateUICallbacks(emptyArray())
+ 
+     @Keep
+     private var netPlayClientPointer: Long = 0
