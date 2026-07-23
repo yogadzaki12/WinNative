@@ -396,15 +396,15 @@ fun RetroNetplaySettingsSection(
                 }
             }
 
-            RetroSettingTextField(
-                stringResource(R.string.retro_gs_netplay_port),
-                port.toString(),
-                RetroNetplayLobby.DEFAULT_TCP_PORT.toString(),
-            ) {
-                it.toIntOrNull()?.let { p ->
-                    RetroDefaults.setNetplayPort(context, systemId, p)
-                    onChanged()
-                }
+            RetroNetplayEditField(
+                label = stringResource(R.string.retro_gs_netplay_port),
+                value = port.toString(),
+                placeholder = RetroNetplayLobby.DEFAULT_TCP_PORT.toString(),
+                numeric = true,
+            ) { entered ->
+                val p = entered.toIntOrNull() ?: RetroNetplayLobby.DEFAULT_TCP_PORT
+                RetroDefaults.setNetplayPort(context, systemId, p)
+                onChanged()
             }
 
             if (inSession) {
@@ -527,10 +527,10 @@ fun RetroNetplaySettingsSection(
             }
 
             if (mode == "join" && !inSession) {
-                RetroSettingTextField(
-                    stringResource(R.string.retro_gs_netplay_host),
-                    host,
-                    stringResource(R.string.retro_gs_netplay_host_hint),
+                RetroNetplayEditField(
+                    label = stringResource(R.string.retro_gs_netplay_host),
+                    value = host,
+                    placeholder = stringResource(R.string.retro_gs_netplay_host_hint),
                 ) {
                     RetroDefaults.setNetplayHost(context, systemId, it)
                     onChanged()
@@ -544,6 +544,37 @@ fun RetroNetplaySettingsSection(
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(bottom = 6.dp),
                 )
+                if (discovered.isNotEmpty()) {
+                    discovered.forEach { room ->
+                        RoomResultRow(
+                            room = room,
+                            onClick = {
+                                joinNow(
+                                    address = room.hostAddress,
+                                    joinPort = room.port,
+                                    game = room.gameName.ifBlank { roomLabel },
+                                )
+                            },
+                        )
+                        Spacer(Modifier.height(6.dp))
+                    }
+                    Text(
+                        stringResource(R.string.retro_netplay_select_room_hint),
+                        color = GameSettingsStyle.TextDim,
+                        fontSize = 11.sp,
+                        softWrap = true,
+                        maxLines = 3,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(10.dp))
+                } else if (phase == RetroNetplayPhase.SCAN_RESULTS) {
+                    Text(
+                        stringResource(R.string.retro_netplay_no_rooms),
+                        color = GameSettingsStyle.TextDim,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
+                }
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -640,38 +671,6 @@ fun RetroNetplaySettingsSection(
                             },
                         fontSize = 12.sp,
                         modifier = Modifier.padding(top = 8.dp),
-                    )
-                }
-
-                if (discovered.isNotEmpty()) {
-                    Spacer(Modifier.height(8.dp))
-                    discovered.forEach { room ->
-                        RoomResultRow(
-                            room = room,
-                            onClick = {
-                                joinNow(
-                                    address = room.hostAddress,
-                                    joinPort = room.port,
-                                    game = room.gameName.ifBlank { roomLabel },
-                                )
-                            },
-                        )
-                        Spacer(Modifier.height(6.dp))
-                    }
-                    Text(
-                        stringResource(R.string.retro_netplay_select_room_hint),
-                        color = GameSettingsStyle.TextDim,
-                        fontSize = 11.sp,
-                        softWrap = true,
-                        maxLines = 3,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                } else if (phase == RetroNetplayPhase.SCAN_RESULTS) {
-                    Text(
-                        stringResource(R.string.retro_netplay_no_rooms),
-                        color = GameSettingsStyle.TextDim,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 4.dp),
                     )
                 }
             }

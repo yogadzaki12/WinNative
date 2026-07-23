@@ -5,6 +5,7 @@ import android.content.Intent
 import com.winlator.cmod.R
 import com.winlator.cmod.runtime.container.Shortcut
 import org.dolphinemu.dolphinemu.wn.DolphinEmulationActivity
+import org.dolphinemu.dolphinemu.wn.DolphinNetplay
 
 /** Launches GC/Wii into embedded Dolphin with the resolved settings vars. */
 object DolphinEmbedLaunch {
@@ -147,6 +148,14 @@ object DolphinEmbedLaunch {
             shortcut.getExtra(RetroShortcuts.KEY_ADAPTIVE_STICKS).ifEmpty {
                 if (RetroDefaults.adaptiveSticks(context, sysId)) "1" else "0"
             }
+        val netplayArmed = RetroDefaults.netplayEnabled(context, sysId)
+        val netplayHost = RetroDefaults.netplayHostMode(context, sysId)
+        val netplayTraversal = RetroDefaults.netplayTraversal(context, sysId)
+        val netplayAddress = RetroDefaults.netplayHost(context, sysId)
+        val netplayHostCode = RetroDefaults.netplayHostCode(context, sysId)
+        val netplayPort = RetroDefaults.netplayPort(context, sysId)
+        val netplayNick = RetroDefaults.netplayPlayerName(context)
+        if (netplayArmed) RetroDefaults.setNetplayEnabled(context, sysId, false)
         return Intent(context, DolphinEmulationActivity::class.java).apply {
             putExtra(DolphinEmulationActivity.EXTRA_ROM_PATH, RetroShortcuts.romPath(shortcut))
             putExtra(DolphinEmulationActivity.EXTRA_SYSTEM_ID, system?.id)
@@ -157,6 +166,15 @@ object DolphinEmbedLaunch {
             putExtra(DolphinEmulationActivity.EXTRA_SHORTCUT_PATH, shortcut.file.absolutePath)
             putExtra(DolphinEmulationActivity.EXTRA_CONTAINER_ID, shortcut.container.id)
             putExtra(DolphinEmulationActivity.EXTRA_VARIABLES, vars)
+            if (netplayArmed) {
+                putExtra(DolphinNetplay.EXTRA_ENABLE, true)
+                putExtra(DolphinNetplay.EXTRA_HOST, netplayHost)
+                putExtra(DolphinNetplay.EXTRA_TRAVERSAL, netplayTraversal)
+                putExtra(DolphinNetplay.EXTRA_ADDRESS, netplayAddress)
+                putExtra(DolphinNetplay.EXTRA_HOST_CODE, netplayHostCode)
+                putExtra(DolphinNetplay.EXTRA_PORT, netplayPort)
+                putExtra(DolphinNetplay.EXTRA_NICKNAME, netplayNick)
+            }
         }
     }
 

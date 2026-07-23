@@ -16,20 +16,31 @@ PS2 games are recognized and imported into the library. PS2 emulation is built o
 | ARMSX2 | PS2 emulation + RetroAchievements | GPL-3.0 | https://github.com/ARMSX2/ARMSX2 |
 | PCSX2 | Upstream project ARMSX2 is derived from | GPL-3.0 | https://github.com/pcsx2/pcsx2 |
 
+## GameCube / Wii
+
+GameCube and Wii games are recognized and imported into the library. GC/Wii emulation is
+built on an embedded build of **Dolphin**, rendered on Vulkan and driven entirely by
+WinNative (Dolphin's own UI is stripped). Local and online multiplayer use Dolphin's own
+native NetPlay engine.
+
+| Component | Role | License | Source |
+| --- | --- | --- | --- |
+| Dolphin | GameCube/Wii emulation + NetPlay | GPL-2.0-or-later | https://github.com/dolphin-emu/dolphin |
+
 ## Bundled libretro cores
 
 Each core is shipped as an unmodified `arm64-v8a` build and loaded through LibretroDroid.
 
 | System | Core | License | Source |
 | --- | --- | --- | --- |
-| NES | FCEUmm | GPL-2.0 | https://github.com/libretro/libretro-fceumm |
-| SNES | Snes9x | Snes9x License (non-commercial) | https://github.com/libretro/snes9x |
 | Game Boy / Color | Gambatte | GPL-2.0 | https://github.com/libretro/gambatte-libretro |
 | Game Boy Advance | mGBA | MPL-2.0 | https://github.com/libretro/mgba |
 | Genesis / Master System / Game Gear | Genesis Plus GX | Genesis Plus GX License (non-commercial) | https://github.com/libretro/Genesis-Plus-GX |
+| NES | FCEUmm | GPL-2.0 | https://github.com/libretro/libretro-fceumm |
 | Nintendo 64 | ParaLLEl N64 | GPL-2.0 | https://github.com/libretro/parallel-n64 |
 | Nintendo 64 | Mupen64Plus-Next | GPL-2.0 | https://github.com/libretro/mupen64plus-libretro-nx |
 | PlayStation | Beetle PSX (mednafen_psx) | GPL-2.0 | https://github.com/libretro/beetle-psx-libretro |
+| SNES | Snes9x | Snes9x License (non-commercial) | https://github.com/libretro/snes9x |
 
 ### Also evaluated for PlayStation
 
@@ -42,9 +53,9 @@ Each core is shipped as an unmodified `arm64-v8a` build and loaded through Libre
 | Component | Role | License | Source |
 | --- | --- | --- | --- |
 | LibretroDroid | libretro frontend the retro backend is built on | GPL-3.0 | https://github.com/Swordfish90/LibretroDroid |
+| Oboe | Audio output | Apache-2.0 | https://github.com/google/oboe |
 | rcheevos | RetroAchievements client library | MIT | https://github.com/RetroAchievements/rcheevos |
 | Snapdragon Game Super Resolution (SGSR) | Upscaling shader | BSD-3-Clause | https://github.com/quic/snapdragon-gsr |
-| Oboe | Audio output | Apache-2.0 | https://github.com/google/oboe |
 | Winlator | Windows-on-Android base this project forks | GPL-3.0 | https://github.com/brunodev85/winlator |
 
 ## Source availability

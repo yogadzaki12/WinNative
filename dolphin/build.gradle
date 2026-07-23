@@ -47,7 +47,7 @@ android {
     // src/main and excluded here.
     def dolphinVendorSrc = "$projectDir/emucore-src/Source/Android/app/src/main/java"
     def dolphinVendorSrcDir = new File(dolphinVendorSrc)
-    def dolphinVendorOut = layout.buildDirectory.dir("generated/dolphinJava")
+    def dolphinVendorOut = file("$projectDir/vendored/java")
     tasks.register('vendorDolphinJava', Sync) {
         onlyIf { dolphinVendorSrcDir.isDirectory() }
         from(dolphinVendorSrc) {
@@ -83,11 +83,13 @@ android {
         }
         into dolphinVendorOut
     }
-    tasks.matching { it.name == 'preBuild' }.configureEach { dependsOn 'vendorDolphinJava' }
+    if (dolphinBuildNative) {
+        tasks.matching { it.name == 'preBuild' }.configureEach { dependsOn 'vendorDolphinJava' }
+    }
 
     sourceSets {
         main {
-            java.srcDirs += dolphinVendorOut.get().asFile
+            java.srcDirs += dolphinVendorOut
             // Version-matched Sys files straight from the pinned clone (asset path "Sys/...").
             if (new File("$projectDir/emucore-src/Data/Sys").isDirectory()) {
                 assets.srcDirs += "$projectDir/emucore-src/Data"

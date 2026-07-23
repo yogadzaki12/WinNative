@@ -8,6 +8,7 @@ enum class RetroOnlineMode {
     DEV9_ONLINE,
     LIBRETRO_NETPLAY,
     GAME_LINK,
+    DOLPHIN_NETPLAY,
 }
 
 object RetroOnlineSupport {
@@ -28,7 +29,7 @@ object RetroOnlineSupport {
             -> RetroOnlineMode.GAME_LINK
             RetroSystems.GAMECUBE.id,
             RetroSystems.WII.id,
-            -> RetroOnlineMode.NONE
+            -> RetroOnlineMode.DOLPHIN_NETPLAY
             else -> RetroOnlineMode.NONE
         }
 
@@ -41,6 +42,9 @@ object RetroOnlineSupport {
 
     fun supportsGameLink(systemId: String?): Boolean =
         modeFor(systemId) == RetroOnlineMode.GAME_LINK
+
+    fun supportsDolphinNetplay(systemId: String?): Boolean =
+        modeFor(systemId) == RetroOnlineMode.DOLPHIN_NETPLAY
 
     fun supportsMultiplayerUi(systemId: String?): Boolean =
         supportsNetplayCore(systemId) || supportsGameLink(systemId)

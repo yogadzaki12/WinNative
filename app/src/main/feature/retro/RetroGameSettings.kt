@@ -2,11 +2,13 @@ package com.winlator.cmod.feature.retro
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -30,9 +32,11 @@ import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -241,7 +245,10 @@ private fun buildRetroSections(state: RetroSettingsState): List<RetroSection> {
     sections += RetroSection(RetroSectionId.HUD, Icons.Outlined.Speed, R.string.retro_gs_section_hud)
     sections += RetroSection(RetroSectionId.INPUT, Icons.Outlined.SportsEsports, R.string.retro_gs_section_input)
     sections += RetroSection(RetroSectionId.AUDIO, Icons.AutoMirrored.Outlined.VolumeUp, R.string.retro_gs_section_audio)
-    if (RetroOnlineSupport.supportsDev9(systemId) || RetroOnlineSupport.supportsMultiplayerUi(systemId)) {
+    if (RetroOnlineSupport.supportsDev9(systemId) ||
+        RetroOnlineSupport.supportsMultiplayerUi(systemId) ||
+        RetroOnlineSupport.supportsDolphinNetplay(systemId)
+    ) {
         sections += RetroSection(RetroSectionId.ONLINE, Icons.Outlined.Public, R.string.retro_gs_section_online)
     }
     if (state.system?.isExternal == true) {
@@ -364,10 +371,12 @@ private fun RetroSectionContent(
                     RetroSectionId.INPUT -> RetroInputSection(state)
                     RetroSectionId.AUDIO -> RetroAudioSection(state)
                     RetroSectionId.ONLINE -> {
-                        if (RetroOnlineSupport.supportsDev9(state.system?.id)) {
-                            RetroPs2OnlineSection(state)
-                        } else {
-                            RetroNetplaySection(state)
+                        when {
+                            RetroOnlineSupport.supportsDev9(state.system?.id) ->
+                                RetroPs2OnlineSection(state)
+                            RetroOnlineSupport.supportsDolphinNetplay(state.system?.id) ->
+                                RetroDolphinNetplaySection(state)
+                            else -> RetroNetplaySection(state)
                         }
                     }
                     RetroSectionId.CHEATS -> RetroPs2CheatsSection(state)
@@ -1057,18 +1066,71 @@ internal fun RetroLibretroHudSection() {
             version++
         }
         if (hudOn) {
-            RetroHudSupport.ELEMENT_ORDER.forEach { index ->
-                RetroSettingSwitch(
-                    stringResource(RetroHudSupport.ELEMENT_LABEL_RES[index]),
-                    elements[index],
-                ) { on ->
-                    val next = elements.copyOf()
-                    next[index] = on
-                    RetroHudSupport.saveGlobalHudElements(context, next)
-                    version++
-                }
+            RetroHudElementButtons(elements) { index, on ->
+                val next = elements.copyOf()
+                next[index] = on
+                RetroHudSupport.saveGlobalHudElements(context, next)
+                version++
             }
         }
+    }
+}
+
+@Composable
+private fun RetroHudElementButtons(
+    elements: BooleanArray,
+    onToggle: (index: Int, on: Boolean) -> Unit,
+) {
+    RetroHudSupport.ELEMENT_ORDER.toList().chunked(3).forEach { rowIndices ->
+        Row(
+            Modifier.fillMaxWidth().padding(top = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            rowIndices.forEach { index ->
+                val on = elements[index]
+                HudToggleButton(
+                    label = stringResource(RetroHudSupport.ELEMENT_LABEL_RES[index]),
+                    on = on,
+                    modifier = Modifier.weight(1f),
+                ) { onToggle(index, !on) }
+            }
+            repeat(3 - rowIndices.size) { Spacer(Modifier.weight(1f)) }
+        }
+    }
+}
+
+@Composable
+private fun HudToggleButton(
+    label: String,
+    on: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier.height(40.dp),
+        shape = RoundedCornerShape(8.dp),
+        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
+        border =
+            BorderStroke(
+                1.dp,
+                if (on) GameSettingsStyle.AccentBlue else GameSettingsStyle.CardBorder,
+            ),
+        colors =
+            ButtonDefaults.outlinedButtonColors(
+                containerColor =
+                    if (on) GameSettingsStyle.AccentBlue.copy(alpha = 0.15f) else Color.Transparent,
+                contentColor =
+                    if (on) GameSettingsStyle.AccentBlue else GameSettingsStyle.TextSecondary,
+            ),
+    ) {
+        Text(
+            label,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -1340,16 +1402,11 @@ private fun RetroPs2HudSection() {
             version++
         }
         if (hudOn) {
-            RetroHudSupport.ELEMENT_ORDER.forEach { index ->
-                RetroSettingSwitch(
-                    stringResource(RetroHudSupport.ELEMENT_LABEL_RES[index]),
-                    elements[index],
-                ) { on ->
-                    val next = elements.copyOf()
-                    next[index] = on
-                    RetroHudSupport.savePs2Elements(context, next)
-                    version++
-                }
+            RetroHudElementButtons(elements) { index, on ->
+                val next = elements.copyOf()
+                next[index] = on
+                RetroHudSupport.savePs2Elements(context, next)
+                version++
             }
         }
     }
@@ -1360,6 +1417,17 @@ private fun RetroNetplaySection(state: RetroSettingsState) {
     val systemId = state.system?.id ?: return
     var version by remember { androidx.compose.runtime.mutableIntStateOf(0) }
     RetroNetplaySettingsSection(
+        systemId = systemId,
+        version = version,
+        onChanged = { version++ },
+    )
+}
+
+@Composable
+private fun RetroDolphinNetplaySection(state: RetroSettingsState) {
+    val systemId = state.system?.id ?: return
+    var version by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    DolphinNetplaySettingsSection(
         systemId = systemId,
         version = version,
         onChanged = { version++ },

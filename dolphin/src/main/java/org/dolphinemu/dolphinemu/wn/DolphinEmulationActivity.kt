@@ -66,6 +66,7 @@ class DolphinEmulationActivity :
         stopping = true
         runCatching { File(filesDir, "dolphin-embed/.running_rom").delete() }
         thread(name = "WnDolphinTeardown") {
+            runCatching { DolphinNetplay.stop() }
             if (emulationStarted) {
                 runCatching { NativeLibrary.StopEmulation() }
                 runThread?.join(15000)
@@ -355,8 +356,21 @@ class DolphinEmulationActivity :
                     NativeLibrary.ReloadConfig()
                     applySysconf(vars)
                     runCatching { File(filesDir, "dolphin-embed/.running_rom").writeText(romPath) }
-                    Log.i(TAG, "Booting $romPath vars=${vars.size}")
-                    NativeLibrary.Run(arrayOf(romPath), false)
+                    val netplay = DolphinNetplay.fromIntent(intent)
+                    if (netplay != null) {
+                        Log.i(TAG, "Netplay ${if (netplay.host) "host" else "join"} boot $romPath")
+                        val bootData = DolphinNetplay.startAndAwaitBoot(this, romPath, netplay)
+                        if (bootData == 0L) {
+                            Log.w(TAG, "Netplay boot aborted")
+                            emulationStarted = false
+                            teardown()
+                            return@thread
+                        }
+                        NativeLibrary.RunNetPlay(arrayOf(romPath), false, bootData)
+                    } else {
+                        Log.i(TAG, "Booting $romPath vars=${vars.size}")
+                        NativeLibrary.Run(arrayOf(romPath), false)
+                    }
                     Log.i(TAG, "Run() returned")
                     emulationStarted = false
                     teardown()

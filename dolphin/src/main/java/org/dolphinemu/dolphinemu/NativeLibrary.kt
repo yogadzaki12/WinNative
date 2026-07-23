@@ -110,6 +110,12 @@ object NativeLibrary {
         deleteSavestate: Boolean,
     )
 
+    @JvmStatic external fun RunNetPlay(
+        path: Array<String>,
+        riivolution: Boolean,
+        bootSessionDataPointer: Long,
+    )
+
     @JvmStatic external fun RunSystemMenu()
 
     @JvmStatic external fun ChangeDisc(path: String)

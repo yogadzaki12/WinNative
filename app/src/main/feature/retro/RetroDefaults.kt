@@ -90,10 +90,10 @@ object RetroDefaults {
 
     fun netplayPort(context: Context, systemId: String): Int {
         val fallback =
-            if (RetroOnlineSupport.supportsGameLink(systemId)) {
-                RetroGameLink.DEFAULT_PORT
-            } else {
-                55435
+            when {
+                RetroOnlineSupport.supportsGameLink(systemId) -> RetroGameLink.DEFAULT_PORT
+                RetroOnlineSupport.supportsDolphinNetplay(systemId) -> 2626
+                else -> 55435
             }
         return prefs(context).getInt(key("netplay_port", systemId), fallback)
     }
@@ -106,6 +106,18 @@ object RetroDefaults {
 
     fun setNetplayHostMode(context: Context, systemId: String, value: Boolean) =
         prefs(context).edit().putBoolean(key("netplay_host_mode", systemId), value).apply()
+
+    fun netplayTraversal(context: Context, systemId: String): Boolean =
+        prefs(context).getBoolean(key("netplay_traversal", systemId), false)
+
+    fun setNetplayTraversal(context: Context, systemId: String, value: Boolean) =
+        prefs(context).edit().putBoolean(key("netplay_traversal", systemId), value).apply()
+
+    fun netplayHostCode(context: Context, systemId: String): String =
+        prefs(context).getString(key("netplay_host_code", systemId), "") ?: ""
+
+    fun setNetplayHostCode(context: Context, systemId: String, value: String) =
+        prefs(context).edit().putString(key("netplay_host_code", systemId), value.trim()).apply()
 
     fun netplayPlayerName(context: Context): String =
         prefs(context).getString("retro_netplay_player_name", "") ?: ""

@@ -63,7 +63,6 @@ fun RetroDefaultsScreen(bridge: SettingsNavBridge? = null) {
     var expandedConsole by remember { mutableStateOf<String?>(null) }
     var refresh by remember { mutableIntStateOf(0) }
     var confirmHardcore by remember { mutableStateOf(false) }
-    var creditsTab by remember { mutableIntStateOf(0) }
     val contentNav = rememberSettingsContentNav(bridge)
 
     if (confirmHardcore) {
@@ -124,8 +123,6 @@ fun RetroDefaultsScreen(bridge: SettingsNavBridge? = null) {
                 .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        RetroSettingsTabBar(creditsTab) { creditsTab = it }
-        if (creditsTab == 0) {
         Text(
             stringResource(R.string.retro_scr_retro_defaults),
             color = PageSub,
@@ -445,7 +442,7 @@ fun RetroDefaultsScreen(bridge: SettingsNavBridge? = null) {
             style = MaterialTheme.typography.labelMedium,
         )
 
-        RetroSystems.ALL.forEach { console ->
+        RetroSystems.ALL.sortedBy { it.displayName }.forEach { console ->
             val sys = console.id
             val expanded = expandedConsole == sys
             RetroSettingGroup {
@@ -832,68 +829,15 @@ fun RetroDefaultsScreen(bridge: SettingsNavBridge? = null) {
                             version = refresh,
                             onChanged = { refresh++ },
                         )
+                    } else if (RetroOnlineSupport.supportsDolphinNetplay(sys)) {
+                        DolphinNetplaySettingsSection(
+                            systemId = sys,
+                            version = refresh,
+                            onChanged = { refresh++ },
+                        )
                     }
                 }
             }
-        }
-        }
-
-        if (creditsTab == 1) {
-        Text(
-            stringResource(R.string.retro_scr_credits_licenses),
-            color = PageSub,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.sp,
-            modifier = Modifier.padding(top = 4.dp),
-        )
-        Text(
-            stringResource(R.string.retro_scr_credits_desc),
-            color = PageSub,
-            style = MaterialTheme.typography.labelMedium,
-        )
-        RetroSettingGroup {
-            RETRO_CREDITS.forEach { credit ->
-                Row(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                runCatching {
-                                    context.startActivity(
-                                        android.content.Intent(
-                                            android.content.Intent.ACTION_VIEW,
-                                            android.net.Uri.parse(credit.url),
-                                        ),
-                                    )
-                                }
-                            }
-                            .paneNavItem(
-                                cornerRadius = 8.dp,
-                                onActivate = {
-                                    runCatching {
-                                        context.startActivity(
-                                            android.content.Intent(
-                                                android.content.Intent.ACTION_VIEW,
-                                                android.net.Uri.parse(credit.url),
-                                            ),
-                                        )
-                                    }
-                                },
-                                highlightColor = Color(0xFF4FC3F7),
-                                tapToSelect = true,
-                            )
-                            .padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(credit.name, color = PageText, style = MaterialTheme.typography.bodyMedium)
-                        Text(credit.detail, color = PageSub, fontSize = 11.sp)
-                    }
-                    Text(credit.license, color = PageSub, fontSize = 11.sp)
-                }
-            }
-        }
         }
     }
     }
@@ -910,75 +854,6 @@ private fun scanMessage(context: android.content.Context, result: RetroRomScanne
         context.getString(R.string.retro_scan_roms, parts.joinToString(", "))
     }
 }
-
-@Composable
-private fun RetroSettingsTabBar(selected: Int, onSelect: (Int) -> Unit) {
-    val tabs = listOf(stringResource(R.string.retro_scr_tab_defaults), stringResource(R.string.retro_scr_tab_credits))
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(10.dp))
-                .background(Color(0xFF1A1A26))
-                .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        tabs.forEachIndexed { index, label ->
-            val active = index == selected
-            Box(
-                modifier =
-                    Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (active) Color(0xFF1A9FFF).copy(alpha = 0.18f) else Color.Transparent)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                        ) { onSelect(index) }
-                        .paneNavItem(
-                            cornerRadius = 8.dp,
-                            onActivate = { onSelect(index) },
-                            highlightColor = Color(0xFF4FC3F7),
-                            tapToSelect = true,
-                        )
-                        .padding(vertical = 8.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    label,
-                    color = if (active) Color(0xFF58A6FF) else PageSub,
-                    fontSize = 13.sp,
-                    fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
-                )
-            }
-        }
-    }
-}
-
-private data class RetroCredit(
-    val name: String,
-    val detail: String,
-    val license: String,
-    val url: String,
-)
-
-private val RETRO_CREDITS =
-    listOf(
-        RetroCredit("ARMSX2", "PlayStation 2", "GPL-3.0", "https://github.com/ARMSX2/ARMSX2"),
-        RetroCredit("PCSX2", "PS2 upstream of ARMSX2", "GPL-3.0", "https://github.com/pcsx2/pcsx2"),
-        RetroCredit("FCEUmm", "NES", "GPL-2.0", "https://github.com/libretro/libretro-fceumm"),
-        RetroCredit("Snes9x", "SNES", "Snes9x", "https://github.com/libretro/snes9x"),
-        RetroCredit("Gambatte", "Game Boy / Color", "GPL-2.0", "https://github.com/libretro/gambatte-libretro"),
-        RetroCredit("mGBA", "Game Boy Advance", "MPL-2.0", "https://github.com/libretro/mgba"),
-        RetroCredit("Genesis Plus GX", "Genesis / SMS / GG", "GPX", "https://github.com/libretro/Genesis-Plus-GX"),
-        RetroCredit("ParaLLEl N64", "Nintendo 64", "GPL-2.0", "https://github.com/libretro/parallel-n64"),
-        RetroCredit("Beetle PSX", "PlayStation", "GPL-2.0", "https://github.com/libretro/beetle-psx-libretro"),
-        RetroCredit("SwanStation", "PlayStation", "GPL-3.0", "https://github.com/libretro/swanstation"),
-        RetroCredit("LibretroDroid", "libretro frontend", "GPL-3.0", "https://github.com/Swordfish90/LibretroDroid"),
-        RetroCredit("rcheevos", "RetroAchievements", "MIT", "https://github.com/RetroAchievements/rcheevos"),
-        RetroCredit("Snapdragon GSR", "Upscaling", "BSD-3", "https://github.com/quic/snapdragon-gsr"),
-        RetroCredit("Winlator", "Windows-on-Android base", "GPL-3.0", "https://github.com/brunodev85/winlator"),
-    )
 
 @Composable
 fun RetroHardcoreConfirmDialog(

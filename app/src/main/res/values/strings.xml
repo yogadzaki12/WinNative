@@ -2054,6 +2054,16 @@ Installed path:
     <string name="retro_netplay_room_players">Players</string>
     <string name="retro_netplay_players_count">%1$d connected</string>
     <string name="retro_netplay_joined">Joined</string>
+    <string name="retro_netplay_dolphin_help">GameCube/Wii NetPlay uses Dolphin\'s own engine. Host = Player 1, Join = Player 2. Pick Host or Join and a connection type before launch; both devices boot the same game together.</string>
+    <string name="retro_netplay_connection">Connection</string>
+    <string name="retro_netplay_conn_direct">LAN (direct IP)</string>
+    <string name="retro_netplay_conn_traversal">Online (host code)</string>
+    <string name="retro_netplay_host_code">Host code</string>
+    <string name="retro_netplay_host_code_hint">Traversal host code from the host</string>
+    <string name="retro_netplay_dolphin_host_lan_hint">Share your device\'s Wi‑Fi IP and this port with Player 2. The game starts automatically once they connect.</string>
+    <string name="retro_netplay_dolphin_host_online_hint">A host code is shown when the game boots — share it with Player 2. The game starts automatically once they connect.</string>
+    <string name="retro_netplay_dolphin_join_lan_hint">Enter the host\'s Wi‑Fi IP and port, then launch to connect.</string>
+    <string name="retro_netplay_dolphin_join_online_hint">Enter the host code from Player 1, then launch to connect.</string>
     <string name="retro_tab_netplay">NetPlay</string>
     <string name="retro_gs_ethernet_device">Ethernet Device</string>
     <string name="retro_gs_net_auto">Auto</string>
@@ -2198,7 +2208,7 @@ Installed path:
     <string name="retro_scr_sgsr_upscaling">SGSR upscaling</string>
     <string name="retro_scr_performance_hud">Performance HUD</string>
     <string name="retro_scr_credits_licenses">CREDITS &amp; LICENSES</string>
-    <string name="retro_scr_credits_desc">WinNative\'s retro features are built on these open-source projects. Tap to view each source.</string>
+    <string name="retro_scr_credits_desc">Some of WinNative\'s features are built on these open-source projects. Tap to view each source.</string>
     <string name="retro_scr_tab_defaults">Defaults</string>
     <string name="retro_scr_tab_credits">Credits</string>
     <string name="retro_scr_enable_hardcore_title">Enable Hardcore mode?</string>
