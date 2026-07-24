@@ -381,6 +381,14 @@ object Ps2GameOverlay {
             MainActivityRuntime.runWhenNativeReady { runCatching { block() } }
         }
 
+        // The user-driven counterpart to bg {}. The pad, the drawer and the
+        // achievement poll are all live while the boot screen is still up (the
+        // overlay attaches before init on purpose), so each one can reach native
+        // early — and unlike bg {} there is nothing worth queueing: a button press
+        // or a menu open during boot is meaningless once the VM finally starts.
+        // Drop the interaction instead.
+        fun nativeUp(): Boolean = MainActivityRuntime.isNativeReady()
+
         fun gsSetAsync(key: String, type: String, value: String) = bg { gsSet(key, type, value) }
 
         fun spSet(key: String, type: String, value: String) {
@@ -1083,10 +1091,12 @@ object Ps2GameOverlay {
         val listener =
             object : RetroInputView.Listener {
                 override fun onButton(keyCode: Int, down: Boolean) {
+                    if (!nativeUp()) return
                     NativeApp.setPadButton(mapFace(keyCode), if (down) FULL else 0, down)
                 }
 
                 override fun onDpad(x: Float, y: Float) {
+                    if (!nativeUp()) return
                     NativeApp.setPadButton(KeyEvent.KEYCODE_DPAD_LEFT, if (x < -0.3f) FULL else 0, x < -0.3f)
                     NativeApp.setPadButton(KeyEvent.KEYCODE_DPAD_RIGHT, if (x > 0.3f) FULL else 0, x > 0.3f)
                     NativeApp.setPadButton(KeyEvent.KEYCODE_DPAD_UP, if (y < -0.3f) FULL else 0, y < -0.3f)
@@ -1094,16 +1104,22 @@ object Ps2GameOverlay {
                 }
 
                 override fun onStick(x: Float, y: Float) {
+                    if (!nativeUp()) return
                     emitAxis(111, 113, x)
                     emitAxis(112, 110, y)
                 }
 
                 override fun onRightStick(x: Float, y: Float) {
+                    if (!nativeUp()) return
                     emitAxis(121, 123, x)
                     emitAxis(122, 120, y)
                 }
 
                 override fun onMenu() {
+                    // rebuild() asks the entry providers for state, and several read
+                    // native (save-slot paths, memcards) — so the drawer stays shut
+                    // until init is done.
+                    if (!nativeUp()) return
                     activity.runOnUiThread {
                         pad?.releaseAll()
                         menu.rebuild()
@@ -1116,6 +1132,8 @@ object Ps2GameOverlay {
         WinNativeHost.openMenu = {
             activity.runOnUiThread {
                 if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                // Same reason as the pad's onMenu: rebuild() reads native state.
+                if (!nativeUp()) return@runOnUiThread
                 // No debounce on open — only prevent double-toggle spam when already open.
                 if (menu.visible) {
                     if (!menuToggleGate.allow()) return@runOnUiThread
@@ -1162,6 +1180,15 @@ object Ps2GameOverlay {
             object : Runnable {
                 override fun run() {
                     if (activity.isFinishing || activity.isDestroyed) return
+                    // This starts 3s after attach, which on a cold boot lands inside
+                    // emucore init (the asset copy force-refreshes shaders and the
+                    // 2.7MB GameIndex.yaml every launch). getAchievementsJSON() before
+                    // init is a native null-deref on the MAIN thread — keep polling
+                    // but touch nothing until init is done.
+                    if (!nativeUp()) {
+                        achievementPollHandler.postDelayed(this, 1500L)
+                        return
+                    }
                     // Native RA (rc_client) is not thread-safe: keep every
                     // getAchievementsJSON() call on the main thread, and pause while the
                     // achievements/cheats screen is open (it reads the same state) so the

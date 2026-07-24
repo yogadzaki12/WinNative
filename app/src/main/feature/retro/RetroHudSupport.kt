@@ -410,7 +410,14 @@ object RetroHudSupport {
                 override fun run() {
                     if (!running) return
                     val rating = ratingProvider()
-                    if (enabledProvider() && rating != null) {
+                    // start() is reached from the overlay's attach, i.e. before emucore
+                    // init has finished, and this then reads native every 16ms on the
+                    // main thread. Before initializeOnce that is a native null-deref
+                    // (which runCatching cannot catch — it kills :ps2 outright), so
+                    // keep ticking the UI but read nothing until init is done.
+                    if (enabledProvider() && rating != null &&
+                        com.armsx2.runtime.MainActivityRuntime.isNativeReady()
+                    ) {
                         val count = runCatching { kr.co.iefriends.pcsx2.NativeApp.getPresentedFrameCount() }.getOrDefault(0)
                         if (lastCount >= 0 && count >= lastCount) {
                             val delta = (count - lastCount).coerceAtMost(8)

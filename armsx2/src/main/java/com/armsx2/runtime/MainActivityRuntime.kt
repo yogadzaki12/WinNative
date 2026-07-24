@@ -229,6 +229,16 @@ open class MainActivityRuntime : ComponentActivity() {
             if (!deferred) Thread { runCatching { block() } }.start()
         }
 
+        /**
+         * True once emucore's settings layer exists and NativeApp entry points are
+         * safe to call. For paths that cannot simply be deferred because they are
+         * driven by the user (pad input, the drawer, the achievement poll): those
+         * are reachable while the boot screen is still up, so they must check this
+         * and do nothing rather than queue work the user no longer wants.
+         */
+        @JvmStatic
+        fun isNativeReady(): Boolean = synchronized(nativeReadyLock) { nativeInitialized }
+
         /** Drain the queue on the emulator thread once initializeOnce has returned. */
         private fun flushNativeReadyWaiters() {
             val pending = synchronized(nativeReadyLock) {
