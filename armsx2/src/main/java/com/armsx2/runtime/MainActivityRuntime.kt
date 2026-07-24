@@ -1329,11 +1329,14 @@ open class MainActivityRuntime : ComponentActivity() {
             }
         }
 
-        fun getSupportedGLESVersion(context: Context): Double {
-            val am = context.getSystemService(ACTIVITY_SERVICE) as ActivityManager
-            val info = am.deviceConfigurationInfo
-            return info.glEsVersion.toDouble()
-        }
+        /** Unreadable probe returns MAX_VALUE ("supported"): this runs in onCreate,
+         *  where a throw would take the process down, and refusing to boot on a
+         *  device we merely failed to measure is worse than letting it try. */
+        fun getSupportedGLESVersion(context: Context): Double =
+            runCatching {
+                val am = context.getSystemService(ACTIVITY_SERVICE) as ActivityManager
+                am.deviceConfigurationInfo.glEsVersion.toDouble()
+            }.getOrDefault(Double.MAX_VALUE)
 
         fun isAndroidEmulator(): Boolean {
             return Build.MODEL.startsWith("sdk_")
@@ -1662,6 +1665,15 @@ open class MainActivityRuntime : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         applyEdgeToEdge()
         super.onCreate(savedInstanceState)
+        // The emucore .so failed to load (missing ABI/page-size variant, packaging
+        // regression), so every JNI call from here on throws UnsatisfiedLinkError and
+        // the process would die on whichever one ran first — an instant close with
+        // nothing logged. Bail out deliberately, before init or any native touch.
+        if (NativeApp.hasNoNativeBinary) {
+            android.util.Log.e("ARMSX2", "emucore native library missing — finishing")
+            finish()
+            return
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isStatusBarContrastEnforced = false
             window.isNavigationBarContrastEnforced = false
@@ -1803,6 +1815,18 @@ open class MainActivityRuntime : ComponentActivity() {
         if (isAndroidEmulator()) {
             eState.value = EmuState.EMULATOR_UNSUPPORTED
             println("DEVICE_UNSUPPORTED")
+        }
+
+        // Backstop. Nothing ever clears these two states and start() refuses to run
+        // unless eState is STOPPED, so reaching here used to mean a black screen that
+        // hangs forever — the armsx2 library UI that reported it is gone under the
+        // WinNative host. The host screens for this before launching (see
+        // RetroShortcuts.launchEmbeddedPs2) and explains why; if we somehow get here
+        // anyway, hand the user back to the library instead of wedging.
+        if (eState.value == EmuState.RENDER_UNSUPPORTED || eState.value == EmuState.EMULATOR_UNSUPPORTED) {
+            android.util.Log.e("ARMSX2", "device cannot run the emulator (${eState.value}) — finishing")
+            finish()
+            return
         }
         handleExternalLaunchIntent(intent)
         // Unhosted edge case (the activity launched directly, without the WinNative

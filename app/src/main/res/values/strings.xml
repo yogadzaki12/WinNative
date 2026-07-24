@@ -1842,6 +1842,7 @@ Installed path:
     <string name="retro_lr_failed_load_core">Failed to load emulator core</string>
     <string name="retro_lr_failed_load_rom">Failed to load ROM</string>
     <string name="retro_lr_graphics_not_supported">Graphics not supported for this core</string>
+    <string name="retro_ps2_device_unsupported">This device can\'t run PS2 emulation — it needs OpenGL ES 3.1 or newer.</string>
     <string name="retro_lr_emulator_error">Emulator error</string>
     <string name="retro_lr_shader_default">Default</string>
     <string name="retro_lr_shader_crt">CRT</string>

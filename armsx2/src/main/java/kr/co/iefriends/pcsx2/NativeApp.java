@@ -30,12 +30,20 @@ public class NativeApp {
 			System.loadLibrary(libraryName);
 			hasNoNativeBinary = false;
 			System.out.println("PCSX2_LOAD " + libraryName + " pageSize=" + getRuntimePageSize());
-		} catch (UnsatisfiedLinkError e) {
+		} catch (Throwable e) {
 			hasNoNativeBinary = true;
-			System.err.println("PCSX2_LOAD_FAILED " + libraryName + ": " + e.getMessage());
+			android.util.Log.e("ARMSX2", "PCSX2_LOAD_FAILED " + libraryName
+					+ " pageSize=" + getRuntimePageSize(), e);
 		}
 	}
 
+	/**
+	 * True when the emucore .so could not be loaded (missing ABI/page-size variant,
+	 * or a packaging regression). Every native entry point below then throws
+	 * UnsatisfiedLinkError, so callers MUST check this and bail out with a message
+	 * rather than letting the :ps2 process die on the first JNI call — see
+	 * MainActivityRuntime.onCreate.
+	 */
 	public static boolean hasNoNativeBinary;
 
 	private static long getRuntimePageSize() {

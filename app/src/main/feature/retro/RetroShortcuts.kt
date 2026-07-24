@@ -183,12 +183,41 @@ object RetroShortcuts {
             Toast.makeText(context, context.getString(com.winlator.cmod.R.string.retro_rom_missing), Toast.LENGTH_LONG).show()
             return
         }
+        // emucore needs GLES 3.1. Below that the activity can only reach a dead end,
+        // so refuse here where we can still say why — screening before launch beats
+        // opening a black window and finishing (armsx2 keeps a backstop for that).
+        if (!ps2GpuSupported(context)) {
+            Toast.makeText(
+                context,
+                context.getString(com.winlator.cmod.R.string.retro_ps2_device_unsupported),
+                Toast.LENGTH_LONG,
+            ).show()
+            return
+        }
         Ps2GameOverlay.install()
         // BIOS discovery/copy and the cross-process prefs commit are disk I/O — keep
         // them off the UI thread, then start the :ps2 activity once the flags are
         // durably written (the emulator's cold start reads them).
         kotlin.concurrent.thread(name = "WnPs2Launch") {
             val biosPath = ensurePs2Bios(context)
+            // No BIOS means emucore's LoadBIOS fails and the VM stops the moment it
+            // starts, leaving the user on a dead black screen with nothing said. The
+            // libretro path already refuses to launch in this case (RetroActivity's
+            // showBiosRequiredDialog); PS2 used to launch anyway. Same refusal here,
+            // reported the way the missing-ROM branch above does.
+            if (biosPath == null) {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    Toast.makeText(
+                        context,
+                        context.getString(
+                            com.winlator.cmod.R.string.retro_lr_bios_required_title,
+                            RetroSystems.PS2.shortName,
+                        ) + "\n" + context.getString(com.winlator.cmod.R.string.retro_scr_ps2_bios_format),
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+                return@thread
+            }
             val prefs = context.getSharedPreferences("ARMSX2", Context.MODE_PRIVATE)
             // On-screen controls / adaptive sticks are GLOBAL wn.ps2.* prefs — the single
             // source of truth shared by the shortcut settings Input section AND the
@@ -217,7 +246,7 @@ object RetroShortcuts {
                 putString("wn.ps2.hddimage", shortcut.getExtra(KEY_HDD_IMAGE))
                 putBoolean("wn.ps2.hdd", shortcut.getExtra(KEY_HDD_ENABLE) == "1")
                 putString("romsDirs", org.json.JSONArray().put(rom.parent ?: "").toString())
-                if (biosPath != null) putString("bios", biosPath)
+                putString("bios", biosPath)
                 putString("customDriverId", customDriverId)
                 commit()
             }
@@ -238,6 +267,15 @@ object RetroShortcuts {
             }
         }
     }
+
+    /** Same probe armsx2 gates on, so the two can't disagree about a device.
+     *  An unreadable probe means "allow": refusing to launch on a device we simply
+     *  failed to measure would be worse than the dead end this is guarding. */
+    private fun ps2GpuSupported(context: Context): Boolean =
+        runCatching {
+            val am = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+            am.deviceConfigurationInfo.glEsVersion.toDouble()
+        }.getOrDefault(Double.MAX_VALUE) >= 3.1
 
     private fun ensurePs2Bios(context: Context): String? {
         val biosDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "bios")
