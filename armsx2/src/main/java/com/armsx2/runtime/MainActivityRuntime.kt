@@ -56,7 +56,9 @@ import com.armsx2.runtime.MainActivityRuntime.Companion.internalBiosDir
 import com.armsx2.runtime.MainActivityRuntime.Companion.romsDirs
 import com.armsx2.ui.InGameOverlay
 import com.armsx2.ui.WindowImpl
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.launch
 import kr.co.iefriends.pcsx2.AssetFiles
@@ -183,7 +185,63 @@ open class MainActivityRuntime : ComponentActivity() {
         val customDriverId = mutableStateOf<String?>(null)
 
         private val eDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
-        private val eScope = CoroutineScope(eDispatcher)
+
+        // SupervisorJob + handler. A throw inside invoke {} used to cancel this scope
+        // outright, which silently dropped every LATER emulator task (the scope is a
+        // process-lifetime singleton) and — with no default uncaught handler installed
+        // in the :ps2 process — killed the process with no diagnostic. Now a failed
+        // task is logged and the scope survives to run the next one.
+        private val eScope = CoroutineScope(
+            eDispatcher + SupervisorJob() +
+                CoroutineExceptionHandler { _, t ->
+                    android.util.Log.e("ARMSX2", "emulator task failed", t)
+                },
+        )
+
+        // ---- Native-init latch -------------------------------------------------
+        // emucore's Host::SetBase*SettingValue null-derefs when it runs before
+        // NativeApp.initializeOnce installs the base settings layer — a native crash
+        // that takes down :ps2 with no Java stack trace. The VM boot path already
+        // defers on `nativeReady`; anything ELSE that calls into NativeApp (notably
+        // the WinNative host overlay, which attaches deliberately early) must defer
+        // through runWhenNativeReady instead of racing init on its own thread.
+        private val nativeReadyLock = Any()
+        private var nativeInitialized = false
+        private val nativeReadyWaiters = ArrayList<() -> Unit>()
+
+        /**
+         * Run [block] off the UI thread once emucore's settings layer exists.
+         * Already initialized -> runs on a fresh background thread. Not yet -> queued
+         * and drained on the emulator thread at the end of init, which orders it
+         * BEFORE the VM boot task (single-threaded dispatcher), so host settings are
+         * applied to the very first boot rather than a frame late.
+         */
+        @JvmStatic
+        fun runWhenNativeReady(block: () -> Unit) {
+            val deferred = synchronized(nativeReadyLock) {
+                if (nativeInitialized) {
+                    false
+                } else {
+                    nativeReadyWaiters.add(block)
+                    true
+                }
+            }
+            if (!deferred) Thread { runCatching { block() } }.start()
+        }
+
+        /** Drain the queue on the emulator thread once initializeOnce has returned. */
+        private fun flushNativeReadyWaiters() {
+            val pending = synchronized(nativeReadyLock) {
+                nativeInitialized = true
+                val copy = ArrayList(nativeReadyWaiters)
+                nativeReadyWaiters.clear()
+                copy
+            }
+            for (waiter in pending) {
+                runCatching { waiter() }
+                    .onFailure { android.util.Log.e("ARMSX2", "deferred native task failed", it) }
+            }
+        }
 
         /**
          * Resolve the user-chosen system folder (a SAF tree URI persisted
@@ -1432,6 +1490,12 @@ open class MainActivityRuntime : ComponentActivity() {
                     NativeApp.commitSettings()
                 }
             }
+
+            // Settings layer is live and the BIOS is pinned — release anything the
+            // host queued while init was running (see runWhenNativeReady). Drained
+            // here, before the slow BIOS mirror below, and still inside this task so
+            // the single-threaded dispatcher orders it ahead of the VM boot task.
+            flushNativeReadyWaiters()
 
             // Mirror the canonical (app-private) BIOS into the user's data root at
             // <dataRoot>/bios so it's visible/backup-able next to cache/covers/etc.

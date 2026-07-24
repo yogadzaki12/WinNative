@@ -43,6 +43,13 @@ class PluviaApp : Application() {
         super.onCreate()
         instance = this
 
+        // Install BEFORE the :ps2/:gc early return. The emulator runs in its own
+        // process, so a crash there used to die completely unlogged — which is what
+        // made "the game just closes instantly" reports impossible to diagnose.
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            Log.e("PluviaApp", "CRASH in thread ${thread.name}", throwable)
+        }
+
         com.winlator.cmod.feature.retro.Ps2GameOverlay.install()
         com.winlator.cmod.feature.retro.DolphinGameOverlay.install()
         if (isPs2Process()) return
@@ -58,10 +65,6 @@ class PluviaApp : Application() {
         com.winlator.cmod.app.service.NetworkMonitor
             .init(this)
         scheduleColdStartWarmups()
-
-        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            Log.e("PluviaApp", "CRASH in thread ${thread.name}", throwable)
-        }
     }
 
     companion object {

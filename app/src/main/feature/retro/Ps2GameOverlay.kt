@@ -287,9 +287,13 @@ object Ps2GameOverlay {
                     if (controllerConnected.value != was) manualTouchOverride.value = false
                     val showPad = touchVisible.value && (!controllerConnected.value || manualTouchOverride.value)
                     RetroAchievementOverlayState.syncPlacement(showPad, controllerConnected.value)
-                    Thread {
+                    // apply() writes EmuCore/GS settings, so it defers like bg {} —
+                    // a controller hotplug during emucore init would otherwise reach
+                    // native before the settings layer exists. (bg is declared below,
+                    // hence the direct call here.)
+                    MainActivityRuntime.runWhenNativeReady {
                         runCatching { RetroPs2OsdPlacement.apply(showPad, controllerConnected.value) }
-                    }.start()
+                    }
                 }
 
                 override fun onInputDeviceAdded(deviceId: Int) = refreshPadPresence()
@@ -364,8 +368,17 @@ object Ps2GameOverlay {
             }
         }
 
+        // Every bg {} body below calls into NativeApp, and this overlay attaches
+        // deliberately EARLY — before emucore's heavy init (asset copy, then
+        // initializeOnce). Calling a setting/render entry point before that layer
+        // exists null-derefs inside native and kills the :ps2 process outright: an
+        // instant close with no Java stack trace, and runCatching can't catch it.
+        // How wide the window is depends on how long the asset copy takes, so it
+        // hits fresh installs and slow storage while looking fine on a warm device.
+        // runWhenNativeReady queues until init has finished (and runs the block
+        // immediately, off the UI thread, when it already has).
         fun bg(block: () -> Unit) {
-            Thread { runCatching { block() } }.start()
+            MainActivityRuntime.runWhenNativeReady { runCatching { block() } }
         }
 
         fun gsSetAsync(key: String, type: String, value: String) = bg { gsSet(key, type, value) }
@@ -390,8 +403,12 @@ object Ps2GameOverlay {
 
         // Auto-apply the per-game DNAS bypass once the disc serial/CRC are known,
         // so online-revival games get past Sony's dead DNAS check by default.
-        kotlin.concurrent.thread(name = "ps2-dnas-bypass") {
-            Ps2DnasBypass.applyWhenReady(activity)
+        // Deferred like every other native caller here — applyWhenReady polls
+        // NativeApp.getGameSerial() in a loop, which must not start before init.
+        MainActivityRuntime.runWhenNativeReady {
+            kotlin.concurrent.thread(name = "ps2-dnas-bypass") {
+                Ps2DnasBypass.applyWhenReady(activity)
+            }
         }
 
         bg {
@@ -1127,16 +1144,16 @@ object Ps2GameOverlay {
             }
         }
 
-        Thread {
-            runCatching {
-                Ps2RaBridge.pushSharedLogin(activity)
-                NativeApp.setAchievementsOption("notifications", false)
-                NativeApp.setAchievementsOption("leaderboardNotifications", false)
-                NativeApp.setSetting("Achievements", "Notifications", "bool", "false")
-                NativeApp.setSetting("Achievements", "LeaderboardNotifications", "bool", "false")
-                NativeApp.commitSettings()
-            }
-        }.start()
+        // Same deferral as bg {}: this pushes RA credentials and achievement options
+        // straight into emucore's settings layer, so it must not run before init.
+        bg {
+            Ps2RaBridge.pushSharedLogin(activity)
+            NativeApp.setAchievementsOption("notifications", false)
+            NativeApp.setAchievementsOption("leaderboardNotifications", false)
+            NativeApp.setSetting("Achievements", "Notifications", "bool", "false")
+            NativeApp.setSetting("Achievements", "LeaderboardNotifications", "bool", "false")
+            NativeApp.commitSettings()
+        }
 
         val achievementPollHandler = android.os.Handler(android.os.Looper.getMainLooper())
         var knownUnlocked = emptySet<Int>()
