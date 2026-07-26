@@ -22,6 +22,14 @@ object RetroShortcuts {
     const val KEY_HDD_ENABLE = "retro_ps2_hdd_enable"
     const val KEY_AUDIO = "retro_audio"
     const val KEY_HUD = "retro_hud"
+
+    /** Passed to the embedded PS2 activity so the in-game overlay (a different
+     *  process) can identify the game the same way the pre-launch screens do. The
+     *  intent's data URI is a content:// handle, which rcheevos cannot hash — the
+     *  achievement client needs the real file path, and the disc serial is not a
+     *  title. */
+    const val EXTRA_PS2_ROM_PATH = "wn_ps2_rom_path"
+    const val EXTRA_PS2_GAME_NAME = "wn_ps2_game_name"
     const val VAR_PREFIX = "retro_var_"
 
     fun coreVariables(shortcut: Shortcut): HashMap<String, String> {
@@ -261,6 +269,8 @@ object RetroShortcuts {
                     setClassName(context, "com.armsx2.Main")
                     setDataAndType(uri, "application/octet-stream")
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    putExtra(EXTRA_PS2_ROM_PATH, rom.absolutePath)
+                    putExtra(EXTRA_PS2_GAME_NAME, shortcut.getExtra("custom_name", shortcut.name))
                 }
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 runCatching { context.startActivity(intent) }

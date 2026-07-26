@@ -554,22 +554,27 @@ internal fun Ps2CheatRow(
 @Composable
 fun Ps2AchievementsScreen(
     context: Context,
+    /** Real ROM path from the launch intent — see RetroShortcuts.EXTRA_PS2_ROM_PATH.
+     *  Blank only if the activity was started without it. */
+    romPath: String,
+    /** The shortcut's display name, i.e. what the pre-launch screens show. */
+    launchGameName: String,
     onBack: () -> Unit,
 ) {
+    // getGameSerial() returns the disc serial ("SLUS-20946"), not a title — using it
+    // here is why the in-game screen showed the disc name. Prefer the name the user
+    // launched, then the ROM's filename; the serial is not a reasonable label. When
+    // achievements do resolve, the RA summary title replaces this anyway.
     val gameName =
-        remember {
-            runCatching { NativeApp.getGameSerial() }.getOrNull()?.takeIf { it.isNotBlank() }
+        remember(romPath, launchGameName) {
+            launchGameName.takeIf { it.isNotBlank() }
+                ?: romPath.takeIf { it.isNotBlank() }?.let { java.io.File(it).nameWithoutExtension }
                 ?: context.getString(R.string.retro_ps2_tab_menu)
         }
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            Ps2RaBridge.pushSharedLogin(context)
-        }
-    }
     RetroAchievementsScreen(
         systemId = RetroSystems.PS2.id,
         gameName = gameName,
-        romPath = "",
+        romPath = romPath,
         inSession = true,
         onClose = onBack,
         useNativePs2 = true,

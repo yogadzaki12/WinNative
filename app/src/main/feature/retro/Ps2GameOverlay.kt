@@ -278,6 +278,12 @@ object Ps2GameOverlay {
         // Manual re-show of touch controls while a controller is connected; cleared
         // whenever controller presence changes so auto behaviour resumes.
         val manualTouchOverride = mutableStateOf(false)
+        // Identity of the game being played, handed over by the host at launch. The
+        // intent's data URI is a content:// handle that rcheevos cannot hash, so the
+        // achievements screen needs the real path; and the emulator only knows the
+        // disc serial, which is not a title.
+        val launchRomPath = activity.intent?.getStringExtra(RetroShortcuts.EXTRA_PS2_ROM_PATH).orEmpty()
+        val launchGameName = activity.intent?.getStringExtra(RetroShortcuts.EXTRA_PS2_GAME_NAME).orEmpty()
         val inputManager = activity.getSystemService(android.hardware.input.InputManager::class.java)
         inputManager?.registerInputDeviceListener(
             object : android.hardware.input.InputManager.InputDeviceListener {
@@ -1286,7 +1292,13 @@ object Ps2GameOverlay {
                             BackHandler(enabled = true) { dismiss() }
                             when (screen) {
                                 "cheats" -> Ps2CheatsScreen(activity, dismiss)
-                                "achievements" -> Ps2AchievementsScreen(activity, dismiss)
+                                "achievements" ->
+                                    Ps2AchievementsScreen(
+                                        activity,
+                                        romPath = launchRomPath,
+                                        launchGameName = launchGameName,
+                                        onBack = dismiss,
+                                    )
                             }
                             return@WinNativeTheme
                         }

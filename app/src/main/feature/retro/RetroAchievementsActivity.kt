@@ -305,6 +305,29 @@ internal fun RetroAchievementsScreen(
                         pointsTotal = last.sumOf { it.points },
                         pointsUnlocked = last.filter { it.unlocked }.sumOf { it.points },
                     )
+                loading = false
+                return@LaunchedEffect
+            }
+            // The emulator's own client had nothing to give — in-session PS2 this is
+            // the normal case, because emucore only identifies the game when RA was
+            // configured before the VM booted. Rather than leave an empty list under
+            // a placeholder title, resolve it the way the pre-launch screens do: hash
+            // the ROM through the manager. Unlock state is then whatever RA has
+            // server-side, which is still far better than showing nothing.
+            if (romPath.isNotBlank()) {
+                RetroAchievementsManager.loadGameForBrowsing(context, systemId, romPath)
+                var browseAttempts = 0
+                while (RetroAchievementsManager.loadState == RetroAchievementsManager.LOAD_LOADING &&
+                    browseAttempts < 80
+                ) {
+                    delay(250)
+                    browseAttempts++
+                }
+                withContext(Dispatchers.IO) { RetroAchievementsManager.getSummary() }
+                    ?.let { summary = it }
+                withContext(Dispatchers.IO) { RetroAchievementsManager.getAchievements() }
+                    .takeIf { it.isNotEmpty() }
+                    ?.let { achievements = it }
             }
             loading = false
             return@LaunchedEffect

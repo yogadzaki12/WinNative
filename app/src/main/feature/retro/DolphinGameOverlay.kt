@@ -440,7 +440,13 @@ object DolphinGameOverlay {
                                     gameName = activity.intent.getStringExtra(
                                         DolphinEmulationActivity.EXTRA_GAME_NAME,
                                     ) ?: system.displayName,
-                                    romPath = "",
+                                    // Same reason as PS2: when the emulator's own RA
+                                    // client has nothing loaded, this lets the screen
+                                    // fall back to hashing the ROM instead of showing
+                                    // an empty list. The path is already in the intent.
+                                    romPath = activity.intent.getStringExtra(
+                                        DolphinEmulationActivity.EXTRA_ROM_PATH,
+                                    ).orEmpty(),
                                     inSession = true,
                                     onClose = dismiss,
                                     floatingOverGame = true,
