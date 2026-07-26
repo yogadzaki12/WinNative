@@ -74,6 +74,22 @@ public class FrameRating extends LinearLayout implements Runnable {
   private static final int ANCHOR_LEFT_CENTER = 6;
   private static final int ANCHOR_RIGHT_CENTER = 7;
   private int currentAnchor = ANCHOR_NONE;
+
+  /**
+   * Z re-applied on every attach (see onAttachedToWindow). It has to be re-applied
+   * because the HUD is detached/re-attached as hosts come and go, but that also means
+   * it OVERWRITES anything a caller set on the instance — so hosts must configure it
+   * through setHudElevation, not View.setElevation, or the value is silently lost the
+   * moment the view attaches.
+   *
+   * <p>The default suits the PC/Wine host. The retro hosts (PS2, Dolphin, libretro)
+   * raise it because they run their controls and menu in a full-screen layer at 2000f;
+   * below that the HUD is both painted over and unable to receive touch, since
+   * elevation decides draw order and hit-test order alike.
+   */
+  public static final float DEFAULT_HUD_ELEVATION = 1000.0f;
+
+  private float hudElevation = DEFAULT_HUD_ELEVATION;
   private PopupWindow positionPopup;
   private ViewTreeObserver.OnGlobalLayoutListener parentLayoutListener;
   private final int C_BAT;
@@ -365,7 +381,7 @@ public class FrameRating extends LinearLayout implements Runnable {
     // attach walk it makes the walker skip the sibling that shifts into this view's old slot,
     // leaving that sibling permanently unattached. Z-order is held by the elevation either way.
     post(this::bringToFront);
-    setElevation(1000.0f);
+    setElevation(this.hudElevation);
     restorePersistedPosition();
     installParentLayoutListener();
     removeCallbacks(this);
@@ -423,6 +439,16 @@ public class FrameRating extends LinearLayout implements Runnable {
       parentView.getViewTreeObserver().removeOnGlobalLayoutListener(this.parentLayoutListener);
     }
     this.parentLayoutListener = null;
+  }
+
+  /**
+   * Set the Z this HUD keeps across attaches. Use this rather than setElevation:
+   * onAttachedToWindow re-applies the stored value, so a plain setElevation is
+   * discarded as soon as the view is attached.
+   */
+  public void setHudElevation(float elevation) {
+    this.hudElevation = elevation;
+    setElevation(elevation);
   }
 
   // ── Touch: tap cycles display mode, drag moves HUD, long-press shows menu ──

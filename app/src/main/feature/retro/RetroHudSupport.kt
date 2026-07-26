@@ -17,11 +17,14 @@ object RetroHudSupport {
      * Z for the in-game HUD, above the retro overlays' Compose layer (all three —
      * PS2, Dolphin and libretro — host theirs in a full-screen view at 2000f).
      *
-     * Elevation outranks child order for BOTH drawing and touch dispatch, so at the
-     * default 0 the HUD rendered underneath the touch controls AND never received a
-     * tap: its tap/drag/long-press listener was live but unreachable, so the HUD
-     * could not be moved. addView index games can't fix that (RetroActivity already
-     * inserts it ahead of the menu view and it made no difference) — only Z can.
+     * Elevation outranks child order for BOTH drawing and touch dispatch, so below
+     * that layer the HUD is painted over by the pad — including the letterbox fill
+     * it draws around the 4:3 game area, which is exactly where the HUD tends to sit
+     * — AND never receives a touch: its tap/drag/long-press listener was live the
+     * whole time, just unreachable, so the HUD could not be moved.
+     *
+     * addView index games cannot fix this (RetroActivity already inserts the HUD
+     * ahead of the menu view and it made no difference) — only Z can.
      *
      * WRAP_CONTENT keeps the hit area to the HUD's own bounds, so being on top costs
      * the layers below nothing outside that small rectangle.
@@ -273,7 +276,9 @@ object RetroHudSupport {
     ): FrameRating {
         val rating = FrameRating(context, HashMap<String, String>())
         rating.setRenderer(rendererLabel)
-        rating.elevation = HUD_ELEVATION
+        // setHudElevation, not .elevation: FrameRating re-applies its stored Z in
+        // onAttachedToWindow, which silently discards a plain elevation assignment.
+        rating.setHudElevation(HUD_ELEVATION)
         rating.visibility = View.GONE
         return rating
     }
