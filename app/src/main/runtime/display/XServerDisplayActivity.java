@@ -768,7 +768,7 @@ public class XServerDisplayActivity extends FixedFontScaleAppCompatActivity
     private void applyFrameGenerationSettings(VulkanRenderer renderer, Container container) {
         if (renderer == null) return;
 
-        String containerValue = container != null ? container.getExtra("frameGen", "0") : "0";
+        String containerValue = container != null ? container.getExtra("frameGen", "1") : "1";
         String containerMultiplier = container != null ? container.getExtra("frameGenMultiplier", "2") : "2";
         String containerTargetRate = container != null ? container.getExtra("frameGenTargetRate", "0") : "0";
         String containerFlowScale = container != null ? container.getExtra("frameGenFlowScale", "70") : "70";
@@ -938,7 +938,7 @@ public class XServerDisplayActivity extends FixedFontScaleAppCompatActivity
 
     private void saveFrameGenerationSettings() {
         if (shortcut != null) {
-            boolean overridden = saveFrameGenOverride("frameGen", frameGenEnabled ? "1" : "0", "0");
+            boolean overridden = saveFrameGenOverride("frameGen", frameGenEnabled ? "1" : "0", "1");
             overridden |= saveFrameGenOverride("frameGenMultiplier",
                     String.valueOf(frameGenMultiplier), "2");
             overridden |= saveFrameGenOverride("frameGenTargetRate",

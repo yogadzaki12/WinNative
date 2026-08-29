@@ -519,7 +519,7 @@ class ShortcutSettingsComposeDialog private constructor(
                 ?: 100
 
         state.frameGenEnabled.value =
-            getShortcutSetting("frameGen", container.getExtra("frameGen", "0")) == "1"
+            getShortcutSetting("frameGen", container.getExtra("frameGen", "1")) == "1"
         state.frameGenMultiplier.intValue =
             getShortcutSetting("frameGenMultiplier", container.getExtra("frameGenMultiplier", "2"))
                 .toIntOrNull()
@@ -1318,7 +1318,7 @@ class ShortcutSettingsComposeDialog private constructor(
             hasContainerOverride = hasContainerOverride or saveOverride(
                 "frameGen",
                 if (state.frameGenEnabled.value) "1" else "0",
-                container.getExtra("frameGen", "0"),
+                container.getExtra("frameGen", "1"),
             )
             hasContainerOverride = hasContainerOverride or saveOverride(
                 "frameGenMultiplier",
